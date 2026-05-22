@@ -33,7 +33,30 @@ class SimulationExecutionProvider:
         price: Decimal,
         now: datetime,
     ) -> SimulationResult:
-        if risk_result.final_action is not FinalAction.BUY:
+        return self.execute_if_applicable(
+            risk_result=risk_result,
+            portfolio=portfolio,
+            experiment_id=experiment_id,
+            execution_step_id=execution_step_id,
+            risk_check_id=risk_check_id,
+            timestamp=timestamp,
+            price=price,
+            now=now,
+        )
+
+    def execute_if_applicable(
+        self,
+        *,
+        risk_result: RiskResult,
+        portfolio: PortfolioModel,
+        experiment_id: int,
+        execution_step_id: int,
+        risk_check_id: int,
+        timestamp: datetime,
+        price: Decimal,
+        now: datetime,
+    ) -> SimulationResult:
+        if risk_result.final_action is FinalAction.HOLD:
             return SimulationResult(order=None, trade=None)
 
         quantity = risk_result.final_quantity
@@ -41,11 +64,21 @@ class SimulationExecutionProvider:
             return SimulationResult(order=None, trade=None)
 
         order_value = (quantity * price).quantize(Decimal("0.0001"))
-        portfolio.cash = (portfolio.cash - order_value).quantize(Decimal("0.0001"))
-        portfolio.position_symbol = "SPY"
-        portfolio.position_quantity = (
-            (portfolio.position_quantity or Decimal("0")) + quantity
-        )
+        if risk_result.final_action is FinalAction.BUY:
+            side = OrderSide.BUY
+            portfolio.cash = (portfolio.cash - order_value).quantize(Decimal("0.0001"))
+            portfolio.position_symbol = "SPY"
+            portfolio.position_quantity = (
+                (portfolio.position_quantity or Decimal("0")) + quantity
+            )
+        elif risk_result.final_action is FinalAction.SELL:
+            side = OrderSide.SELL
+            portfolio.cash = (portfolio.cash + order_value).quantize(Decimal("0.0001"))
+            portfolio.position_symbol = None
+            portfolio.position_quantity = Decimal("0")
+            portfolio.current_position_value = Decimal("0.0000")
+        else:
+            return SimulationResult(order=None, trade=None)
 
         order = OrderModel(
             execution_step_id=execution_step_id,
@@ -55,7 +88,7 @@ class SimulationExecutionProvider:
             broker_name=BrokerName.NONE,
             broker_order_id=None,
             symbol="SPY",
-            side=OrderSide.BUY,
+            side=side,
             quantity=quantity,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -71,7 +104,7 @@ class SimulationExecutionProvider:
             order_id=0,
             timestamp=timestamp,
             symbol="SPY",
-            side=OrderSide.BUY,
+            side=side,
             quantity=quantity,
             price=price,
             order_value=order_value,

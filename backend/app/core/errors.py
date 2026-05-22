@@ -38,3 +38,13 @@ class InvalidStatusAppError(AppError):
             status_code=409,
             details=details or {},
         )
+
+
+class InvalidExperimentConfigurationAppError(AppError):
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(
+            error_code="INVALID_EXPERIMENT_CONFIGURATION",
+            message=message,
+            status_code=409,
+            details=details or {},
+        )

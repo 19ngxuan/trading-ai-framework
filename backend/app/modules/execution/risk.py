@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_FLOOR
+from typing import Protocol
 
 from app.domain.enums import FinalAction, TradeAction
-from app.modules.strategies.buy_and_hold import StrategyDecision
 from app.persistence.models import PortfolioModel
+
+
+class StrategyDecisionLike(Protocol):
+    action: TradeAction
+    symbol: str
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -16,10 +22,10 @@ class RiskResult:
     rules_triggered_json: dict | None
 
 
-class BuyAndHoldRiskValidator:
+class HistoricalSimulationRiskValidator:
     def evaluate(
         self,
-        decision: StrategyDecision,
+        decision: StrategyDecisionLike,
         portfolio: PortfolioModel,
         price: Decimal,
     ) -> RiskResult:
@@ -29,6 +35,27 @@ class BuyAndHoldRiskValidator:
                 final_action=FinalAction.HOLD,
                 final_quantity=None,
                 final_notional=None,
+                rejection_reason=None,
+                rules_triggered_json=None,
+            )
+
+        if decision.action is TradeAction.SELL:
+            quantity = portfolio.position_quantity or Decimal("0")
+            if quantity <= 0:
+                return RiskResult(
+                    approved=True,
+                    final_action=FinalAction.HOLD,
+                    final_quantity=None,
+                    final_notional=None,
+                    rejection_reason="No SPY position exists to sell.",
+                    rules_triggered_json={"reason": "NO_POSITION_TO_SELL"},
+                )
+
+            return RiskResult(
+                approved=True,
+                final_action=FinalAction.SELL,
+                final_quantity=quantity,
+                final_notional=(quantity * price).quantize(Decimal("0.0001")),
                 rejection_reason=None,
                 rules_triggered_json=None,
             )
@@ -52,3 +79,7 @@ class BuyAndHoldRiskValidator:
             rejection_reason=None,
             rules_triggered_json=None,
         )
+
+
+class BuyAndHoldRiskValidator(HistoricalSimulationRiskValidator):
+    pass

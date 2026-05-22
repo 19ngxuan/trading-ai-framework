@@ -15,7 +15,7 @@ def _create_request_payload() -> dict:
     return {
         "name": "M2 experiment",
         "mode": "HISTORICAL_SIMULATION",
-        "strategyType": "MOVING_AVERAGE",
+        "strategyType": "AGENTIC_AI",
         "assetSymbol": "SPY",
         "initialCapital": 10000.0,
         "startDate": "2024-01-01",
@@ -24,8 +24,8 @@ def _create_request_payload() -> dict:
         "feeModelType": "NONE",
         "feeValue": 0,
         "strategyConfig": {
-            "strategyVersion": "moving-average-v1",
-            "movingAverageWindow": 200,
+            "strategyVersion": "agentic-ai-v1",
+            "movingAverageWindow": None,
             "positionSizingType": "ALL_IN",
             "agentMode": None,
             "modelName": None,
@@ -48,6 +48,25 @@ def _create_buy_and_hold_payload() -> dict:
     payload["strategyConfig"] = {
         "strategyVersion": "buy-and-hold-v1",
         "movingAverageWindow": None,
+        "positionSizingType": "ALL_IN",
+        "agentMode": None,
+        "modelName": None,
+        "confidenceThreshold": None,
+        "parametersJson": {"riskConfig": {"fallbackAction": "HOLD"}},
+    }
+    return payload
+
+
+def _create_moving_average_payload() -> dict:
+    payload = _create_request_payload()
+    payload["name"] = "M4 Moving Average"
+    payload["strategyType"] = "MOVING_AVERAGE"
+    payload["startDate"] = "2024-01-02"
+    payload["endDate"] = "2024-01-10"
+    payload["tradingFrequency"] = "DAILY"
+    payload["strategyConfig"] = {
+        "strategyVersion": "moving-average-v1",
+        "movingAverageWindow": 3,
         "positionSizingType": "ALL_IN",
         "agentMode": None,
         "modelName": None,
@@ -224,4 +243,60 @@ def test_start_non_m3_experiment_remains_lifecycle_only(client) -> None:
         assert experiment is not None
         assert experiment.status is ExperimentStatus.RUNNING
         assert step_count == 0
+    engine.dispose()
+
+
+def test_start_moving_average_historical_runs_background_simulation(client) -> None:
+    create_response = client.post(
+        "/api/v1/experiments", json=_create_moving_average_payload()
+    )
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert response.status_code == 202
+    assert response.json()["status"] == "RUNNING"
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step_count = session.scalar(
+            select(func.count(ExecutionStepModel.id)).where(
+                ExecutionStepModel.experiment_id == experiment_id
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.COMPLETED
+        assert step_count == 7
+    engine.dispose()
+
+
+def test_start_moving_average_non_daily_returns_409_without_artifacts(client) -> None:
+    payload = _create_moving_average_payload()
+    payload["tradingFrequency"] = "WEEKLY"
+    create_response = client.post("/api/v1/experiments", json=payload)
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "INVALID_EXPERIMENT_CONFIGURATION"
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step_count = session.scalar(
+            select(func.count(ExecutionStepModel.id)).where(
+                ExecutionStepModel.experiment_id == experiment_id
+            )
+        )
+        event_types = list(
+            session.scalars(
+                select(SystemEventLogModel.event_type).where(
+                    SystemEventLogModel.experiment_id == experiment_id
+                )
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.CREATED
+        assert step_count == 0
+        assert event_types == [SystemEventType.EXPERIMENT_CREATED]
     engine.dispose()
