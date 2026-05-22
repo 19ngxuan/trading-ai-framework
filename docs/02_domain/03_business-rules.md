@@ -1,0 +1,550 @@
+# Business Rules
+
+## 1. Purpose
+
+This document defines the core business rules for Trading Lab.
+
+These rules constrain how experiments, strategies, agents, risk checks, orders, trades, broker integration, metrics, and logs must behave.
+
+Business rules in this document are binding for implementation. Developers and AI coding agents must not bypass them without an explicit architecture or domain decision update.
+
+---
+
+## 2. Version 1 Scope Rules
+
+### BR-001: SPY is the only tradable asset in V1
+
+Version 1 supports only `SPY` as `asset_symbol`.
+
+Any attempt to configure another asset must be rejected or explicitly treated as unsupported.
+
+---
+
+### BR-002: Real-money trading is out of scope
+
+Version 1 must not support real-money trading.
+
+The system must not use live-trading broker endpoints.
+
+Only internal simulation and paper trading are allowed.
+
+---
+
+### BR-003: Paper trading must use paper endpoints only
+
+Paper-trading experiments must use broker paper-trading endpoints.
+
+If a live broker endpoint is detected, the system must reject the configuration or fail safely.
+
+---
+
+### BR-004: One experiment uses one strategy type
+
+An experiment must have exactly one configured strategy type:
+
+- `BUY_AND_HOLD`
+- `MOVING_AVERAGE`
+- `AGENTIC_AI`
+
+Strategy comparisons must be represented as multiple experiments, not as multiple strategy types inside one experiment.
+
+---
+
+### BR-005: One experiment has one current portfolio
+
+An experiment must have exactly one current `Portfolio`.
+
+In V1, the portfolio may hold at most one position, expected to be SPY.
+
+---
+
+## 3. Experiment Lifecycle Rules
+
+### BR-006: Experiments must start in CREATED status
+
+A newly created experiment must have status `CREATED`.
+
+It must not start automatically after creation.
+
+---
+
+### BR-007: Only valid status transitions are allowed
+
+Allowed transitions:
+
+```text
+CREATED → RUNNING
+RUNNING → PAUSED
+PAUSED → RUNNING
+RUNNING → STOPPED
+PAUSED → STOPPED
+RUNNING → COMPLETED
+RUNNING → FAILED
+```
+
+Invalid transitions must be rejected.
+
+---
+
+### BR-008: Completed and stopped experiments must not resume in V1
+
+Experiments with status `COMPLETED` or `STOPPED` must not be resumed in Version 1.
+
+A new experiment should be created instead.
+
+---
+
+### BR-009: Failed experiments require explicit inspection
+
+If an experiment reaches `FAILED`, it should not continue automatically.
+
+The error must be visible through `SystemEventLog` records.
+
+---
+
+## 4. Execution Step Rules
+
+### BR-010: Every strategy execution must create an ExecutionStep
+
+Every historical, scheduled, or manual strategy execution must be represented by an `ExecutionStep`.
+
+---
+
+### BR-011: ExecutionStep sequence numbers must be unique per experiment
+
+Each `ExecutionStep` must have a `sequence_number` unique within its experiment.
+
+---
+
+### BR-012: ExecutionStep trigger type must reflect how it was started
+
+Valid trigger types:
+
+- `HISTORICAL`
+- `SCHEDULED`
+- `MANUAL`
+
+Manual and scheduled execution must use the same business pipeline.
+
+---
+
+### BR-013: Concurrent execution for the same experiment is not allowed
+
+The system must not run two execution steps for the same experiment at the same time.
+
+---
+
+### BR-014: Every completed execution step must be auditable
+
+A completed execution step should have the relevant artifacts:
+
+- market data snapshot
+- trading decision
+- risk check
+- portfolio snapshot
+- metric snapshot
+
+If an order or trade occurred, those must also be linked.
+
+---
+
+## 5. Market Data Rules
+
+### BR-015: Market data must be accessed through the Market Data Module
+
+Strategies, agents, and frontend code must not call external market data providers directly.
+
+---
+
+### BR-016: Market data used for a decision must be snapshotted
+
+Every decision must be linked to the `MarketDataSnapshot` used to produce it.
+
+---
+
+### BR-017: Missing market data must not produce a trade
+
+If required market data is missing, the execution step must be skipped or failed safely.
+
+The system must store a `MARKET_DATA_MISSING` event.
+
+---
+
+## 6. Strategy Rules
+
+### BR-018: Strategies only produce TradingDecisions
+
+Strategies must not create orders, trades, or broker calls.
+
+They only produce standardized `TradingDecision` objects.
+
+---
+
+### BR-019: Strategy output must use supported actions
+
+A strategy decision must use one of:
+
+- `BUY`
+- `SELL`
+- `HOLD`
+
+Unsupported actions must be rejected or converted to safe fallback behavior.
+
+---
+
+### BR-020: Buy and Hold buys once, then holds
+
+The Buy-and-Hold strategy should buy SPY at the start of the experiment if no position exists.
+
+After entering the position, it should hold.
+
+---
+
+### BR-021: Moving Average strategy follows configured window
+
+The Moving Average strategy must use the configured moving average window.
+
+Default expected V1 value:
+
+```text
+200 trading days
+```
+
+---
+
+### BR-022: Moving Average strategy can buy, sell, or hold
+
+Expected V1 behavior:
+
+- price above moving average and no position → `BUY`
+- price above moving average and already positioned → `HOLD`
+- price below moving average and positioned → `SELL`
+- price below moving average and no position → `HOLD`
+
+---
+
+## 7. Agentic-AI Rules
+
+### BR-023: Agentic AI is a strategy type
+
+Agentic AI must be integrated as `strategy_type = AGENTIC_AI`.
+
+It must follow the same execution pipeline as rule-based strategies.
+
+---
+
+### BR-024: LLM output must never execute directly
+
+LLM output must not create orders or trades directly.
+
+It must first be converted into a standardized `TradingDecision`.
+
+---
+
+### BR-025: Agent decisions must be logged
+
+Agentic-AI experiments must store relevant `AgentDecisionLog` records.
+
+Logs should include:
+
+- input JSON
+- prompt text
+- raw output text
+- parsed output JSON
+- parsing status
+- repair prompt if used
+- repair output if used
+
+---
+
+### BR-026: Invalid LLM output must trigger repair
+
+If LLM output is invalid, the Agent Module must attempt a repair prompt.
+
+---
+
+### BR-027: Failed repair falls back to HOLD
+
+If repair fails, the system must use `HOLD` as fallback.
+
+A `FALLBACK_HOLD_USED` event should be recorded.
+
+---
+
+### BR-028: Agent Risk Manager is not the system Risk Engine
+
+A pipeline agent may include an agent step named `RISK_MANAGER`.
+
+This does not replace the system Risk Engine.
+
+Every final agent decision must still pass through the system Risk Engine.
+
+---
+
+## 8. Risk Rules
+
+### BR-029: Every TradingDecision must pass through RiskCheck
+
+No `TradingDecision` may be executed without a corresponding `RiskCheck`.
+
+---
+
+### BR-030: Risk Engine is authoritative
+
+Strategies and agents may suggest actions and sizes.
+
+The Risk Engine decides the final executable action and size.
+
+---
+
+### BR-031: SELL without position is forbidden
+
+The system must not execute a `SELL` if the portfolio does not have sufficient position quantity.
+
+---
+
+### BR-032: BUY without sufficient cash is forbidden
+
+The system must not execute a `BUY` that would make cash negative.
+
+---
+
+### BR-033: Short selling is forbidden in V1
+
+The system must not allow positions to become negative.
+
+---
+
+### BR-034: Margin trading is forbidden in V1
+
+The system must not allow purchases beyond available cash and configured limits.
+
+---
+
+### BR-035: Maximum position size must be enforced
+
+If a decision exceeds configured maximum position size, the Risk Engine must reduce or reject it.
+
+---
+
+### BR-036: Maximum trade frequency must be enforced
+
+If max trades per day or week is configured and exceeded, the Risk Engine must block further trades.
+
+---
+
+### BR-037: Max drawdown limit must be enforced if configured
+
+If a configured max drawdown limit is exceeded, the system must warn, pause, stop, or block trading according to experiment configuration.
+
+---
+
+## 9. Order and Trade Rules
+
+### BR-038: HOLD does not create an Order
+
+A final action of `HOLD` must not create an executable order.
+
+---
+
+### BR-039: Orders are created only after RiskCheck
+
+An order may be created only from an approved or adjusted `RiskCheck`.
+
+---
+
+### BR-040: Trades are created only after execution
+
+A `Trade` must be created only when an order is actually filled in simulation or paper trading.
+
+---
+
+### BR-041: Failed or rejected orders must not create trades
+
+If an order is rejected or failed, no trade should be created.
+
+The failure must be logged.
+
+---
+
+### BR-042: Order and Trade must remain distinguishable
+
+The system must not collapse orders and trades into the same domain concept.
+
+---
+
+## 10. Portfolio Rules
+
+### BR-043: Cash must not become negative
+
+Portfolio cash must never become negative through simulation or paper-trading state updates.
+
+---
+
+### BR-044: Position quantity must not become negative
+
+Position quantity must never become negative in V1.
+
+---
+
+### BR-045: Portfolio value must be calculated consistently
+
+Portfolio value should be calculated as:
+
+```text
+cash + position_quantity * current_price
+```
+
+for the V1 single-position model.
+
+---
+
+### BR-046: PortfolioSnapshot must be recorded after execution
+
+After each completed execution step, the system should record a `PortfolioSnapshot`.
+
+---
+
+## 11. Metrics Rules
+
+### BR-047: Metrics must update after each execution step
+
+The system must create or update a `MetricSnapshot` after each execution step.
+
+---
+
+### BR-048: Metrics must be reproducible
+
+Metrics should be reproducible from stored portfolio snapshots and trades.
+
+---
+
+### BR-049: Buy and Hold is a benchmark experiment
+
+Buy and Hold should be modeled as its own experiment, not only as an embedded calculation.
+
+---
+
+### BR-050: Max drawdown must use portfolio value history
+
+Max drawdown must be calculated from historical portfolio values, not from isolated trades.
+
+---
+
+## 12. Broker Rules
+
+### BR-051: Broker access must go through Broker Module
+
+Strategies, agents, API routes, and frontend code must not call Broker API directly.
+
+---
+
+### BR-052: Broker is source of truth in paper-trading mode
+
+For paper-trading experiments, broker cash, positions, and order state are authoritative.
+
+---
+
+### BR-053: Broker state mismatch pauses experiment
+
+If local state and broker state diverge, the system must:
+
+1. record a `BrokerSyncLog`
+2. record a `BROKER_STATE_MISMATCH` event
+3. pause the affected experiment
+
+---
+
+### BR-054: Broker failures must be logged
+
+Broker API failures must be recorded as system events.
+
+---
+
+## 13. Event and Logging Rules
+
+### BR-055: Important lifecycle events must be logged
+
+The system should log important lifecycle events such as:
+
+- experiment created
+- experiment started
+- experiment paused
+- experiment stopped
+- experiment completed
+
+---
+
+### BR-056: Errors must be logged as SystemEventLog
+
+Errors must be stored as `SystemEventLog` records with an appropriate level and event type.
+
+---
+
+### BR-057: Risk limit triggers must be logged
+
+When a risk rule blocks or modifies a decision, the system should log `RISK_LIMIT_TRIGGERED`.
+
+---
+
+### BR-058: Agent parsing failures must be logged
+
+Invalid LLM outputs and repair attempts must be logged.
+
+---
+
+### BR-059: Every executed trade must be auditable
+
+Every trade must be traceable to:
+
+- experiment
+- execution step
+- market data snapshot
+- trading decision
+- risk check
+- order
+- trade
+- portfolio snapshot
+- metric snapshot
+
+---
+
+## 14. Out-of-Scope Rules
+
+### BR-060: No User entity in V1
+
+Version 1 is designed for a single user and does not include user registration or multi-user ownership.
+
+---
+
+### BR-061: No separate Position entity in V1
+
+Version 1 stores the single SPY position directly in `Portfolio` and `PortfolioSnapshot`.
+
+A separate `Position` entity is a future extension.
+
+---
+
+### BR-062: No options, margin, or short selling in V1
+
+These trading modes are explicitly out of scope.
+
+---
+
+### BR-063: No public financial advice
+
+The system is a research and experimentation platform.
+
+It must not present itself as financial advice.
+
+---
+
+## 15. Related Documents
+
+- `./entities.md`
+- `./workflows.md`
+- `../01_architecture/decisions.md`
+- `../01_architecture/adr/ADR-005-risk-engine-before-execution.md`
+- `../01_architecture/adr/ADR-009-paper-trading-only.md`
+- `../04_database/schema.dbml`
+- `../06_backend/service-contracts.md`

@@ -12,15 +12,11 @@ This document focuses on containers, not internal backend modules or database sc
 
 ## 2. Container Diagram
 
-![Trading Lab Container Diagram](./c4-model/images/container/Containers.svg)
-
-If the SVG does not render correctly, use the PNG version:
-
-![Trading Lab Container Diagram PNG](./c4-model/images/container/Containers.png)
+![Trading Lab Container Diagram](images/container/Containers.svg)
 
 Diagram key:
 
-![Container Diagram Key](./c4-model/images/container/Containers-key.svg)
+![Container Diagram Key](images/container/Containers-key.svg)
 
 ---
 

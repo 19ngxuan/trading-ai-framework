@@ -1,0 +1,576 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+// =======================================================
+// Enums
+// =======================================================
+
+Enum experiment_mode {
+  HISTORICAL_SIMULATION
+  LIVE_SIMULATION
+  PAPER_TRADING
+}
+
+Enum strategy_type {
+  BUY_AND_HOLD
+  MOVING_AVERAGE
+  AGENTIC_AI
+}
+
+Enum experiment_status {
+  CREATED
+  RUNNING
+  PAUSED
+  STOPPED
+  COMPLETED
+  FAILED
+}
+
+Enum trading_frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+Enum fee_model_type {
+  NONE
+  FIXED
+  PERCENTAGE
+}
+
+Enum execution_step_status {
+  RUNNING
+  COMPLETED
+  SKIPPED
+  FAILED
+}
+
+Enum trigger_type {
+  HISTORICAL
+  SCHEDULED
+  MANUAL
+}
+
+Enum decision_source_type {
+  STRATEGY
+  AGENT
+}
+
+Enum trade_action {
+  BUY
+  SELL
+  HOLD
+}
+
+Enum final_action {
+  BUY
+  SELL
+  HOLD
+}
+
+Enum order_mode {
+  SIMULATED
+  PAPER_BROKER
+}
+
+Enum broker_name {
+  ALPACA
+  NONE
+}
+
+Enum order_side {
+  BUY
+  SELL
+}
+
+Enum order_type {
+  MARKET
+}
+
+Enum order_status {
+  CREATED
+  SUBMITTED
+  FILLED
+  REJECTED
+  FAILED
+  CANCELLED
+}
+
+Enum agent_mode {
+  SINGLE_AGENT
+  PIPELINE
+}
+
+Enum agent_step_name {
+  SINGLE_DECISION_AGENT
+  MARKET_ANALYST
+  TRADING_DECISION
+  RISK_MANAGER
+}
+
+Enum parsing_status {
+  SUCCESS
+  FAILED
+  REPAIRED
+}
+
+Enum broker_sync_status {
+  SUCCESS
+  FAILED
+  MISMATCH
+}
+
+Enum event_level {
+  INFO
+  WARNING
+  ERROR
+}
+
+Enum system_event_type {
+  EXPERIMENT_CREATED
+  EXPERIMENT_STARTED
+  EXPERIMENT_PAUSED
+  EXPERIMENT_STOPPED
+  EXPERIMENT_COMPLETED
+  MARKET_DATA_MISSING
+  STRATEGY_DECISION_CREATED
+  RISK_LIMIT_TRIGGERED
+  ORDER_SUBMITTED
+  ORDER_FILLED
+  ORDER_FAILED
+  BROKER_SYNC_FAILED
+  BROKER_STATE_MISMATCH
+  LLM_OUTPUT_INVALID
+  LLM_REPAIR_ATTEMPTED
+  FALLBACK_HOLD_USED
+}
+
+// =======================================================
+// Core Aggregate
+// =======================================================
+
+Table experiments {
+  id bigint [pk, increment]
+  name varchar [not null]
+
+  mode experiment_mode [not null]
+  strategy_type strategy_type [not null]
+  asset_symbol varchar [not null, note: 'V1: SPY']
+  status experiment_status [not null]
+
+  initial_capital decimal(19, 4) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  trading_frequency trading_frequency [not null]
+
+  fee_model_type fee_model_type [not null]
+  fee_value decimal(19, 8) [not null, default: 0]
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    asset_symbol
+    strategy_type
+    status
+    mode
+    created_at
+  }
+}
+
+// =======================================================
+// Strategy Configuration
+// =======================================================
+
+Table strategy_configs {
+  id bigint [pk, increment]
+  experiment_id bigint [not null, unique, ref: > experiments.id]
+
+  strategy_type strategy_type [not null]
+  strategy_version varchar [not null]
+
+  moving_average_window int
+  position_sizing_type varchar
+  agent_mode agent_mode
+  model_name varchar
+  confidence_threshold decimal(5, 4)
+
+  parameters_json json [note: 'Flexible strategy-specific parameters']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    strategy_type
+    strategy_version
+    agent_mode
+  }
+}
+
+// =======================================================
+// Current Portfolio State
+// =======================================================
+
+Table portfolios {
+  id bigint [pk, increment]
+  experiment_id bigint [not null, unique, ref: > experiments.id]
+
+  cash decimal(19, 4) [not null]
+  position_symbol varchar [note: 'V1: max. one position, e.g. SPY']
+  position_quantity decimal(19, 8)
+  current_price decimal(19, 8)
+  current_position_value decimal(19, 4)
+  current_portfolio_value decimal(19, 4)
+
+  updated_at timestamp [not null]
+}
+
+// =======================================================
+// Execution Step
+// =======================================================
+
+Table execution_steps {
+  id bigint [pk, increment]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  scheduled_for timestamp
+  started_at timestamp
+  completed_at timestamp
+
+  status execution_step_status [not null]
+  trigger_type trigger_type [not null]
+  sequence_number int [not null]
+
+  error_message text
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    sequence_number
+    status
+    scheduled_for
+    created_at
+
+    (experiment_id, sequence_number) [unique]
+  }
+}
+
+// =======================================================
+// Market Data Snapshot
+// =======================================================
+
+Table market_data_snapshots {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  timestamp timestamp [not null]
+  symbol varchar [not null]
+
+  price decimal(19, 8)
+  open decimal(19, 8)
+  high decimal(19, 8)
+  low decimal(19, 8)
+  close decimal(19, 8)
+  volume decimal(19, 4)
+
+  moving_average decimal(19, 8)
+  rsi decimal(10, 4)
+
+  raw_data_json json
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    symbol
+    timestamp
+  }
+}
+
+// =======================================================
+// Trading Decision
+// =======================================================
+
+Table trading_decisions {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  market_data_snapshot_id bigint [not null, ref: > market_data_snapshots.id]
+
+  source_type decision_source_type [not null]
+  source_name varchar
+
+  action trade_action [not null]
+  symbol varchar [not null]
+
+  suggested_quantity decimal(19, 8)
+  suggested_notional decimal(19, 4)
+
+  confidence decimal(5, 4)
+  reason text
+
+  raw_decision_json json
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    market_data_snapshot_id
+    source_type
+    action
+  }
+}
+
+// =======================================================
+// Risk Check
+// =======================================================
+
+Table risk_checks {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  trading_decision_id bigint [not null, unique, ref: > trading_decisions.id]
+
+  approved boolean [not null]
+
+  final_action final_action [not null]
+  final_quantity decimal(19, 8)
+  final_notional decimal(19, 4)
+
+  rejection_reason text
+  rules_triggered_json json
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    trading_decision_id
+    approved
+    final_action
+  }
+}
+
+// =======================================================
+// Order
+// =======================================================
+
+Table orders {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  risk_check_id bigint [not null, unique, ref: > risk_checks.id]
+
+  mode order_mode [not null]
+  broker_name broker_name
+  broker_order_id varchar
+
+  symbol varchar [not null]
+  side order_side [not null]
+  quantity decimal(19, 8) [not null]
+  order_type order_type [not null]
+  status order_status [not null]
+
+  submitted_at timestamp
+  filled_at timestamp
+  average_fill_price decimal(19, 8)
+
+  error_message text
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    risk_check_id
+    broker_order_id
+    status
+    symbol
+  }
+}
+
+// =======================================================
+// Trade
+// =======================================================
+
+Table trades {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  order_id bigint [not null, unique, ref: > orders.id]
+
+  timestamp timestamp [not null]
+
+  symbol varchar [not null]
+  side order_side [not null]
+  quantity decimal(19, 8) [not null]
+  price decimal(19, 8) [not null]
+
+  order_value decimal(19, 4)
+  fee decimal(19, 8)
+  portfolio_value_after_trade decimal(19, 4)
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    order_id
+    symbol
+    timestamp
+  }
+}
+
+// =======================================================
+// Portfolio Snapshot
+// =======================================================
+
+Table portfolio_snapshots {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  timestamp timestamp [not null]
+
+  cash decimal(19, 4) [not null]
+  position_symbol varchar
+  position_quantity decimal(19, 8)
+  position_market_value decimal(19, 4)
+  total_portfolio_value decimal(19, 4)
+  current_price decimal(19, 8)
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    timestamp
+  }
+}
+
+// =======================================================
+// Metric Snapshot
+// =======================================================
+
+Table metric_snapshots {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  timestamp timestamp [not null]
+
+  total_return decimal(19, 8)
+  profit_loss decimal(19, 4)
+  number_of_trades int
+  max_drawdown decimal(19, 8)
+
+  buy_and_hold_return decimal(19, 8)
+  difference_to_buy_and_hold decimal(19, 8)
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    timestamp
+  }
+}
+
+// =======================================================
+// Agent Decision Log
+// =======================================================
+
+Table agent_decision_logs {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  trading_decision_id bigint [ref: > trading_decisions.id]
+
+  agent_mode agent_mode [not null]
+  agent_step_name agent_step_name [not null]
+  agent_name varchar
+
+  prompt_version varchar
+  model_name varchar
+  model_version varchar
+
+  input_json json
+  prompt_text text
+  raw_output_text text
+  parsed_output_json json
+
+  parsing_status parsing_status [not null]
+  repair_prompt_text text
+  repair_raw_output_text text
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    trading_decision_id
+    agent_mode
+    agent_step_name
+    parsing_status
+    created_at
+  }
+}
+
+// =======================================================
+// Broker Sync Log
+// =======================================================
+
+Table broker_sync_logs {
+  id bigint [pk, increment]
+  execution_step_id bigint [not null, ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  timestamp timestamp [not null]
+  broker_name broker_name [not null]
+  sync_status broker_sync_status [not null]
+
+  broker_cash decimal(19, 4)
+  local_cash decimal(19, 4)
+
+  broker_positions_json json
+  local_positions_json json
+  mismatch_details_json json
+
+  error_message text
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    broker_name
+    sync_status
+    timestamp
+  }
+}
+
+// =======================================================
+// System Event Log
+// =======================================================
+
+Table system_event_logs {
+  id bigint [pk, increment]
+  execution_step_id bigint [ref: > execution_steps.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+
+  timestamp timestamp [not null]
+
+  level event_level [not null]
+  event_type system_event_type [not null]
+  message text [not null]
+  details_json json
+
+  created_at timestamp [not null]
+
+  indexes {
+    experiment_id
+    execution_step_id
+    level
+    event_type
+    timestamp
+  }
+}

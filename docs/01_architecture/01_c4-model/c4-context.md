@@ -12,15 +12,13 @@ This document does not describe internal containers, backend modules, database t
 
 ## 2. System Context Diagram
 
-![Trading Lab System Context](./c4-model/images/context/SystemContext.svg)
+![Trading Lab System Context](images/context/SystemContext.svg)
 
-If the SVG does not render correctly, use the PNG version:
 
-![Trading Lab System Context PNG](./c4-model/images/context/SystemContext.png)
 
 Diagram key:
 
-![System Context Key](./c4-model/images/context/SystemContext-key.svg)
+![System Context Key](images/context/SystemContext-key.svg)
 
 ---
 

@@ -12,12 +12,9 @@ This document focuses on backend components inside the FastAPI modular monolith.
 
 ## 2. Component Diagram
 
-![Backend Component Diagram](./c4-model/images/components/BackendComponents.svg)
+![Backend Component Diagram](images/components/BackendComponents.svg)
 
-If the SVG does not render correctly, use the PNG version if available:
-
-![Backend Component Diagram PNG](./c4-model/images/components/BackendComponents.png)
-
+![Backend Component Keys](images/components/BackendComponents-key.svg)
 ---
 
 ## 3. Backend Container
