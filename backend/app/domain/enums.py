@@ -1,0 +1,141 @@
+from enum import Enum
+
+
+class ExperimentMode(str, Enum):
+    HISTORICAL_SIMULATION = "HISTORICAL_SIMULATION"
+    LIVE_SIMULATION = "LIVE_SIMULATION"
+    PAPER_TRADING = "PAPER_TRADING"
+
+
+class StrategyType(str, Enum):
+    BUY_AND_HOLD = "BUY_AND_HOLD"
+    MOVING_AVERAGE = "MOVING_AVERAGE"
+    AGENTIC_AI = "AGENTIC_AI"
+
+
+class ExperimentStatus(str, Enum):
+    CREATED = "CREATED"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    STOPPED = "STOPPED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class TradingFrequency(str, Enum):
+    DAILY = "DAILY"
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+
+
+class FeeModelType(str, Enum):
+    NONE = "NONE"
+    FIXED = "FIXED"
+    PERCENTAGE = "PERCENTAGE"
+
+
+class ExecutionStepStatus(str, Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
+
+
+class TriggerType(str, Enum):
+    HISTORICAL = "HISTORICAL"
+    SCHEDULED = "SCHEDULED"
+    MANUAL = "MANUAL"
+
+
+class DecisionSourceType(str, Enum):
+    STRATEGY = "STRATEGY"
+    AGENT = "AGENT"
+
+
+class TradeAction(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+
+
+class FinalAction(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+
+
+class OrderMode(str, Enum):
+    SIMULATED = "SIMULATED"
+    PAPER_BROKER = "PAPER_BROKER"
+
+
+class BrokerName(str, Enum):
+    ALPACA = "ALPACA"
+    NONE = "NONE"
+
+
+class OrderSide(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+class OrderType(str, Enum):
+    MARKET = "MARKET"
+
+
+class OrderStatus(str, Enum):
+    CREATED = "CREATED"
+    SUBMITTED = "SUBMITTED"
+    FILLED = "FILLED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class AgentMode(str, Enum):
+    SINGLE_AGENT = "SINGLE_AGENT"
+    PIPELINE = "PIPELINE"
+
+
+class AgentStepName(str, Enum):
+    SINGLE_DECISION_AGENT = "SINGLE_DECISION_AGENT"
+    MARKET_ANALYST = "MARKET_ANALYST"
+    TRADING_DECISION = "TRADING_DECISION"
+    RISK_MANAGER = "RISK_MANAGER"
+
+
+class ParsingStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    REPAIRED = "REPAIRED"
+
+
+class BrokerSyncStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    MISMATCH = "MISMATCH"
+
+
+class EventLevel(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
+class SystemEventType(str, Enum):
+    EXPERIMENT_CREATED = "EXPERIMENT_CREATED"
+    EXPERIMENT_STARTED = "EXPERIMENT_STARTED"
+    EXPERIMENT_PAUSED = "EXPERIMENT_PAUSED"
+    EXPERIMENT_STOPPED = "EXPERIMENT_STOPPED"
+    EXPERIMENT_COMPLETED = "EXPERIMENT_COMPLETED"
+    MARKET_DATA_MISSING = "MARKET_DATA_MISSING"
+    STRATEGY_DECISION_CREATED = "STRATEGY_DECISION_CREATED"
+    RISK_LIMIT_TRIGGERED = "RISK_LIMIT_TRIGGERED"
+    ORDER_SUBMITTED = "ORDER_SUBMITTED"
+    ORDER_FILLED = "ORDER_FILLED"
+    ORDER_FAILED = "ORDER_FAILED"
+    BROKER_SYNC_FAILED = "BROKER_SYNC_FAILED"
+    BROKER_STATE_MISMATCH = "BROKER_STATE_MISMATCH"
+    LLM_OUTPUT_INVALID = "LLM_OUTPUT_INVALID"
+    LLM_REPAIR_ATTEMPTED = "LLM_REPAIR_ATTEMPTED"
+    FALLBACK_HOLD_USED = "FALLBACK_HOLD_USED"

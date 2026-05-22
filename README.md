@@ -2,7 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0 scaffold:
+This repository currently contains the M0/M1 foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -10,8 +10,9 @@ This repository currently contains the M0 scaffold:
 - Environment example files
 - Backend health endpoint
 - Basic frontend app shell
+- Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and database smoke tests
 
-M0 intentionally does not include trading logic, domain models, database schema, migrations, broker integration, Alpaca integration, LLM integration, or scheduler behavior.
+The current implementation intentionally does not include trading strategy execution, risk logic, broker integration, Alpaca integration, LLM integration, scheduler behavior, or public API endpoints beyond health.
 
 ## Requirements
 
@@ -58,6 +59,25 @@ uv sync --extra dev
 uv run uvicorn app.main:app --reload
 uv run pytest
 ```
+
+## Database Migrations
+
+Start PostgreSQL first:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
+```
+
+Apply migrations locally:
+
+```bash
+cd backend
+DATABASE_URL=postgresql://trading_lab:trading_lab_password@localhost:5432/trading_lab uv run alembic upgrade head
+```
+
+Database smoke tests use `TEST_DATABASE_URL` when set, otherwise `DATABASE_URL`.
+If neither URL is configured or PostgreSQL is unreachable, database tests skip with an explicit reason.
 
 ## Frontend Local Development
 
