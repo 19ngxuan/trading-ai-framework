@@ -2,17 +2,18 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M2 foundation:
+This repository currently contains the M0-M3 foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
 - PostgreSQL Docker Compose service
 - Environment example files
 - Backend health, experiment, and options API endpoints
+- Deterministic Buy-and-Hold historical simulation for `BUY_AND_HOLD` + `HISTORICAL_SIMULATION`
 - Basic frontend app shell
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include trading strategy execution, risk logic, broker integration, Alpaca integration, LLM integration, scheduler behavior, or frontend dashboard business logic.
+The current implementation intentionally does not include Moving Average execution, Alpaca integration, external market data providers, broker integration, LLM/agent execution, scheduler behavior, or frontend trading UI.
 
 ## Requirements
 

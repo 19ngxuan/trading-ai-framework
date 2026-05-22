@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTasks
 
 from app.api.schemas.experiment_schemas import (
     CreateExperimentRequest,
@@ -27,8 +28,10 @@ from app.domain.enums import (
     SystemEventType,
     TradingFrequency,
 )
+from app.modules.execution.orchestrator import HistoricalBuyAndHoldOrchestrator
 from app.modules.experiments.status_machine import validate_transition
 from app.modules.experiments.validators import validate_create_experiment_request
+from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExperimentModel,
     PortfolioModel,
@@ -281,6 +284,22 @@ class ExperimentService:
             message=response_message,
         )
 
+    def start_experiment(
+        self,
+        experiment_id: int,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> ExperimentActionResponse:
+        response = self.apply_lifecycle_action(experiment_id, "start")
+        experiment = self.experiment_repository.get_by_id(experiment_id)
+        if (
+            experiment is not None
+            and experiment.mode is ExperimentMode.HISTORICAL_SIMULATION
+            and experiment.strategy_type is StrategyType.BUY_AND_HOLD
+            and background_tasks is not None
+        ):
+            background_tasks.add_task(run_buy_and_hold_historical_simulation, experiment_id)
+        return response
+
     def get_options(self) -> OptionsResponse:
         return OptionsResponse(
             assets=["SPY"],
@@ -292,3 +311,10 @@ class ExperimentService:
             agentModes=list(AgentMode),
             orderStatuses=list(OrderStatus),
         )
+
+
+def run_buy_and_hold_historical_simulation(experiment_id: int) -> None:
+    orchestrator = HistoricalBuyAndHoldOrchestrator(
+        session_factory=create_session_factory()
+    )
+    orchestrator.run(experiment_id)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.schemas.experiment_schemas import (
@@ -51,10 +51,12 @@ def get_experiment_detail(
     status_code=status.HTTP_202_ACCEPTED,
 )
 def start_experiment(
-    experiment_id: int, session: Session = Depends(get_session)
+    experiment_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
 ) -> ExperimentActionResponse:
     service = ExperimentService(session)
-    return service.apply_lifecycle_action(experiment_id, "start")
+    return service.start_experiment(experiment_id, background_tasks)
 
 
 @router.post("/{experiment_id}/pause", response_model=ExperimentActionResponse)
