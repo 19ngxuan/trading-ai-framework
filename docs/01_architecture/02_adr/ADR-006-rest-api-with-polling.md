@@ -82,6 +82,7 @@ REST maps well to the resource-oriented API design and FastAPI.
 
 - All API endpoints must be under `/api/v1`.
 - Start and run-next-step actions should return `202 Accepted` when asynchronous.
+- Historical simulations are accepted through REST and executed by FastAPI in-process background tasks in V1. Progress is exposed through persisted experiment, execution-step, portfolio, metric, event, order, and trade records, which the frontend reads by polling. V1 must not introduce an external queue or worker for historical simulation.
 - Dashboard should use polling intervals, such as 5-15 seconds.
 - Long-running jobs must not block frontend requests.
 - API responses should use consistent schemas.
@@ -90,6 +91,6 @@ REST maps well to the resource-oriented API design and FastAPI.
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-container.md`
+- `../01_c4-model/c4-container.md`
 - `../decisions.md`
-- `../../03_api/api-spec.md`
+- `../../04_api/api-spec.md`

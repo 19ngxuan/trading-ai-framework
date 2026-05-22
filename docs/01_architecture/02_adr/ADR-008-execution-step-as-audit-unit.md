@@ -105,7 +105,7 @@ Logs are not sufficient as a structured domain model.
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-component.md`
+- `../01_c4-model/c4-component.md`
 - `../decisions.md`
-- `../../02_domain/entities.md`
-- `../../02_domain/workflows.md`
+- `../../02_domain/01_entities.md`
+- `../../02_domain/02_workflows.md`

@@ -113,6 +113,6 @@ A single backend without clear module boundaries would be easier initially, but 
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-container.md`
-- `../c4-component.md`
+- `../01_c4-model/c4-container.md`
+- `../01_c4-model/c4-component.md`
 - `../decisions.md`

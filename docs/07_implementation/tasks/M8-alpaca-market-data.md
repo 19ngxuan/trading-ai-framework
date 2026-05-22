@@ -26,8 +26,8 @@ Integrate Alpaca as the market data provider behind an adapter.
 
 ## Relevant Docs
 
-- docs/01_architecture/adr/ADR-007-alpaca-behind-adapters.md
-- docs/06_backend/service-contracts.md
+- docs/01_architecture/02_adr/ADR-007-alpaca-behind-adapters.md
+- docs/05_backend/service-contracts.md
 
 ---
 

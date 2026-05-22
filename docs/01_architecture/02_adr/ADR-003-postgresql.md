@@ -90,7 +90,7 @@ Rejected because the system requires persistent experiment history, audit logs, 
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-container.md`
-- `../c4-component.md`
+- `../01_c4-model/c4-container.md`
+- `../01_c4-model/c4-component.md`
 - `../decisions.md`
-- `../../04_database/schema.dbml`
+- `../../03_database/schema.dbml`

@@ -27,8 +27,8 @@ Implement first single-agent AI strategy producing TradingDecision.
 
 ## Relevant Docs
 
-- docs/01_architecture/adr/ADR-004-agent-as-strategy.md
-- docs/06_backend/service-contracts.md
+- docs/01_architecture/02_adr/ADR-004-agent-as-strategy.md
+- docs/05_backend/service-contracts.md
 
 ---
 

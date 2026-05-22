@@ -25,8 +25,8 @@ Stabilize the project, expand tests, and make the repository presentable.
 
 ## Relevant Docs
 
-- docs/07_implementation/acceptance-criteria.md
-- docs/07_implementation/coding-standards.md
+- docs/07_implementation/03_acceptance-criteria.md
+- docs/07_implementation/01_coding-standards.md
 
 ---
 
@@ -36,6 +36,7 @@ Stabilize the project, expand tests, and make the repository presentable.
 - docker compose up works
 - README explains setup
 - Architecture and docs are consistent
+- All documentation references use the canonical numbered folder structure
 
 ---
 

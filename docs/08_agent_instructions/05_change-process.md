@@ -123,43 +123,43 @@ Architecture changes:
 
 Domain changes:
 
-- `docs/02_domain/entities.md`
-- `docs/02_domain/workflows.md`
-- `docs/02_domain/business-rules.md`
+- `docs/02_domain/01_entities.md`
+- `docs/02_domain/02_workflows.md`
+- `docs/02_domain/03_business-rules.md`
 
 API changes:
 
-- `docs/03_api/api-spec.md`
-- `docs/03_api/openapi.yaml`
+- `docs/04_api/api-spec.md`
+- `docs/04_api/openapi.yaml`
 
 Database changes:
 
-- `docs/04_database/schema.dbml`
-- `docs/04_database/migrations.md`
+- `docs/03_database/schema.dbml`
+- `docs/03_database/migrations.md`
 
 Frontend changes:
 
-- `docs/05_frontend/ui-routes.md`
-- `docs/05_frontend/components.md`
+- `docs/06_frontend/ui-routes.md`
+- `docs/06_frontend/components.md`
 
 Backend changes:
 
-- `docs/06_backend/module-structure.md`
-- `docs/06_backend/service-contracts.md`
+- `docs/05_backend/module-structure.md`
+- `docs/05_backend/service-contracts.md`
 
 Implementation changes:
 
-- `docs/07_implementation/task-breakdown.md`
+- `docs/07_implementation/02_task-breakdown.md`
 - relevant task files
-- `docs/07_implementation/acceptance-criteria.md`
+- `docs/07_implementation/03_acceptance-criteria.md`
 
 Agent rules changes:
 
-- `docs/08_agent/instructions.md`
-- `docs/08_agent/workflow.md`
-- `docs/08_agent/guardrails.md`
-- `docs/08_agent/definition-of-done.md`
-- `docs/08_agent/change-process.md`
+- `docs/08_agent_instructions/01_instructions.md`
+- `docs/08_agent_instructions/02_workflow.md`
+- `docs/08_agent_instructions/03_guardrails.md`
+- `docs/08_agent_instructions/04_definition-of-done.md`
+- `docs/08_agent_instructions/05_change-process.md`
 
 ---
 

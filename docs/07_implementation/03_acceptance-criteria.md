@@ -18,10 +18,10 @@ A task is done only if:
 - no safety rule is bypassed
 - tests are added or updated where appropriate
 - existing tests pass
-- API contracts remain consistent with `docs/03_api/api-spec.md`
+- API contracts remain consistent with `docs/04_api/api-spec.md`
 - database changes include Alembic migrations
-- database changes are reflected in `docs/04_database/schema.dbml`
-- domain changes are reflected in `docs/02_domain/entities.md`
+- database changes are reflected in `docs/03_database/schema.dbml`
+- domain changes are reflected in `docs/02_domain/01_entities.md`
 - relevant README or docs are updated when behavior changes
 
 ---

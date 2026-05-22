@@ -89,7 +89,7 @@ The system needs provider-independent domain models such as MarketDataSnapshot, 
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-container.md`
-- `../c4-component.md`
+- `../01_c4-model/c4-container.md`
+- `../01_c4-model/c4-component.md`
 - `../decisions.md`
-- `../../06_backend/service-contracts.md`
+- `../../05_backend/service-contracts.md`

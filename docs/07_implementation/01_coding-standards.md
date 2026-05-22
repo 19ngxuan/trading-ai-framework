@@ -92,8 +92,8 @@ Every `TradingDecision` must pass through the Risk Engine before execution.
 - Use repositories to encapsulate database access.
 - Use Alembic for schema migrations.
 - Every model change requires a migration.
-- Every schema change requires an update to `docs/04_database/schema.dbml`.
-- Every domain meaning change requires an update to `docs/02_domain/entities.md`.
+- Every schema change requires an update to `docs/03_database/schema.dbml`.
+- Every domain meaning change requires an update to `docs/02_domain/01_entities.md`.
 
 Repositories should not contain business logic.
 

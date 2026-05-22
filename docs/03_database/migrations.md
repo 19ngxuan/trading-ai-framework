@@ -30,7 +30,7 @@ backend/alembic/versions/
 The DBML reference schema is stored at:
 
 ```text
-docs/04_database/schema.dbml
+docs/03_database/schema.dbml
 ```
 
 ---
@@ -42,7 +42,7 @@ The implementation source of truth is the active database schema generated throu
 The documentation source of truth is:
 
 ```text
-docs/04_database/schema.dbml
+docs/03_database/schema.dbml
 ```
 
 These must remain consistent.
@@ -51,9 +51,9 @@ Any database schema change requires updates to all affected artifacts:
 
 1. SQLAlchemy model
 2. Alembic migration
-3. `docs/04_database/schema.dbml`
-4. `docs/02_domain/entities.md` if the meaning of a domain entity changes
-5. `docs/03_api/api-spec.md` and `openapi.yaml` if API request or response shapes change
+3. `docs/03_database/schema.dbml`
+4. `docs/02_domain/01_entities.md` if the meaning of a domain entity changes
+5. `docs/04_api/api-spec.md` and `openapi.yaml` if API request or response shapes change
 6. Tests affected by the change
 
 ---
@@ -83,7 +83,7 @@ Examples:
 Any Alembic migration that changes the database schema must update:
 
 ```text
-docs/04_database/schema.dbml
+docs/03_database/schema.dbml
 ```
 
 The DBML must reflect the intended final schema after applying all migrations.
@@ -95,7 +95,7 @@ The DBML must reflect the intended final schema after applying all migrations.
 If a schema change changes the meaning of an entity or relationship, update:
 
 ```text
-docs/02_domain/entities.md
+docs/02_domain/01_entities.md
 ```
 
 Examples:
@@ -112,8 +112,8 @@ Examples:
 If a schema change affects API request or response models, update:
 
 ```text
-docs/03_api/api-spec.md
-docs/03_api/openapi.yaml
+docs/04_api/api-spec.md
+docs/04_api/openapi.yaml
 ```
 
 Examples:
@@ -151,7 +151,7 @@ If an implementation appears to require removing or bypassing any of these table
 The initial migration should create all tables and enums defined in:
 
 ```text
-docs/04_database/schema.dbml
+docs/03_database/schema.dbml
 ```
 
 The initial migration should include:
@@ -242,6 +242,8 @@ JSONB is appropriate for:
 - `broker_sync_logs.local_positions_json`
 - `broker_sync_logs.mismatch_details_json`
 - `system_event_logs.details_json`
+
+V1 risk configuration is stored as JSONB in `strategy_configs.parameters_json.riskConfig`; no dedicated risk configuration table exists in V1.
 
 ### JSONB Rule
 
@@ -402,7 +404,7 @@ The database schema must preserve these invariants:
 5. Each execution step has at most one trading decision.
 6. Each trading decision has exactly one risk check.
 7. Orders are created only after risk checks.
-8. Trades are created only from orders.
+8. Trades are created from orders, and one order may have zero, one, or many trades.
 9. Portfolio snapshots and metric snapshots are tied to execution steps.
 10. Agent decision logs are tied to execution steps.
 11. Broker sync logs are tied to paper-trading execution steps.
@@ -416,10 +418,10 @@ These invariants support auditability and must not be weakened without an archit
 
 - `./schema.dbml`
 - `../01_architecture/decisions.md`
-- `../01_architecture/adr/ADR-008-execution-step-as-audit-unit.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../06_backend/module-structure.md`
-- `../06_backend/service-contracts.md`
+- `../01_architecture/02_adr/ADR-008-execution-step-as-audit-unit.md`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../02_domain/03_business-rules.md`
+- `../04_api/api-spec.md`
+- `../05_backend/module-structure.md`
+- `../05_backend/service-contracts.md`

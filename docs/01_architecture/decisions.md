@@ -11,7 +11,7 @@ The goal is to make important design decisions explicit so that developers and A
 Detailed explanations are documented in individual ADR files under:
 
 ```text
-/docs/01_architecture/adr/
+/docs/01_architecture/02_adr/
 ```
 
 ---
@@ -379,13 +379,13 @@ The decision has been replaced by a newer ADR.
 ## 7. Related Documents
 
 - `./system-overview.md`
-- `./c4-context.md`
-- `./c4-container.md`
-- `./c4-component.md`
-- `./adr/ADR-001-modular-monolith.md`
-- `./adr/ADR-002-fastapi-backend.md`
-- `./adr/ADR-003-postgresql.md`
-- `./adr/ADR-004-agent-as-strategy.md`
-- `./adr/ADR-005-risk-engine-before-execution.md`
-- `../02_domain/business-rules.md`
-- `../06_backend/service-contracts.md`
+- `./01_c4-model/c4-context.md`
+- `./01_c4-model/c4-container.md`
+- `./01_c4-model/c4-component.md`
+- `./02_adr/ADR-001-modular-monolith.md`
+- `./02_adr/ADR-002-fastapi-backend.md`
+- `./02_adr/ADR-003-postgresql.md`
+- `./02_adr/ADR-004-agent-as-strategy.md`
+- `./02_adr/ADR-005-risk-engine-before-execution.md`
+- `../02_domain/03_business-rules.md`
+- `../05_backend/service-contracts.md`

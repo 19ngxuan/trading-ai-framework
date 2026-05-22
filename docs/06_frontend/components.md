@@ -283,6 +283,8 @@ Reusable component for experiment commands:
 - Open
 - Compare
 
+Start is for `CREATED`; Resume is for `PAUSED`; Start must not be shown for `PAUSED`.
+
 Action visibility may be based on current status for UX, but backend remains authoritative.
 
 Invalid transitions must be handled gracefully if the backend rejects them.
@@ -364,12 +366,14 @@ For `AGENTIC_AI`:
 
 Risk configuration may include:
 
-- maximum position size
-- maximum trades per day/week
-- max drawdown limit
-- fallback action
+- `maxPositionSizePct`: number, required by effective defaults, `0 < value <= 1`, default `1.0`
+- `maxTradesPerDay`: integer or null, if set `>= 1`, default `null`
+- `maxTradesPerWeek`: integer or null, if set `>= 1`, default `null`
+- `maxDrawdownPct`: number or null, if set `0 < value <= 1`, default `null`
+- `drawdownAction`: `BLOCK_TRADES`, `PAUSE_EXPERIMENT`, or `STOP_EXPERIMENT`, default `BLOCK_TRADES`
+- `fallbackAction`: V1 must be `HOLD`, default `HOLD`
 
-If no dedicated backend risk config schema exists yet, this may be stored in flexible configuration JSON.
+In V1, these fields are stored in `strategyConfig.parametersJson.riskConfig`.
 
 ## 7.5 `FeeConfigSection`
 
@@ -485,7 +489,7 @@ MarketDataSnapshotPanel
 TradingDecisionPanel
 RiskCheckPanel
 OrderPanel
-TradePanel
+TradesPanel
 PortfolioSnapshotPanel
 MetricSnapshotPanel
 ExecutionEventsPanel
@@ -976,9 +980,9 @@ The following are out of scope for Version 1:
 ## 21. Related Documents
 
 - `./ui-routes.md`
-- `../01_architecture/c4-container.md`
-- `../01_architecture/c4-component.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../03_api/api-spec.md`
-- `../06_backend/service-contracts.md`
+- `../01_architecture/01_c4-model/c4-container.md`
+- `../01_architecture/01_c4-model/c4-component.md`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../04_api/api-spec.md`
+- `../05_backend/service-contracts.md`

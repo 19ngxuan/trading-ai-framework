@@ -159,7 +159,15 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
     "confidenceThreshold": null,
     "parametersJson": {
       "tradeOnCrossOnly": false,
-      "useAdjustedClose": true
+      "useAdjustedClose": true,
+      "riskConfig": {
+        "maxPositionSizePct": 1.0,
+        "maxTradesPerDay": null,
+        "maxTradesPerWeek": null,
+        "maxDrawdownPct": null,
+        "drawdownAction": "BLOCK_TRADES",
+        "fallbackAction": "HOLD"
+      }
     }
   }
 }
@@ -189,7 +197,7 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
     "id": 1,
     "experimentId": 1,
     "cash": 10000.0,
-    "positionSymbol": "SPY",
+    "positionSymbol": null,
     "positionQuantity": 0,
     "currentPrice": null,
     "currentPositionValue": 0,
@@ -332,6 +340,8 @@ POST /api/v1/experiments/{experiment_id}/start
 
 Starts an experiment asynchronously.
 
+`start` is valid only for experiments in `CREATED`. A `PAUSED` experiment must use `/resume`; `start` on `PAUSED` returns `409 Conflict`.
+
 ### Response `202 Accepted`
 
 ```json
@@ -403,6 +413,8 @@ POST /api/v1/experiments/{experiment_id}/run-next-step
 ```
 
 Triggers one manual execution step. This can be used for debugging historical, live-like, or paper-trading experiments.
+
+Manual run-next-step creates exactly one execution step and is intended for deterministic debugging. It uses the same execution pipeline as scheduled/background execution.
 
 ### Request
 
@@ -491,42 +503,35 @@ GET /api/v1/execution-steps/{execution_step_id}
     "rsi": 61.2
   },
   "tradingDecision": {
-    "action": "BUY",
+    "action": "HOLD",
     "sourceType": "STRATEGY",
     "sourceName": "MovingAverageStrategy",
     "confidence": 1.0,
-    "reason": "SPY price is above the 200-day moving average."
+    "reason": "SPY price is below the 200-day moving average and no position exists."
   },
   "riskCheck": {
     "approved": true,
-    "finalAction": "BUY",
-    "finalQuantity": 21,
-    "finalNotional": 10042.2
+    "finalAction": "HOLD",
+    "finalQuantity": null,
+    "finalNotional": null
   },
-  "order": {
-    "side": "BUY",
-    "quantity": 21,
-    "status": "FILLED"
-  },
-  "trade": {
-    "side": "BUY",
-    "quantity": 21,
-    "price": 478.2,
-    "orderValue": 10042.2
-  },
+  "order": null,
+  "trades": [],
   "portfolioSnapshot": {
-    "cash": 0,
-    "positionQuantity": 21,
-    "totalPortfolioValue": 10042.2
+    "cash": 10000,
+    "positionQuantity": 0,
+    "totalPortfolioValue": 10000
   },
   "metricSnapshot": {
-    "totalReturn": 0.0042,
-    "profitLoss": 42.2,
-    "numberOfTrades": 1,
+    "totalReturn": 0,
+    "profitLoss": 0,
+    "numberOfTrades": 0,
     "maxDrawdown": 0
   }
 }
 ```
+
+`order` is nullable because HOLD and blocked decisions create no order. `trades` is always an array and may be empty because one order may produce zero, one, or many fills.
 
 ---
 
@@ -681,6 +686,8 @@ Optional filters:
 POST /api/v1/experiments/compare
 ```
 
+`benchmarkExperimentId` must refer to a normal experiment, usually one with `strategyType = BUY_AND_HOLD`. Benchmark comparison fields may also appear denormalized in metric snapshots.
+
 ### Request
 
 ```json
@@ -768,10 +775,10 @@ ExecutionStep
 ## 15. Related Documents
 
 - `../01_architecture/system-overview.md`
-- `../01_architecture/c4-container.md`
-- `../01_architecture/c4-component.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../04_database/schema.dbml`
-- `../06_backend/service-contracts.md`
+- `../01_architecture/01_c4-model/c4-container.md`
+- `../01_architecture/01_c4-model/c4-component.md`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../02_domain/03_business-rules.md`
+- `../03_database/schema.dbml`
+- `../05_backend/service-contracts.md`

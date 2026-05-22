@@ -195,7 +195,7 @@ Table strategy_configs {
   model_name varchar
   confidence_threshold decimal(5, 4)
 
-  parameters_json json [note: 'Flexible strategy-specific parameters']
+  parameters_json json [note: 'Flexible strategy-specific parameters; V1 risk config lives under riskConfig']
 
   created_at timestamp [not null]
   updated_at timestamp [not null]
@@ -395,9 +395,9 @@ Table orders {
 
 Table trades {
   id bigint [pk, increment]
-  execution_step_id bigint [not null, unique, ref: > execution_steps.id]
+  execution_step_id bigint [not null, ref: > execution_steps.id]
   experiment_id bigint [not null, ref: > experiments.id]
-  order_id bigint [not null, unique, ref: > orders.id]
+  order_id bigint [not null, ref: > orders.id]
 
   timestamp timestamp [not null]
 

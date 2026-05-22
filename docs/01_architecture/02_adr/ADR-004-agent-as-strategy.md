@@ -103,7 +103,7 @@ A separate agent service may be considered later, but in V1 the agent module is 
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-component.md`
+- `../01_c4-model/c4-component.md`
 - `../decisions.md`
-- `../../02_domain/business-rules.md`
-- `../../06_backend/service-contracts.md`
+- `../../02_domain/03_business-rules.md`
+- `../../05_backend/service-contracts.md`

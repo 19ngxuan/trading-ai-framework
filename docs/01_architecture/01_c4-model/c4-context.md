@@ -252,9 +252,9 @@ Version 1 excludes:
 - `./c4-container.md`
 - `./c4-component.md`
 - `./decisions.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../04_database/schema.dbml`
-- `../06_backend/service-contracts.md`
+- `../../02_domain/01_entities.md`
+- `../../02_domain/02_workflows.md`
+- `../../02_domain/03_business-rules.md`
+- `../../04_api/api-spec.md`
+- `../../03_database/schema.dbml`
+- `../../05_backend/service-contracts.md`

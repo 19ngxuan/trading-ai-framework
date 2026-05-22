@@ -26,9 +26,9 @@ Implement comparison screen and central events screen.
 
 ## Relevant Docs
 
-- docs/03_api/api-spec.md
-- docs/05_frontend/ui-routes.md
-- docs/05_frontend/components.md
+- docs/04_api/api-spec.md
+- docs/06_frontend/ui-routes.md
+- docs/06_frontend/components.md
 
 ---
 

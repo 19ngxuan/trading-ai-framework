@@ -6,7 +6,7 @@ This document describes the core domain entities of Trading Lab.
 
 It defines the business meaning of each entity, its main responsibility, and its relationship to other entities. It is intended for developers and AI coding agents working on the system.
 
-This document is not the final database schema. The technical schema is documented separately in `../04_database/schema.dbml`.
+This document is not the final database schema. The technical schema is documented separately in `../03_database/schema.dbml`.
 
 ---
 
@@ -55,7 +55,7 @@ ExecutionStep 1 ── 1 MarketDataSnapshot
 ExecutionStep 1 ── 1 TradingDecision
 ExecutionStep 1 ── 1 RiskCheck
 ExecutionStep 1 ── 0..1 Order
-ExecutionStep 1 ── 0..1 Trade
+ExecutionStep 1 ── 0..n Trade
 ExecutionStep 1 ── 1 PortfolioSnapshot
 ExecutionStep 1 ── 1 MetricSnapshot
 ExecutionStep 1 ── 0..n AgentDecisionLog
@@ -64,7 +64,7 @@ ExecutionStep 1 ── 0..n SystemEventLog
 
 TradingDecision 1 ── 1 RiskCheck
 RiskCheck 1 ── 0..1 Order
-Order 1 ── 0..1 Trade
+Order 1 ── 0..n Trade
 ```
 
 Notes:
@@ -153,6 +153,33 @@ Responsibilities:
 - store the strategy version used by an experiment
 - support flexible strategy parameters through `parameters_json`
 
+For V1, risk configuration is stored inside `parameters_json.riskConfig`.
+
+Default V1 risk configuration:
+
+```json
+{
+  "riskConfig": {
+    "maxPositionSizePct": 1.0,
+    "maxTradesPerDay": null,
+    "maxTradesPerWeek": null,
+    "maxDrawdownPct": null,
+    "drawdownAction": "BLOCK_TRADES",
+    "fallbackAction": "HOLD"
+  }
+}
+```
+
+Validation rules:
+
+- `maxPositionSizePct`: number, required by effective defaults, `0 < value <= 1`, default `1.0`.
+- `maxTradesPerDay`: integer or null, if set `>= 1`, default `null`.
+- `maxTradesPerWeek`: integer or null, if set `>= 1`, default `null`.
+- `maxDrawdownPct`: number or null, if set `0 < value <= 1`, default `null`.
+- `drawdownAction`: `BLOCK_TRADES`, `PAUSE_EXPERIMENT`, or `STOP_EXPERIMENT`, default `BLOCK_TRADES`.
+- `fallbackAction`: V1 must be `HOLD`, default `HOLD`.
+- Unknown keys may be preserved in JSON but ignored by the V1 Risk Engine.
+
 Examples:
 
 Moving Average strategy:
@@ -208,6 +235,7 @@ Version 1 simplification:
 
 - one portfolio may hold at most one position
 - the position is expected to be SPY
+- `position_symbol` is nullable when the portfolio has no current position. A newly created experiment starts with no position, `position_symbol = null`, `position_quantity = 0`, and all capital in cash.
 
 Future extension:
 
@@ -692,7 +720,7 @@ An `Order` is an execution request.
 
 A `Trade` is an actual executed transaction.
 
-Orders may fail or be rejected. Trades only exist after execution.
+One order may produce zero, one, or many trades. Failed, rejected, or unfilled orders produce no trades. Partial fills may produce multiple trade records.
 
 ---
 
@@ -754,9 +782,9 @@ These entities must not be introduced in V1 unless the architecture and schema a
 ## 9. Related Documents
 
 - `../01_architecture/system-overview.md`
-- `../01_architecture/c4-component.md`
+- `../01_architecture/01_c4-model/c4-component.md`
 - `../01_architecture/decisions.md`
 - `./workflows.md`
 - `./business-rules.md`
-- `../04_database/schema.dbml`
-- `../06_backend/service-contracts.md`
+- `../03_database/schema.dbml`
+- `../05_backend/service-contracts.md`

@@ -9,7 +9,7 @@ Implement the first historical simulation path with Buy and Hold.
 ## Scope
 
 - Implement ExecutionStep creation
-- Implement mock/fixture market data provider
+- Implement deterministic local SPY daily CSV fixture loader
 - Implement BuyAndHoldStrategy
 - Implement SimulationExecutionProvider
 - Persist decisions, risk checks, orders, trades, portfolio snapshots
@@ -27,15 +27,16 @@ Implement the first historical simulation path with Buy and Hold.
 
 ## Relevant Docs
 
-- docs/01_architecture/c4-component.md
-- docs/02_domain/workflows.md
-- docs/06_backend/service-contracts.md
+- docs/01_architecture/01_c4-model/c4-component.md
+- docs/02_domain/02_workflows.md
+- docs/05_backend/service-contracts.md
 
 ---
 
 ## Acceptance Criteria
 
 - BUY_AND_HOLD historical experiment runs to completion
+- Historical simulation runs as a FastAPI in-process background task. No external queue or worker is used. Frontend/API consumers observe progress through polling persisted execution state.
 - ExecutionSteps are persisted
 - Trade and PortfolioSnapshot records are created
 - Every decision has a RiskCheck

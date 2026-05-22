@@ -68,6 +68,8 @@ It consists of:
 
 The frontend communicates with the backend through REST APIs. Dashboard data is refreshed through polling.
 
+V1 historical simulations run inside the FastAPI backend using in-process background tasks. No external queue, Redis, Celery, or separate worker service is used in V1. The frontend observes progress by polling REST endpoints.
+
 The backend owns all business logic. The frontend must not contain trading logic, risk logic, broker integration, or agent decision logic.
 
 ## 5. Main Components
@@ -120,6 +122,8 @@ The Broker Module encapsulates Alpaca Paper Trading integration and broker-state
 
 The Metrics Module calculates return, profit/loss, number of trades, max drawdown, and benchmark comparison metrics.
 
+Benchmark experiments are normal experiments with `strategy_type = BUY_AND_HOLD`. Metric snapshots may store denormalized benchmark comparison fields for fast display.
+
 ### Persistence Layer
 
 The Persistence Layer stores all experiments, execution steps, decisions, orders, trades, snapshots, metrics, logs, and events in PostgreSQL.
@@ -140,7 +144,7 @@ The core execution flow is:
 10. Store the RiskCheck.
 11. If the final action is HOLD, skip order execution.
 12. Otherwise, execute the order through simulation or Alpaca Paper Trading.
-13. Store Order and Trade records if applicable.
+13. Store an Order if applicable, and zero or more Trade records when fills occur.
 14. Update the portfolio.
 15. Store a PortfolioSnapshot.
 16. Calculate metrics.
@@ -229,13 +233,13 @@ The following features are out of scope for Version 1:
 
 Related documents:
 
-- `/docs/architecture/c4-context.md`
-- `/docs/architecture/c4-container.md`
-- `/docs/architecture/c4-component.md`
-- `/docs/architecture/decisions.md`
-- `/docs/domain/entities.md`
-- `/docs/domain/workflows.md`
-- `/docs/domain/business-rules.md`
-- `/docs/backend/service-contracts.md`
-- `/docs/api/api-spec.md`
-- `/docs/database/schema.dbml`
+- `/docs/01_architecture/01_c4-model/c4-context.md`
+- `/docs/01_architecture/01_c4-model/c4-container.md`
+- `/docs/01_architecture/01_c4-model/c4-component.md`
+- `/docs/01_architecture/decisions.md`
+- `/docs/02_domain/01_entities.md`
+- `/docs/02_domain/02_workflows.md`
+- `/docs/02_domain/03_business-rules.md`
+- `/docs/05_backend/service-contracts.md`
+- `/docs/04_api/api-spec.md`
+- `/docs/03_database/schema.dbml`

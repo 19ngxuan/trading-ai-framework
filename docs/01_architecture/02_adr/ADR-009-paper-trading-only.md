@@ -82,7 +82,7 @@ The system must prove itself in simulation and paper trading before any live tra
 ## Related Documents
 
 - `../system-overview.md`
-- `../c4-context.md`
-- `../c4-container.md`
+- `../01_c4-model/c4-context.md`
+- `../01_c4-model/c4-container.md`
 - `../decisions.md`
-- `../../02_domain/business-rules.md`
+- `../../02_domain/03_business-rules.md`

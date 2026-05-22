@@ -13,6 +13,7 @@ Add integrated scheduler and manual execution-step triggering.
 - Trigger scheduled experiments
 - Prevent concurrent steps for same experiment
 - Support HISTORICAL/SCHEDULED/MANUAL trigger types
+- Manual run-next-step creates exactly one execution step for deterministic debugging and uses the same pipeline as scheduled/background execution.
 
 ---
 
@@ -26,7 +27,7 @@ Add integrated scheduler and manual execution-step triggering.
 ## Relevant Docs
 
 - docs/01_architecture/decisions.md
-- docs/06_backend/module-structure.md
+- docs/05_backend/module-structure.md
 
 ---
 

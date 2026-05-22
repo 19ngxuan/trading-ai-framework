@@ -67,7 +67,7 @@ For database tasks, the task is complete only if:
 
 - SQLAlchemy model changes are implemented.
 - Alembic migration is added.
-- `docs/04_database/schema.dbml` is updated.
+- `docs/03_database/schema.dbml` is updated.
 - Domain documentation is updated if meaning changes.
 - Foreign keys preserve auditability.
 - Indexes are added where needed for query patterns.

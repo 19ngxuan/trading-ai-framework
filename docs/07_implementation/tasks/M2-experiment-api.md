@@ -15,6 +15,7 @@ Implement experiment creation, retrieval, options, and lifecycle status endpoint
 - GET /api/v1/options
 - Validate status transitions
 - Initialize portfolio on create
+- `start` must reject `PAUSED`; `resume` handles `PAUSED`
 
 ---
 
@@ -27,9 +28,9 @@ Implement experiment creation, retrieval, options, and lifecycle status endpoint
 
 ## Relevant Docs
 
-- docs/03_api/api-spec.md
-- docs/02_domain/workflows.md
-- docs/06_backend/service-contracts.md
+- docs/04_api/api-spec.md
+- docs/02_domain/02_workflows.md
+- docs/05_backend/service-contracts.md
 
 ---
 

@@ -84,6 +84,8 @@ RUNNING → FAILED
 
 Invalid transitions must be rejected.
 
+`start` is valid only for `CREATED` experiments. `resume` is valid only for `PAUSED` experiments.
+
 ---
 
 ### BR-008: Completed and stopped experiments must not resume in V1
@@ -359,6 +361,12 @@ A `Trade` must be created only when an order is actually filled in simulation or
 
 ---
 
+### BR-040A: One order may produce multiple trades
+
+One order may produce multiple trades. Partial fills must be represented as separate `Trade` records linked to the same `Order`.
+
+---
+
 ### BR-041: Failed or rejected orders must not create trades
 
 If an order is rejected or failed, no trade should be created.
@@ -421,7 +429,7 @@ Metrics should be reproducible from stored portfolio snapshots and trades.
 
 ### BR-049: Buy and Hold is a benchmark experiment
 
-Buy and Hold should be modeled as its own experiment, not only as an embedded calculation.
+Buy and Hold benchmark experiments are normal experiments with `strategy_type = BUY_AND_HOLD`. Metric snapshots may store denormalized fields such as `buy_and_hold_return` and `difference_to_buy_and_hold`.
 
 ---
 
@@ -544,7 +552,7 @@ It must not present itself as financial advice.
 - `./entities.md`
 - `./workflows.md`
 - `../01_architecture/decisions.md`
-- `../01_architecture/adr/ADR-005-risk-engine-before-execution.md`
-- `../01_architecture/adr/ADR-009-paper-trading-only.md`
-- `../04_database/schema.dbml`
-- `../06_backend/service-contracts.md`
+- `../01_architecture/02_adr/ADR-005-risk-engine-before-execution.md`
+- `../01_architecture/02_adr/ADR-009-paper-trading-only.md`
+- `../03_database/schema.dbml`
+- `../05_backend/service-contracts.md`

@@ -28,9 +28,9 @@ Integrate Alpaca Paper Trading behind the Broker Module and paper execution prov
 
 ## Relevant Docs
 
-- docs/01_architecture/adr/ADR-009-paper-trading-only.md
-- docs/02_domain/business-rules.md
-- docs/06_backend/service-contracts.md
+- docs/01_architecture/02_adr/ADR-009-paper-trading-only.md
+- docs/02_domain/03_business-rules.md
+- docs/05_backend/service-contracts.md
 
 ---
 

@@ -25,8 +25,8 @@ Implement the 200-day Moving Average strategy and make it executable in historic
 
 ## Relevant Docs
 
-- docs/02_domain/business-rules.md
-- docs/06_backend/service-contracts.md
+- docs/02_domain/03_business-rules.md
+- docs/05_backend/service-contracts.md
 
 ---
 

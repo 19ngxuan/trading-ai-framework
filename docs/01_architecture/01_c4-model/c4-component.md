@@ -185,6 +185,7 @@ Scheduler Module may call:
 - The scheduler must not depend on the frontend.
 - The scheduler must not execute two concurrent steps for the same experiment.
 - Manual and scheduled execution must use the same execution pipeline.
+- Historical simulation execution in V1 uses FastAPI in-process background tasks. Manual `run-next-step` uses the same execution pipeline for deterministic debugging and creates exactly one execution step.
 - Historical, scheduled, and manual execution must be represented as `ExecutionStep` records.
 
 ---
@@ -229,7 +230,7 @@ The Execution Module follows this sequence:
 10. Store `RiskCheck`.
 11. If final action is `HOLD`, skip order execution.
 12. Otherwise execute through simulation or paper-trading provider.
-13. Store `Order` and `Trade` if applicable.
+13. Store an `Order` if applicable, and zero or more `Trade` records when fills occur.
 14. Update portfolio state.
 15. Store `PortfolioSnapshot`.
 16. Calculate and store `MetricSnapshot`.
@@ -255,6 +256,7 @@ Execution Module may call:
 - Strategies and agents must not execute orders directly.
 - Every decision must pass through the Risk Module.
 - Every execution step must be persisted and auditable.
+- An execution step may create zero or one Order. One Order may create zero, one, or many Trade records.
 
 ---
 
@@ -760,7 +762,7 @@ A typical backend execution step follows this internal component flow:
 10. Execution Module executes the approved result:
     - via internal simulation, or
     - through Broker Module for paper trading.
-11. Persistence Layer stores `Order` and `Trade`.
+11. Persistence Layer stores an `Order` if applicable, and zero or more `Trade` records when fills occur.
 12. Metrics Module calculates updated metrics.
 13. Persistence Layer stores `PortfolioSnapshot` and `MetricSnapshot`.
 14. Persistence Layer stores relevant `SystemEventLog` records.
@@ -792,10 +794,10 @@ The following components are intentionally not part of Version 1:
 - `./c4-context.md`
 - `./c4-container.md`
 - `./decisions.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../04_database/schema.dbml`
-- `../06_backend/module-structure.md`
-- `../06_backend/service-contracts.md`
+- `../../02_domain/01_entities.md`
+- `../../02_domain/02_workflows.md`
+- `../../02_domain/03_business-rules.md`
+- `../../04_api/api-spec.md`
+- `../../03_database/schema.dbml`
+- `../../05_backend/module-structure.md`
+- `../../05_backend/service-contracts.md`

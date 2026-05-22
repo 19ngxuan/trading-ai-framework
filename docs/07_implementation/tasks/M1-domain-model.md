@@ -26,9 +26,9 @@ Implement the database model and migration foundation based on the DBML schema.
 
 ## Relevant Docs
 
-- docs/02_domain/entities.md
-- docs/04_database/schema.dbml
-- docs/04_database/migrations.md
+- docs/02_domain/01_entities.md
+- docs/03_database/schema.dbml
+- docs/03_database/migrations.md
 
 ---
 

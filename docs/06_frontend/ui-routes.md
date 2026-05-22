@@ -24,6 +24,8 @@ The frontend routes must follow these principles:
 6. Dashboard and detail pages use polling for updates in Version 1.
 7. Route-level pages should remain thin and delegate UI sections to feature components.
 
+Historical simulation progress is tracked by polling. V1 does not use WebSockets, SSE, external queues, or worker-specific endpoints.
+
 ---
 
 ## 3. Route Overview
@@ -131,6 +133,8 @@ The dashboard may show action buttons, but it must not decide whether a transiti
 
 The backend validates status transitions.
 
+Show Start for `CREATED`, Resume for `PAUSED`, Pause/Stop for `RUNNING`. Backend remains authoritative and rejects invalid transitions.
+
 ---
 
 ## 6. `/experiments`
@@ -221,12 +225,14 @@ For `AGENTIC_AI`:
 
 Risk Configuration:
 
-- maximum position size
-- maximum trades per day or week
-- max drawdown limit
-- fallback behavior
+- `maxPositionSizePct`: number, required by effective defaults, `0 < value <= 1`, default `1.0`
+- `maxTradesPerDay`: integer or null, if set `>= 1`, default `null`
+- `maxTradesPerWeek`: integer or null, if set `>= 1`, default `null`
+- `maxDrawdownPct`: number or null, if set `0 < value <= 1`, default `null`
+- `drawdownAction`: `BLOCK_TRADES`, `PAUSE_EXPERIMENT`, or `STOP_EXPERIMENT`, default `BLOCK_TRADES`
+- `fallbackAction`: V1 must be `HOLD`, default `HOLD`
 
-Risk configuration may initially be represented through strategy/config JSON if no dedicated risk table exists yet.
+Risk configuration is represented through `strategyConfig.parametersJson.riskConfig` in V1.
 
 ## 7.4 Data Dependencies
 
@@ -353,7 +359,7 @@ What exactly happened in this execution step?
 - TradingDecision
 - RiskCheck
 - Order
-- Trade
+- Trades
 - PortfolioSnapshot
 - MetricSnapshot
 - AgentDecisionLogs
@@ -380,6 +386,8 @@ This page is primarily a debugging and audit view.
 It may display technical JSON structures.
 
 It must not provide direct order execution or broker actions.
+
+The order section must handle `order = null` for HOLD or blocked decisions. The trades section renders an array and may be empty because one order may produce zero, one, or many fills.
 
 ---
 
@@ -586,9 +594,9 @@ Select at least two experiments to compare.
 ## 15. Related Documents
 
 - `../01_architecture/system-overview.md`
-- `../01_architecture/c4-container.md`
-- `../01_architecture/c4-component.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../03_api/api-spec.md`
+- `../01_architecture/01_c4-model/c4-container.md`
+- `../01_architecture/01_c4-model/c4-component.md`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../04_api/api-spec.md`
 - `./components.md`

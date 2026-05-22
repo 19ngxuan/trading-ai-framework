@@ -13,6 +13,7 @@ Implement portfolio snapshots and metric snapshots after every execution step.
 - Calculate number of trades
 - Calculate max drawdown
 - Calculate Buy-and-Hold comparison when benchmark exists
+- Benchmark experiments are normal `BUY_AND_HOLD` experiments. Metric snapshots may store denormalized benchmark fields.
 - Expose metrics and portfolio snapshot endpoints
 
 ---
@@ -26,9 +27,9 @@ Implement portfolio snapshots and metric snapshots after every execution step.
 
 ## Relevant Docs
 
-- docs/02_domain/entities.md
-- docs/03_api/api-spec.md
-- docs/06_backend/service-contracts.md
+- docs/02_domain/01_entities.md
+- docs/04_api/api-spec.md
+- docs/05_backend/service-contracts.md
 
 ---
 

@@ -112,5 +112,5 @@ Do not hide core business state only in JSONB.
 ## Related Documents
 
 - `../decisions.md`
-- `../../02_domain/entities.md`
-- `../../04_database/schema.dbml`
+- `../../02_domain/01_entities.md`
+- `../../03_database/schema.dbml`

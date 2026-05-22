@@ -26,8 +26,8 @@ Implement simple pipeline-agent mode with multiple logged agent steps.
 
 ## Relevant Docs
 
-- docs/02_domain/workflows.md
-- docs/06_backend/service-contracts.md
+- docs/02_domain/02_workflows.md
+- docs/05_backend/service-contracts.md
 
 ---
 

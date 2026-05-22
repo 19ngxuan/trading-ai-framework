@@ -522,6 +522,14 @@ components:
           type: object
           additionalProperties: true
           nullable: true
+          example:
+            riskConfig:
+              maxPositionSizePct: 1.0
+              maxTradesPerDay: null
+              maxTradesPerWeek: null
+              maxDrawdownPct: null
+              drawdownAction: BLOCK_TRADES
+              fallbackAction: HOLD
     Experiment:
       type: object
       properties:
@@ -656,7 +664,9 @@ components:
           format: double
           nullable: true
         lastTrade:
-          $ref: '#/components/schemas/Trade'
+          allOf:
+            - $ref: '#/components/schemas/Trade'
+          nullable: true
         latestAgentDecisions:
           type: array
           items:
@@ -890,7 +900,6 @@ components:
           nullable: true
     Trade:
       type: object
-      nullable: true
       properties:
         id:
           type: integer
@@ -1147,9 +1156,13 @@ components:
         riskCheck:
           $ref: '#/components/schemas/RiskCheck'
         order:
-          $ref: '#/components/schemas/Order'
-        trade:
-          $ref: '#/components/schemas/Trade'
+          allOf:
+            - $ref: '#/components/schemas/Order'
+          nullable: true
+        trades:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trade'
         portfolioSnapshot:
           $ref: '#/components/schemas/PortfolioSnapshot'
         metricSnapshot:

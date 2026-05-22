@@ -230,7 +230,7 @@ Rules:
 - Repositories should encapsulate database access.
 - Services should not scatter raw ORM queries throughout the codebase.
 - Database schema changes require Alembic migrations.
-- Database schema changes require updates to `/docs/04_database/schema.dbml`.
+- Database schema changes require updates to `/docs/03_database/schema.dbml`.
 
 ---
 
@@ -274,6 +274,7 @@ Not allowed:
 Key rules:
 
 - Invalid status transitions must be rejected.
+- `start` is valid only from `CREATED`. `resume` is valid only from `PAUSED`.
 - Completed or stopped experiments must not be restarted in Version 1.
 - Experiment creation must create an initial portfolio.
 
@@ -315,6 +316,7 @@ Key rules:
 - Scheduled and manual execution must use the same execution pipeline.
 - The scheduler must not depend on the frontend.
 - A single experiment must not run two execution steps concurrently.
+- Historical simulation background execution in V1 uses FastAPI in-process background tasks. APScheduler handles due scheduled runs, but no external queue or separate worker service is introduced.
 
 ---
 
@@ -360,6 +362,7 @@ Key rules:
 - The Execution Module is the only module that creates executable orders.
 - The Execution Module must persist each `ExecutionStep`.
 - The Execution Module must not bypass the Risk Module.
+- An execution step may create zero or one Order. An Order may create zero, one, or many Trade records.
 
 Core flow:
 
@@ -505,6 +508,7 @@ Key rules:
 - No decision may be executed without a `RiskCheck`.
 - The Risk Module is authoritative over agent suggestions.
 - Agents may suggest position size, but Risk Module decides final executable size.
+- V1 receives risk configuration from `strategy_configs.parameters_json.riskConfig` after applying documented defaults.
 
 ---
 
@@ -713,7 +717,7 @@ Rules:
 - Repositories encapsulate database access.
 - Business logic belongs in services, not repositories.
 - Schema changes require Alembic migrations.
-- Schema changes require updates to `/docs/04_database/schema.dbml`.
+- Schema changes require updates to `/docs/03_database/schema.dbml`.
 
 ---
 
@@ -800,11 +804,11 @@ Repository → business decision logic
 ## 10. Related Documents
 
 - `../01_architecture/system-overview.md`
-- `../01_architecture/c4-component.md`
+- `../01_architecture/01_c4-model/c4-component.md`
 - `../01_architecture/decisions.md`
 - `./service-contracts.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../04_database/schema.dbml`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../02_domain/03_business-rules.md`
+- `../04_api/api-spec.md`
+- `../03_database/schema.dbml`

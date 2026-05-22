@@ -18,27 +18,27 @@ At minimum, the agent must inspect:
 
 - `docs/01_architecture/system-overview.md`
 - `docs/01_architecture/decisions.md`
-- `docs/02_domain/entities.md`
-- `docs/02_domain/workflows.md`
-- `docs/02_domain/business-rules.md`
-- `docs/06_backend/module-structure.md`
-- `docs/06_backend/service-contracts.md`
+- `docs/02_domain/01_entities.md`
+- `docs/02_domain/02_workflows.md`
+- `docs/02_domain/03_business-rules.md`
+- `docs/05_backend/module-structure.md`
+- `docs/05_backend/service-contracts.md`
 - the specific task file under `docs/07_implementation/tasks/`
 
 If the task touches API contracts, read:
 
-- `docs/03_api/api-spec.md`
-- `docs/03_api/openapi.yaml`
+- `docs/04_api/api-spec.md`
+- `docs/04_api/openapi.yaml`
 
 If the task touches database schema or persistence, read:
 
-- `docs/04_database/schema.dbml`
-- `docs/04_database/migrations.md`
+- `docs/03_database/schema.dbml`
+- `docs/03_database/migrations.md`
 
 If the task touches frontend behavior, read:
 
-- `docs/05_frontend/ui-routes.md`
-- `docs/05_frontend/components.md`
+- `docs/06_frontend/ui-routes.md`
+- `docs/06_frontend/components.md`
 
 ---
 

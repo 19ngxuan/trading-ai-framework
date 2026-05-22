@@ -475,6 +475,8 @@ The following containers or deployment units are intentionally not part of Versi
 - public API gateway
 - real-money trading broker integration
 
+The Backend API also runs V1 in-process background tasks for historical simulations and scheduled/manual execution triggers. This is still part of the Backend API container, not a separate worker container.
+
 These may be considered in later versions if system requirements justify the additional complexity.
 
 ---
@@ -485,10 +487,10 @@ These may be considered in later versions if system requirements justify the add
 - `./c4-context.md`
 - `./c4-component.md`
 - `./decisions.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../04_database/schema.dbml`
-- `../06_backend/module-structure.md`
-- `../06_backend/service-contracts.md`
+- `../../02_domain/01_entities.md`
+- `../../02_domain/02_workflows.md`
+- `../../02_domain/03_business-rules.md`
+- `../../04_api/api-spec.md`
+- `../../03_database/schema.dbml`
+- `../../05_backend/module-structure.md`
+- `../../05_backend/service-contracts.md`

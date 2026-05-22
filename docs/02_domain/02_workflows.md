@@ -79,7 +79,7 @@ Result:
 
 Goal:
 
-Move an experiment from `CREATED` or `PAUSED` to `RUNNING`.
+Move an experiment from `CREATED` to `RUNNING`.
 
 Flow:
 
@@ -93,8 +93,9 @@ Allowed transitions:
 
 ```text
 CREATED → RUNNING
-PAUSED → RUNNING
 ```
+
+Paused experiments must use the Resume Experiment workflow. `start` must reject `PAUSED`.
 
 Invalid transitions must be rejected.
 
@@ -196,6 +197,7 @@ Flow:
 
 Important rules:
 
+- V1 historical simulations are submitted via FastAPI and executed as in-process background tasks. The frontend tracks progress through polling. No external queue or worker service is used in V1.
 - Historical simulation must be reproducible from stored data and configuration.
 - Every step must be auditable.
 - Missing market data should result in a skipped step and a system event.
@@ -391,7 +393,7 @@ Flow:
 3. If `final_action = BUY` or `SELL`, Execution Module creates an `Order`.
 4. In simulation mode, the order is filled according to simulation rules.
 5. In paper-trading mode, order is submitted through Broker Module.
-6. If order is filled, backend creates a `Trade`.
+6. If an order receives fills, backend creates one `Trade` per fill. One order may therefore create zero, one, or many trades.
 7. Backend updates portfolio state.
 8. Backend records portfolio and metric snapshots.
 
@@ -499,7 +501,7 @@ The system must prefer not trading over executing uncertain or unsafe decisions.
 
 - `./entities.md`
 - `./business-rules.md`
-- `../01_architecture/c4-component.md`
+- `../01_architecture/01_c4-model/c4-component.md`
 - `../01_architecture/decisions.md`
-- `../04_database/schema.dbml`
-- `../06_backend/service-contracts.md`
+- `../03_database/schema.dbml`
+- `../05_backend/service-contracts.md`

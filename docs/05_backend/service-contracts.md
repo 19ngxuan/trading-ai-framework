@@ -119,7 +119,7 @@ Conceptual fields:
 
 ```text
 order: Order | null
-trade: Trade | null
+trades: list[Trade]
 portfolio_state: PortfolioState
 status: COMPLETED | SKIPPED | FAILED
 error_message: string | null
@@ -210,10 +210,10 @@ Responsibility:
 Allowed starting statuses:
 
 - CREATED
-- PAUSED, only for resume semantics if routed through resume
 
 Must reject:
 
+- PAUSED
 - RUNNING
 - STOPPED
 - COMPLETED
@@ -348,7 +348,7 @@ Required sequence:
 9. Run Risk Engine.
 10. Store `RiskCheck`.
 11. Execute final action if not HOLD.
-12. Store Order and Trade if applicable.
+12. Store an Order if applicable, and zero or more Trade records when fills occur.
 13. Update portfolio.
 14. Store `PortfolioSnapshot`.
 15. Calculate metrics.
@@ -533,6 +533,29 @@ Must enforce:
 - no buying without sufficient cash
 - no execution without risk check
 
+Risk configuration is read from `strategy_configs.parameters_json.riskConfig` in V1 after applying these defaults and validation rules:
+
+```json
+{
+  "riskConfig": {
+    "maxPositionSizePct": 1.0,
+    "maxTradesPerDay": null,
+    "maxTradesPerWeek": null,
+    "maxDrawdownPct": null,
+    "drawdownAction": "BLOCK_TRADES",
+    "fallbackAction": "HOLD"
+  }
+}
+```
+
+- `maxPositionSizePct`: number, required by effective defaults, `0 < value <= 1`, default `1.0`.
+- `maxTradesPerDay`: integer or null, if set `>= 1`, default `null`.
+- `maxTradesPerWeek`: integer or null, if set `>= 1`, default `null`.
+- `maxDrawdownPct`: number or null, if set `0 < value <= 1`, default `null`.
+- `drawdownAction`: `BLOCK_TRADES`, `PAUSE_EXPERIMENT`, or `STOP_EXPERIMENT`, default `BLOCK_TRADES`.
+- `fallbackAction`: V1 must be `HOLD`, default `HOLD`.
+- Unknown keys may be preserved in JSON but ignored by the V1 Risk Engine.
+
 Fallback:
 
 - Invalid or unsafe decisions become HOLD.
@@ -585,6 +608,7 @@ Rules:
 - Cash must not become negative.
 - Position must not become negative.
 - Portfolio value must remain consistent.
+- One order may produce zero, one, or many trades. Providers must return all created trade records.
 
 ---
 
@@ -608,6 +632,7 @@ Rules:
 - Only paper-trading endpoints may be used.
 - Broker state is source of truth.
 - Broker mismatch pauses experiment.
+- One order may produce zero, one, or many trades. Providers must return all created trade records.
 
 ---
 
@@ -833,11 +858,11 @@ Execution without ExecutionStep
 
 ## 17. Related Documents
 
-- `../01_architecture/c4-component.md`
+- `../01_architecture/01_c4-model/c4-component.md`
 - `../01_architecture/decisions.md`
-- `../02_domain/entities.md`
-- `../02_domain/workflows.md`
-- `../02_domain/business-rules.md`
-- `../03_api/api-spec.md`
-- `../04_database/schema.dbml`
+- `../02_domain/01_entities.md`
+- `../02_domain/02_workflows.md`
+- `../02_domain/03_business-rules.md`
+- `../04_api/api-spec.md`
+- `../03_database/schema.dbml`
 - `./module-structure.md`

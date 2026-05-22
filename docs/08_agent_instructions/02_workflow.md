@@ -44,8 +44,8 @@ Example:
 ```text
 Task: M4 Moving Average Strategy
 Relevant docs:
-- docs/02_domain/business-rules.md
-- docs/06_backend/service-contracts.md
+- docs/02_domain/03_business-rules.md
+- docs/05_backend/service-contracts.md
 - docs/07_implementation/tasks/M4-moving-average-strategy.md
 
 Affected files:

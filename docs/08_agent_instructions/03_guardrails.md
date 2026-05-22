@@ -122,8 +122,8 @@ Database changes require discipline.
 Mandatory rules:
 
 1. Any schema change requires an Alembic migration.
-2. Any schema change requires updating `docs/04_database/schema.dbml`.
-3. Any domain meaning change requires updating `docs/02_domain/entities.md`.
+2. Any schema change requires updating `docs/03_database/schema.dbml`.
+3. Any domain meaning change requires updating `docs/02_domain/01_entities.md`.
 4. Enum values must not be renamed silently.
 5. Existing audit tables must not be removed.
 6. Foreign key relationships must preserve the audit chain.
@@ -138,8 +138,8 @@ API contracts must not change silently.
 
 Mandatory rules:
 
-1. Any endpoint change must update `docs/03_api/api-spec.md`.
-2. Any OpenAPI change must update `docs/03_api/openapi.yaml`.
+1. Any endpoint change must update `docs/04_api/api-spec.md`.
+2. Any OpenAPI change must update `docs/04_api/openapi.yaml`.
 3. Response shapes must remain stable unless explicitly changed.
 4. Error responses must use the documented error format.
 5. Start and run-next-step operations remain asynchronous.
@@ -176,6 +176,8 @@ Mandatory rules:
 7. Alpaca-specific code must stay behind adapters.
 8. LLM-provider-specific code must stay behind an LLM client abstraction.
 9. New dependencies must be justified and scoped.
+
+V1 historical simulations must use FastAPI in-process background tasks, not an external queue or separate worker, unless a future design change is explicitly approved.
 
 ---
 

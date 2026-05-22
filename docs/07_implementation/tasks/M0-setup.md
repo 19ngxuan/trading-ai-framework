@@ -29,7 +29,7 @@ Create the initial monorepo, FastAPI backend, React frontend, PostgreSQL service
 
 - docs/01_architecture/system-overview.md
 - docs/01_architecture/decisions.md
-- docs/07_implementation/coding-standards.md
+- docs/07_implementation/01_coding-standards.md
 
 ---
 
