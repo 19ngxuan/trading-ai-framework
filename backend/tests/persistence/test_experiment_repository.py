@@ -5,7 +5,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.domain.enums import (
@@ -15,7 +14,7 @@ from app.domain.enums import (
     StrategyType,
     TradingFrequency,
 )
-from app.persistence.database import create_session_factory
+from app.persistence.database import create_session_factory, get_database_url
 from app.persistence.models import ExperimentModel
 from app.persistence.repositories import ExperimentRepository
 
@@ -25,7 +24,7 @@ def _database_url() -> str:
     database_url = settings.test_database_url or settings.database_url
     if not database_url:
         pytest.skip("TEST_DATABASE_URL or DATABASE_URL is required for database tests.")
-    return database_url
+    return get_database_url(database_url)
 
 
 def _require_database() -> str:
@@ -34,8 +33,6 @@ def _require_database() -> str:
     try:
         with engine.connect():
             pass
-    except SQLAlchemyError as exc:
-        pytest.skip(f"Database is not reachable for persistence tests: {exc}")
     finally:
         engine.dispose()
     return database_url

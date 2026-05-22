@@ -2,17 +2,17 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0/M1 foundation:
+This repository currently contains the M0-M2 foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
 - PostgreSQL Docker Compose service
 - Environment example files
-- Backend health endpoint
+- Backend health, experiment, and options API endpoints
 - Basic frontend app shell
-- Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and database smoke tests
+- Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include trading strategy execution, risk logic, broker integration, Alpaca integration, LLM integration, scheduler behavior, or public API endpoints beyond health.
+The current implementation intentionally does not include trading strategy execution, risk logic, broker integration, Alpaca integration, LLM integration, scheduler behavior, or frontend dashboard business logic.
 
 ## Requirements
 
@@ -33,7 +33,8 @@ Services:
 
 - Frontend: http://localhost:5173
 - Backend health: http://localhost:8000/api/v1/health
-- PostgreSQL: localhost:5432
+- PostgreSQL from host: 127.0.0.1:5433
+- PostgreSQL from Docker services: postgres:5432
 
 Smoke check:
 
@@ -56,6 +57,7 @@ Expected response:
 ```bash
 cd backend
 uv sync --extra dev
+export DATABASE_URL=postgresql://trading_lab:trading_lab_password@127.0.0.1:5433/trading_lab
 uv run uvicorn app.main:app --reload
 uv run pytest
 ```
@@ -73,11 +75,24 @@ Apply migrations locally:
 
 ```bash
 cd backend
-DATABASE_URL=postgresql://trading_lab:trading_lab_password@localhost:5432/trading_lab uv run alembic upgrade head
+DATABASE_URL=postgresql://trading_lab:trading_lab_password@127.0.0.1:5433/trading_lab uv run alembic upgrade head
 ```
 
 Database smoke tests use `TEST_DATABASE_URL` when set, otherwise `DATABASE_URL`.
-If neither URL is configured or PostgreSQL is unreachable, database tests skip with an explicit reason.
+If neither URL is configured, database tests skip with an explicit reason. If a URL is configured but PostgreSQL is unreachable, database tests fail.
+
+Run PostgreSQL-backed tests locally:
+
+```bash
+cd backend
+DATABASE_URL=postgresql://trading_lab:trading_lab_password@127.0.0.1:5433/trading_lab uv run pytest
+```
+
+Docker-internal services use:
+
+```bash
+DATABASE_URL=postgresql://trading_lab:trading_lab_password@postgres:5432/trading_lab
+```
 
 ## Frontend Local Development
 

@@ -1,10 +1,10 @@
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import create_engine, inspect, text
 
 from app.core.config import get_settings
+from app.persistence.database import get_database_url
 
 
 def _database_url() -> str:
@@ -14,7 +14,7 @@ def _database_url() -> str:
         pytest.skip(
             "TEST_DATABASE_URL or DATABASE_URL is required for migration tests."
         )
-    return database_url
+    return get_database_url(database_url)
 
 
 def _require_database() -> str:
@@ -23,8 +23,6 @@ def _require_database() -> str:
     try:
         with engine.connect():
             pass
-    except SQLAlchemyError as exc:
-        pytest.skip(f"Database is not reachable for migration tests: {exc}")
     finally:
         engine.dispose()
     return database_url
@@ -68,3 +66,28 @@ def test_initial_migration_creates_documented_tables_and_trade_cardinality() -> 
         assert ("execution_step_id",) not in unique_indexes
     finally:
         engine.dispose()
+
+
+def test_system_event_type_enum_contains_m2_lifecycle_values() -> None:
+    database_url = _require_database()
+    command.upgrade(_alembic_config(database_url), "head")
+
+    engine = create_engine(database_url, pool_pre_ping=True)
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                SELECT enumlabel
+                FROM pg_enum
+                JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
+                WHERE pg_type.typname = 'system_event_type'
+                """
+                )
+            ).fetchall()
+    finally:
+        engine.dispose()
+
+    enum_values = {row[0] for row in rows}
+    assert "EXPERIMENT_RESUMED" in enum_values
+    assert "EXPERIMENT_FAILED" in enum_values

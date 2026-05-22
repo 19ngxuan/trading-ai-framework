@@ -1,0 +1,162 @@
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.domain.enums import ExperimentStatus, SystemEventType
+from app.persistence.database import get_database_url
+from app.persistence.models import ExperimentModel, SystemEventLogModel
+
+
+def _create_request_payload() -> dict:
+    return {
+        "name": "M2 experiment",
+        "mode": "HISTORICAL_SIMULATION",
+        "strategyType": "MOVING_AVERAGE",
+        "assetSymbol": "SPY",
+        "initialCapital": 10000.0,
+        "startDate": "2024-01-01",
+        "endDate": "2024-12-31",
+        "tradingFrequency": "DAILY",
+        "feeModelType": "NONE",
+        "feeValue": 0,
+        "strategyConfig": {
+            "strategyVersion": "moving-average-v1",
+            "movingAverageWindow": 200,
+            "positionSizingType": "ALL_IN",
+            "agentMode": None,
+            "modelName": None,
+            "confidenceThreshold": None,
+            "parametersJson": {
+                "riskConfig": {
+                    "fallbackAction": "HOLD",
+                }
+            },
+        },
+    }
+
+
+def _database_url() -> str:
+    settings = get_settings()
+    database_url = settings.test_database_url or settings.database_url
+    assert database_url is not None
+    return get_database_url(database_url)
+
+
+def test_create_experiment_creates_related_records_and_event(client) -> None:
+    response = client.post("/api/v1/experiments", json=_create_request_payload())
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["experiment"]["status"] == "CREATED"
+    assert body["portfolio"]["cash"] == 10000.0
+    assert body["portfolio"]["positionSymbol"] is None
+    assert body["portfolio"]["positionQuantity"] == 0.0
+    assert body["portfolio"]["currentPositionValue"] == 0.0
+    assert body["portfolio"]["currentPortfolioValue"] == 10000.0
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        event_types = list(
+            session.scalars(select(SystemEventLogModel.event_type).order_by(SystemEventLogModel.id))
+        )
+        assert event_types == [SystemEventType.EXPERIMENT_CREATED]
+    engine.dispose()
+
+
+def test_create_experiment_validation_error_is_normalized(client) -> None:
+    payload = _create_request_payload()
+    payload["assetSymbol"] = "QQQ"
+
+    response = client.post("/api/v1/experiments", json=payload)
+    assert response.status_code == 422
+    body = response.json()
+    assert body["errorCode"] == "VALIDATION_ERROR"
+    assert "message" in body
+    assert "details" in body
+
+
+def test_list_and_detail_experiments(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    list_response = client.get("/api/v1/experiments?limit=10&offset=0")
+    assert list_response.status_code == 200
+    list_body = list_response.json()
+    assert list_body["total"] == 1
+    assert list_body["items"][0]["id"] == experiment_id
+    assert list_body["items"][0]["latestAgentDecisions"] == []
+
+    detail_response = client.get(f"/api/v1/experiments/{experiment_id}")
+    assert detail_response.status_code == 200
+    detail_body = detail_response.json()
+    assert detail_body["experiment"]["id"] == experiment_id
+    assert detail_body["latestMetrics"] is None
+    assert detail_body["latestAgentDecisions"] == []
+
+
+def test_detail_not_found_returns_normalized_error(client) -> None:
+    response = client.get("/api/v1/experiments/9999")
+    assert response.status_code == 404
+    body = response.json()
+    assert body["errorCode"] == "EXPERIMENT_NOT_FOUND"
+
+
+def test_lifecycle_transitions_and_events(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    start_response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert start_response.status_code == 202
+    assert start_response.json()["status"] == "RUNNING"
+
+    pause_response = client.post(f"/api/v1/experiments/{experiment_id}/pause")
+    assert pause_response.status_code == 200
+    assert pause_response.json()["status"] == "PAUSED"
+
+    resume_response = client.post(f"/api/v1/experiments/{experiment_id}/resume")
+    assert resume_response.status_code == 202
+    assert resume_response.json()["status"] == "RUNNING"
+
+    stop_response = client.post(f"/api/v1/experiments/{experiment_id}/stop")
+    assert stop_response.status_code == 200
+    assert stop_response.json()["status"] == "STOPPED"
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        statuses = list(session.scalars(select(ExperimentModel.status)))
+        event_types = list(
+            session.scalars(select(SystemEventLogModel.event_type).order_by(SystemEventLogModel.id))
+        )
+        assert statuses == [ExperimentStatus.STOPPED]
+        assert event_types == [
+            SystemEventType.EXPERIMENT_CREATED,
+            SystemEventType.EXPERIMENT_STARTED,
+            SystemEventType.EXPERIMENT_PAUSED,
+            SystemEventType.EXPERIMENT_RESUMED,
+            SystemEventType.EXPERIMENT_STOPPED,
+        ]
+    engine.dispose()
+
+
+def test_invalid_transition_returns_409(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    start_response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert start_response.status_code == 202
+
+    invalid_start = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert invalid_start.status_code == 409
+    body = invalid_start.json()
+    assert body["errorCode"] == "INVALID_EXPERIMENT_STATUS"
+
+
+def test_start_on_paused_is_rejected(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+    client.post(f"/api/v1/experiments/{experiment_id}/start")
+    client.post(f"/api/v1/experiments/{experiment_id}/pause")
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "INVALID_EXPERIMENT_STATUS"
