@@ -6,6 +6,17 @@ info:
 servers:
   - url: /api/v1
 paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Backend health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
   /options:
     get:
       summary: Get supported enum values and frontend options
@@ -65,23 +76,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedExperimentSummaryResponse'
-  /experiments/compare:
-    post:
-      summary: Compare experiments
-      operationId: compareExperiments
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CompareExperimentsRequest'
-      responses:
-        '200':
-          description: Comparison result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompareExperimentsResponse'
   /experiments/{experimentId}:
     get:
       summary: Get experiment detail
@@ -178,80 +172,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RunNextStepResponse'
-  /experiments/{experimentId}/execution-steps:
-    get:
-      summary: List execution steps
-      operationId: listExecutionSteps
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: status
-          schema:
-            $ref: '#/components/schemas/ExecutionStepStatus'
-        - in: query
-          name: triggerType
-          schema:
-            $ref: '#/components/schemas/TriggerType'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Execution steps
+        '404':
+          description: Experiment not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedExecutionStepResponse'
-  /execution-steps/{executionStepId}:
-    get:
-      summary: Get execution step detail
-      operationId: getExecutionStepDetail
-      parameters:
-        - $ref: '#/components/parameters/ExecutionStepId'
-      responses:
-        '200':
-          description: Execution step detail
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invalid experiment state, configuration, or concurrent step
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExecutionStepDetailResponse'
-  /experiments/{experimentId}/trades:
-    get:
-      summary: List trades
-      operationId: listTrades
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: side
-          schema:
-            $ref: '#/components/schemas/OrderSide'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Trades
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedTradeResponse'
-  /experiments/{experimentId}/orders:
-    get:
-      summary: List orders
-      operationId: listOrders
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: status
-          schema:
-            $ref: '#/components/schemas/OrderStatus'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Orders
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedOrderResponse'
+                $ref: '#/components/schemas/ErrorResponse'
   /experiments/{experimentId}/metrics:
     get:
       summary: List metric snapshots
@@ -267,6 +199,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedMetricSnapshotResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /experiments/{experimentId}/portfolio-snapshots:
     get:
       summary: List portfolio snapshots
@@ -282,86 +220,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedPortfolioSnapshotResponse'
-  /experiments/{experimentId}/agent-logs:
-    get:
-      summary: List agent decision logs
-      operationId: listAgentLogs
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: agentMode
-          schema:
-            $ref: '#/components/schemas/AgentMode'
-        - in: query
-          name: agentStepName
-          schema:
-            $ref: '#/components/schemas/AgentStepName'
-        - in: query
-          name: parsingStatus
-          schema:
-            $ref: '#/components/schemas/ParsingStatus'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Agent decision logs
+        '404':
+          description: Experiment not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgentLogResponse'
-  /experiments/{experimentId}/events:
-    get:
-      summary: List system event logs
-      operationId: listEvents
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: level
-          schema:
-            $ref: '#/components/schemas/EventLevel'
-        - in: query
-          name: eventType
-          schema:
-            $ref: '#/components/schemas/SystemEventType'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: System events
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedSystemEventResponse'
-  /experiments/{experimentId}/broker-sync-logs:
-    get:
-      summary: List broker sync logs
-      operationId: listBrokerSyncLogs
-      parameters:
-        - $ref: '#/components/parameters/ExperimentId'
-        - in: query
-          name: syncStatus
-          schema:
-            $ref: '#/components/schemas/BrokerSyncStatus'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Broker sync logs
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedBrokerSyncLogResponse'
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   parameters:
     ExperimentId:
       name: experimentId
-      in: path
-      required: true
-      schema:
-        type: integer
-        format: int64
-    ExecutionStepId:
-      name: executionStepId
       in: path
       required: true
       schema:
@@ -385,6 +253,15 @@ components:
         default: 0
         minimum: 0
   schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        version:
+          type: string
     ExperimentMode:
       type: string
       enum: [HISTORICAL_SIMULATION, LIVE_SIMULATION, PAPER_TRADING]
@@ -451,8 +328,10 @@ components:
         - EXPERIMENT_CREATED
         - EXPERIMENT_STARTED
         - EXPERIMENT_PAUSED
+        - EXPERIMENT_RESUMED
         - EXPERIMENT_STOPPED
         - EXPERIMENT_COMPLETED
+        - EXPERIMENT_FAILED
         - MARKET_DATA_MISSING
         - STRATEGY_DECISION_CREATED
         - RISK_LIMIT_TRIGGERED
@@ -665,7 +544,7 @@ components:
           nullable: true
         lastTrade:
           allOf:
-            - $ref: '#/components/schemas/Trade'
+            - $ref: '#/components/schemas/TradeSummary'
           nullable: true
         latestAgentDecisions:
           type: array
@@ -722,7 +601,8 @@ components:
           type: integer
           format: int64
         status:
-          $ref: '#/components/schemas/ExecutionStepStatus'
+          type: string
+          description: Execution step status when a step is created, or experiment status when no step is created.
         message:
           type: string
     ExecutionStep:
@@ -938,6 +818,20 @@ components:
           type: number
           format: double
           nullable: true
+    TradeSummary:
+      type: object
+      properties:
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        quantity:
+          type: number
+          format: double
+        price:
+          type: number
+          format: double
+        timestamp:
+          type: string
+          format: date-time
     PortfolioSnapshot:
       type: object
       properties:
@@ -1329,7 +1223,7 @@ components:
                 $ref: '#/components/schemas/BrokerSyncLog'
     ErrorResponse:
       type: object
-      required: [errorCode, message]
+      required: [errorCode, message, details]
       properties:
         errorCode:
           type: string
@@ -1338,4 +1232,3 @@ components:
         details:
           type: object
           additionalProperties: true
-          nullable: true

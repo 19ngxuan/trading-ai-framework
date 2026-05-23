@@ -4,7 +4,7 @@
 
 This document defines the REST API contract for Trading Lab.
 
-The API is used by the React frontend to create, control, inspect, and compare trading experiments.
+The API is used by the React frontend to create, control, and inspect trading experiments.
 
 The API does not expose direct access to Alpaca, the LLM provider, or the database. All external integrations are handled internally by the FastAPI backend.
 
@@ -45,7 +45,7 @@ Therefore API examples use integer IDs:
 
 ```http
 GET /api/v1/experiments/1
-GET /api/v1/execution-steps/10
+POST /api/v1/experiments/1/run-next-step
 ```
 
 If the persistence model is changed to UUIDs later, this API contract must be updated together with the database schema.
@@ -412,7 +412,13 @@ POST /api/v1/experiments/{experiment_id}/stop
 POST /api/v1/experiments/{experiment_id}/run-next-step
 ```
 
-Triggers one manual execution step. This can be used for debugging historical, live-like, or paper-trading experiments.
+Triggers one manual execution step. In the current M0-M9 implementation this supports:
+
+- `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY`
+- `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
+- `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
+
+`/start` remains lifecycle-only for paper-trading experiments and never submits broker orders.
 
 Manual run-next-step creates exactly one execution step and is intended for deterministic debugging. It uses the same execution pipeline as scheduled/background execution.
 
@@ -430,142 +436,16 @@ Manual run-next-step creates exactly one execution step and is intended for dete
 {
   "experimentId": 1,
   "executionStepId": 100,
-  "status": "RUNNING",
-  "message": "Manual execution step accepted."
+  "status": "COMPLETED",
+  "message": "Manual execution step completed."
 }
 ```
 
 ---
 
-## 7. Execution Step API
+## 7. Metrics And Portfolio Snapshot APIs
 
-## 7.1 List Execution Steps
-
-```http
-GET /api/v1/experiments/{experiment_id}/execution-steps
-```
-
-### Query Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `status` | string | Optional execution step status. |
-| `triggerType` | string | Optional trigger type. |
-| `limit` | integer | Page size. |
-| `offset` | integer | Page offset. |
-
-### Response `200 OK`
-
-```json
-{
-  "items": [
-    {
-      "id": 100,
-      "experimentId": 1,
-      "scheduledFor": "2024-03-01T00:00:00Z",
-      "startedAt": "2026-05-21T10:01:00Z",
-      "completedAt": "2026-05-21T10:01:01Z",
-      "status": "COMPLETED",
-      "triggerType": "HISTORICAL",
-      "sequenceNumber": 324,
-      "errorMessage": null
-    }
-  ],
-  "limit": 50,
-  "offset": 0,
-  "total": 1
-}
-```
-
----
-
-## 7.2 Get Execution Step Detail
-
-```http
-GET /api/v1/execution-steps/{execution_step_id}
-```
-
-### Response `200 OK`
-
-```json
-{
-  "executionStep": {
-    "id": 100,
-    "experimentId": 1,
-    "status": "COMPLETED",
-    "triggerType": "HISTORICAL",
-    "sequenceNumber": 324
-  },
-  "marketDataSnapshot": {
-    "symbol": "SPY",
-    "price": 478.2,
-    "movingAverage": 456.9,
-    "rsi": 61.2
-  },
-  "tradingDecision": {
-    "action": "HOLD",
-    "sourceType": "STRATEGY",
-    "sourceName": "MovingAverageStrategy",
-    "confidence": 1.0,
-    "reason": "SPY price is below the 200-day moving average and no position exists."
-  },
-  "riskCheck": {
-    "approved": true,
-    "finalAction": "HOLD",
-    "finalQuantity": null,
-    "finalNotional": null
-  },
-  "order": null,
-  "trades": [],
-  "portfolioSnapshot": {
-    "cash": 10000,
-    "positionQuantity": 0,
-    "totalPortfolioValue": 10000
-  },
-  "metricSnapshot": {
-    "totalReturn": 0,
-    "profitLoss": 0,
-    "numberOfTrades": 0,
-    "maxDrawdown": 0
-  }
-}
-```
-
-`order` is nullable because HOLD and blocked decisions create no order. `trades` is always an array and may be empty because one order may produce zero, one, or many fills.
-
----
-
-## 8. Trades, Orders, Metrics, Portfolio
-
-## 8.1 List Trades
-
-```http
-GET /api/v1/experiments/{experiment_id}/trades
-```
-
-Optional filters:
-
-```http
-?side=BUY&limit=50&offset=0
-```
-
----
-
-## 8.2 List Orders
-
-```http
-GET /api/v1/experiments/{experiment_id}/orders
-```
-
-Optional filters:
-
-```http
-?status=FAILED&limit=50&offset=0
-```
-
----
-
-## 8.3 List Metric Snapshots
+## 7.1 List Metric Snapshots
 
 ```http
 GET /api/v1/experiments/{experiment_id}/metrics
@@ -575,7 +455,7 @@ Used for metric timelines and charts.
 
 ---
 
-## 8.4 List Portfolio Snapshots
+## 7.2 List Portfolio Snapshots
 
 ```http
 GET /api/v1/experiments/{experiment_id}/portfolio-snapshots
@@ -585,142 +465,23 @@ Used for equity curves and portfolio-value charts.
 
 ---
 
-## 9. Agent Logs API
+## 8. Not Yet Implemented As Public APIs
 
-## 9.1 List Agent Logs
+The M0-M9 implementation persists execution steps, orders, trades, system events, agent log tables, and broker sync tables where applicable, but it does not expose public list/detail endpoints for:
 
-```http
-GET /api/v1/experiments/{experiment_id}/agent-logs
-```
+- execution steps
+- orders
+- trades
+- agent logs
+- system events
+- broker sync logs
+- experiment comparison
 
-### Query Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `agentMode` | string | Optional: `SINGLE_AGENT` or `PIPELINE`. |
-| `agentStepName` | string | Optional pipeline step filter. |
-| `parsingStatus` | string | Optional parsing status filter. |
-| `limit` | integer | Page size. |
-| `offset` | integer | Page offset. |
-
-### Response `200 OK`
-
-```json
-{
-  "items": [
-    {
-      "id": 1,
-      "executionStepId": 100,
-      "experimentId": 1,
-      "tradingDecisionId": 200,
-      "agentMode": "PIPELINE",
-      "agentStepName": "MARKET_ANALYST",
-      "agentName": "market-analyst-v1",
-      "promptVersion": "market-analyst-prompt-v1",
-      "modelName": "gpt-4.1",
-      "modelVersion": "2026-xx",
-      "inputJson": {
-        "symbol": "SPY",
-        "price": 478.2,
-        "movingAverage": 456.9,
-        "rsi": 61.2
-      },
-      "promptText": "...",
-      "rawOutputText": "...",
-      "parsedOutputJson": {
-        "trendAssessment": "bullish",
-        "riskNotes": "RSI not overbought"
-      },
-      "parsingStatus": "SUCCESS",
-      "repairPromptText": null,
-      "repairRawOutputText": null,
-      "createdAt": "2026-05-21T10:01:00Z"
-    }
-  ],
-  "limit": 50,
-  "offset": 0,
-  "total": 1
-}
-```
+These endpoints are intentionally deferred and must not be assumed available by frontend or API clients until implemented and documented.
 
 ---
 
-## 10. Events API
-
-## 10.1 List System Events
-
-```http
-GET /api/v1/experiments/{experiment_id}/events
-```
-
-### Query Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `level` | string | Optional: `INFO`, `WARNING`, `ERROR`. |
-| `eventType` | string | Optional system event type. |
-| `limit` | integer | Page size. |
-| `offset` | integer | Page offset. |
-
----
-
-## 11. Broker Sync Logs API
-
-```http
-GET /api/v1/experiments/{experiment_id}/broker-sync-logs
-```
-
-Optional filters:
-
-```http
-?syncStatus=MISMATCH&limit=50&offset=0
-```
-
----
-
-## 12. Comparison API
-
-## 12.1 Compare Experiments
-
-```http
-POST /api/v1/experiments/compare
-```
-
-`benchmarkExperimentId` must refer to a normal experiment, usually one with `strategyType = BUY_AND_HOLD`. Benchmark comparison fields may also appear denormalized in metric snapshots.
-
-### Request
-
-```json
-{
-  "experimentIds": [1, 2, 3],
-  "benchmarkExperimentId": 1
-}
-```
-
-### Response `200 OK`
-
-```json
-{
-  "benchmarkExperimentId": 1,
-  "items": [
-    {
-      "experimentId": 2,
-      "name": "SPY 200MA Backtest",
-      "strategyType": "MOVING_AVERAGE",
-      "totalReturn": 0.042,
-      "profitLoss": 420.41,
-      "numberOfTrades": 6,
-      "maxDrawdown": -0.081,
-      "benchmarkReturn": 0.215,
-      "differenceToBenchmark": -0.173
-    }
-  ]
-}
-```
-
----
-
-## 13. Options API
+## 9. Options API
 
 ```http
 GET /api/v1/options
@@ -745,7 +506,7 @@ Returns frontend-selectable enum values and supported options.
 
 ---
 
-## 14. API Rules
+## 10. API Rules
 
 1. The API must not expose direct Alpaca access to the frontend.
 2. The API must not expose direct LLM provider access to the frontend.
@@ -772,7 +533,7 @@ ExecutionStep
 
 ---
 
-## 15. Related Documents
+## 11. Related Documents
 
 - `../01_architecture/system-overview.md`
 - `../01_architecture/01_c4-model/c4-container.md`

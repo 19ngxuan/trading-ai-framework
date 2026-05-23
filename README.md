@@ -21,6 +21,8 @@ This repository currently contains the M0-M9 backend/frontend foundation:
 
 The current implementation intentionally does not include real-money trading, broker account/position reconciliation, scheduled paper trading, Moving Average paper trading, LLM/agent execution, live broker-backed scheduler execution, or frontend trading execution UI.
 
+Trading Lab is not financial advice and is not a live trading system. Version 1 is for simulation and Alpaca paper trading only.
+
 ## Requirements
 
 - Python 3.11+
@@ -77,7 +79,7 @@ SCHEDULER_INTERVAL_SECONDS=60
 SCHEDULER_JOB_ID=historical_step_scheduler
 ```
 
-When enabled, the in-process scheduler advances each eligible running historical experiment by one step per tick. Scheduler-enabled mode assumes a single backend instance. In multi-instance deployments, enable the scheduler on at most one backend instance; M7b does not implement leader election.
+When enabled, the in-process scheduler advances each eligible running historical experiment by one step per tick. It does not run paper-trading experiments. Scheduler-enabled mode assumes a single backend instance. In multi-instance deployments, enable the scheduler on at most one backend instance; M7b does not implement leader election.
 
 Market data uses the deterministic local CSV fixture by default:
 
@@ -94,8 +96,9 @@ ALPACA_TRADING_BASE_URL=https://paper-api.alpaca.markets
 ALPACA_ORDER_TIMEOUT_SECONDS=10
 ```
 
-Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. Tests use CSV fixtures or mocked HTTP transports and do not require real Alpaca network access.
-Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manually stepped SPY paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation.
+Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. CSV remains the default for deterministic local development and tests. Tests use CSV fixtures or mocked HTTP transports and do not require real Alpaca network access. When Alpaca is selected, empty or missing market data is fatal; the system does not forward-fill or interpolate bars.
+
+Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manual `run-next-step` SPY Buy-and-Hold paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation and by the broker adapter. Broker reconciliation, outbox processing, account sync, position sync, and order polling are not implemented.
 
 ## Database Migrations
 
@@ -152,4 +155,4 @@ Do not commit real `.env` files or secrets.
 
 The backend is a FastAPI modular monolith. The frontend calls only backend REST APIs. PostgreSQL is the persistent database for later milestones.
 
-Version 1 is simulation and paper-trading only. Real-money trading, live-trading endpoints, short selling, margin, options, and multi-user support are out of scope.
+Version 1 is simulation and paper-trading only. Real-money trading, live-trading endpoints, short selling, margin, options, and multi-user support are out of scope. Agents must never access Alpaca or broker APIs directly; agent output must be converted to a `TradingDecision` and pass through the system RiskCheck before any execution path.
