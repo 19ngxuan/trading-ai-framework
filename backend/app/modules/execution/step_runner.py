@@ -4,6 +4,7 @@ from datetime import datetime, time, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import get_settings
 from app.core.errors import (
     ExperimentStepAlreadyRunningAppError,
     InvalidExperimentConfigurationAppError,
@@ -24,7 +25,12 @@ from app.modules.execution.orchestrator import (
     HistoricalBuyAndHoldOrchestrator,
     HistoricalMovingAverageOrchestrator,
 )
-from app.modules.market_data.csv_loader import DailyBar, SpyCsvLoader
+from app.modules.market_data.errors import (
+    MarketDataProviderError,
+    MarketDataUnavailableError,
+)
+from app.modules.market_data.factory import create_market_data_provider
+from app.modules.market_data.provider import DailyBar, MarketDataProvider
 from app.persistence.database import create_session_factory
 from app.persistence.models import ExecutionStepModel, SystemEventLogModel
 from app.persistence.repositories import (
@@ -54,10 +60,15 @@ class HistoricalStepRunner:
     def __init__(
         self,
         session_factory: sessionmaker[Session] | None = None,
-        csv_loader: SpyCsvLoader | None = None,
+        market_data_provider: MarketDataProvider | None = None,
+        csv_loader: MarketDataProvider | None = None,
     ) -> None:
         self.session_factory = session_factory or create_session_factory()
-        self.csv_loader = csv_loader or SpyCsvLoader()
+        self.market_data_provider = (
+            market_data_provider
+            or csv_loader
+            or create_market_data_provider(get_settings())
+        )
 
     def run_next_step(
         self,
@@ -95,8 +106,8 @@ class HistoricalStepRunner:
             NotFoundAppError,
         ):
             raise
-        except Exception:
-            self._persist_failure(experiment_id, failure_step_id)
+        except Exception as exc:
+            self._persist_failure(experiment_id, failure_step_id, exc)
             raise
 
     def _select_bar_and_create_step(
@@ -151,7 +162,9 @@ class HistoricalStepRunner:
                     details={"experimentId": experiment_id},
                 )
 
-            bars = self.csv_loader.load_range(experiment.start_date, experiment.end_date)
+            bars = self.market_data_provider.load_range(
+                experiment.start_date, experiment.end_date
+            )
             next_index = execution_step_repository.max_sequence_number(experiment_id)
             if next_index >= len(bars):
                 self._mark_completed_in_session(session, experiment_id)
@@ -186,13 +199,13 @@ class HistoricalStepRunner:
         if strategy_type is StrategyType.BUY_AND_HOLD:
             HistoricalBuyAndHoldOrchestrator(
                 session_factory=self.session_factory,
-                csv_loader=self.csv_loader,
+                market_data_provider=self.market_data_provider,
             )._run_step(experiment_id, bar, execution_step_id)
             return
 
         orchestrator = HistoricalMovingAverageOrchestrator(
             session_factory=self.session_factory,
-            csv_loader=self.csv_loader,
+            market_data_provider=self.market_data_provider,
         )
         prices = self._prices_through_bar(experiment_id, bar)
         window = orchestrator._moving_average_window(experiment_id)
@@ -223,7 +236,9 @@ class HistoricalStepRunner:
                     "Experiment was not found.",
                     details={"experimentId": experiment_id},
                 )
-            bars = self.csv_loader.load_range(experiment.start_date, experiment.end_date)
+            bars = self.market_data_provider.load_range(
+                experiment.start_date, experiment.end_date
+            )
             prices = []
             for candidate in bars:
                 prices.append(candidate.adjusted_close)
@@ -239,7 +254,9 @@ class HistoricalStepRunner:
                     "Experiment was not found.",
                     details={"experimentId": experiment_id},
                 )
-            bars = self.csv_loader.load_range(experiment.start_date, experiment.end_date)
+            bars = self.market_data_provider.load_range(
+                experiment.start_date, experiment.end_date
+            )
             return sequence_number >= len(bars)
 
     def _complete_experiment(self, experiment_id: int) -> None:
@@ -272,7 +289,10 @@ class HistoricalStepRunner:
             )
 
     def _persist_failure(
-        self, experiment_id: int, execution_step_id: int | None
+        self,
+        experiment_id: int,
+        execution_step_id: int | None,
+        exc: Exception | None = None,
     ) -> None:
         with self.session_factory() as session:
             now = _utcnow()
@@ -295,8 +315,18 @@ class HistoricalStepRunner:
                         level=EventLevel.ERROR,
                         event_type=SystemEventType.EXPERIMENT_FAILED,
                         message="Experiment failed.",
-                        details_json={"experimentId": experiment_id},
+                        details_json=self._failure_details(experiment_id, exc),
                         created_at=now,
                     )
                 )
             session.commit()
+
+    def _failure_details(self, experiment_id: int, exc: Exception | None) -> dict:
+        details = {"experimentId": experiment_id}
+        if isinstance(exc, MarketDataUnavailableError):
+            details["errorCode"] = "MARKET_DATA_MISSING"
+            details["providerDetails"] = exc.details
+        elif isinstance(exc, MarketDataProviderError):
+            details["errorCode"] = "MARKET_DATA_PROVIDER_ERROR"
+            details["providerDetails"] = exc.details
+        return details

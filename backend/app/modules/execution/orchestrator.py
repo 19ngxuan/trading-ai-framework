@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import get_settings
 from app.domain.enums import (
     DecisionSourceType,
     EventLevel,
@@ -17,7 +18,12 @@ from app.modules.execution.risk import (
     HistoricalSimulationRiskValidator,
 )
 from app.modules.execution.simulation_provider import SimulationExecutionProvider
-from app.modules.market_data.csv_loader import DailyBar, SpyCsvLoader
+from app.modules.market_data.errors import (
+    MarketDataProviderError,
+    MarketDataUnavailableError,
+)
+from app.modules.market_data.factory import create_market_data_provider
+from app.modules.market_data.provider import DailyBar, MarketDataProvider
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
 from app.modules.strategies.moving_average import (
     DEFAULT_MOVING_AVERAGE_WINDOW,
@@ -63,10 +69,15 @@ class HistoricalBuyAndHoldOrchestrator:
     def __init__(
         self,
         session_factory: sessionmaker[Session] | None = None,
-        csv_loader: SpyCsvLoader | None = None,
+        market_data_provider: MarketDataProvider | None = None,
+        csv_loader: MarketDataProvider | None = None,
     ) -> None:
         self.session_factory = session_factory or create_session_factory()
-        self.csv_loader = csv_loader or SpyCsvLoader()
+        self.market_data_provider = (
+            market_data_provider
+            or csv_loader
+            or create_market_data_provider(get_settings())
+        )
         self.strategy = BuyAndHoldStrategy()
         self.risk_validator = BuyAndHoldRiskValidator()
         self.execution_provider = SimulationExecutionProvider()
@@ -76,14 +87,16 @@ class HistoricalBuyAndHoldOrchestrator:
         current_step_id: int | None = None
         try:
             experiment = self._load_experiment(experiment_id)
-            bars = self.csv_loader.load_range(experiment.start_date, experiment.end_date)
+            bars = self.market_data_provider.load_range(
+                experiment.start_date, experiment.end_date
+            )
             for bar in bars:
                 current_step_id = self._create_running_step(experiment_id, bar)
                 self._run_step(experiment_id, bar, current_step_id)
                 current_step_id = None
             self._complete_experiment(experiment_id)
-        except Exception:
-            self._persist_failure(experiment_id, current_step_id)
+        except Exception as exc:
+            self._persist_failure(experiment_id, current_step_id, exc)
             raise
 
     def _load_experiment(self, experiment_id: int) -> ExperimentModel:
@@ -309,7 +322,12 @@ class HistoricalBuyAndHoldOrchestrator:
             )
             session.commit()
 
-    def _persist_failure(self, experiment_id: int, current_step_id: int | None) -> None:
+    def _persist_failure(
+        self,
+        experiment_id: int,
+        current_step_id: int | None,
+        exc: Exception | None = None,
+    ) -> None:
         with self.session_factory() as session:
             now = _utcnow()
             if current_step_id is not None:
@@ -331,11 +349,21 @@ class HistoricalBuyAndHoldOrchestrator:
                         level=EventLevel.ERROR,
                         event_type=SystemEventType.EXPERIMENT_FAILED,
                         message="Experiment failed.",
-                        details_json={"experimentId": experiment_id},
+                        details_json=self._failure_details(experiment_id, exc),
                         created_at=now,
                     )
                 )
             session.commit()
+
+    def _failure_details(self, experiment_id: int, exc: Exception | None) -> dict:
+        details = {"experimentId": experiment_id}
+        if isinstance(exc, MarketDataUnavailableError):
+            details["errorCode"] = "MARKET_DATA_MISSING"
+            details["providerDetails"] = exc.details
+        elif isinstance(exc, MarketDataProviderError):
+            details["errorCode"] = "MARKET_DATA_PROVIDER_ERROR"
+            details["providerDetails"] = exc.details
+        return details
 
 
 class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
@@ -344,10 +372,15 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
     def __init__(
         self,
         session_factory: sessionmaker[Session] | None = None,
-        csv_loader: SpyCsvLoader | None = None,
+        market_data_provider: MarketDataProvider | None = None,
+        csv_loader: MarketDataProvider | None = None,
     ) -> None:
         self.session_factory = session_factory or create_session_factory()
-        self.csv_loader = csv_loader or SpyCsvLoader()
+        self.market_data_provider = (
+            market_data_provider
+            or csv_loader
+            or create_market_data_provider(get_settings())
+        )
         self.strategy = MovingAverageStrategy()
         self.risk_validator = HistoricalSimulationRiskValidator()
         self.execution_provider = SimulationExecutionProvider()
@@ -357,7 +390,9 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
         current_step_id: int | None = None
         try:
             experiment = self._load_experiment(experiment_id)
-            bars = self.csv_loader.load_range(experiment.start_date, experiment.end_date)
+            bars = self.market_data_provider.load_range(
+                experiment.start_date, experiment.end_date
+            )
             window = self._moving_average_window(experiment_id)
             prices: list[Decimal] = []
             for bar in bars:
@@ -373,8 +408,8 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
                 )
                 current_step_id = None
             self._complete_experiment(experiment_id)
-        except Exception:
-            self._persist_failure(experiment_id, current_step_id)
+        except Exception as exc:
+            self._persist_failure(experiment_id, current_step_id, exc)
             raise
 
     def _moving_average_window(self, experiment_id: int) -> int:

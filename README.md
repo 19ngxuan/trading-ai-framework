@@ -15,9 +15,10 @@ This repository currently contains the M0-M7 backend/frontend foundation:
 - Frontend dashboard, experiment creation, and experiment detail views
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
+- Optional Alpaca market data adapter behind the backend market data module
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include Alpaca integration, external market data providers, broker integration, LLM/agent execution, live or broker-backed scheduler execution, or frontend trading execution UI.
+The current implementation intentionally does not include Alpaca paper trading, broker integration, order submission, LLM/agent execution, live or broker-backed scheduler execution, or frontend trading execution UI.
 
 ## Requirements
 
@@ -76,6 +77,20 @@ SCHEDULER_JOB_ID=historical_step_scheduler
 ```
 
 When enabled, the in-process scheduler advances each eligible running historical experiment by one step per tick. Scheduler-enabled mode assumes a single backend instance. In multi-instance deployments, enable the scheduler on at most one backend instance; M7b does not implement leader election.
+
+Market data uses the deterministic local CSV fixture by default:
+
+```bash
+MARKET_DATA_PROVIDER=csv
+ALPACA_API_KEY_ID=
+ALPACA_API_SECRET_KEY=
+ALPACA_DATA_BASE_URL=https://data.alpaca.markets
+ALPACA_DATA_FEED=iex
+ALPACA_DATA_ADJUSTMENT=all
+ALPACA_REQUEST_TIMEOUT_SECONDS=10
+```
+
+Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. Tests use CSV fixtures or mocked HTTP transports and do not require real Alpaca network access.
 
 ## Database Migrations
 
