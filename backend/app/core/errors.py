@@ -48,3 +48,13 @@ class InvalidExperimentConfigurationAppError(AppError):
             status_code=409,
             details=details or {},
         )
+
+
+class ExperimentStepAlreadyRunningAppError(AppError):
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(
+            error_code="EXPERIMENT_STEP_ALREADY_RUNNING",
+            message=message,
+            status_code=409,
+            details=details or {},
+        )

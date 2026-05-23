@@ -8,7 +8,9 @@ from app.api.schemas.experiment_schemas import (
     ExperimentDetailResponse,
     PaginatedExperimentSummaryResponse,
 )
+from app.api.schemas.execution_schemas import RunNextStepRequest, RunNextStepResponse
 from app.domain.enums import ExperimentMode, ExperimentStatus, StrategyType
+from app.modules.execution.step_runner import HistoricalStepRunner
 from app.modules.experiments.service import ExperimentService
 from app.persistence.database import get_session
 
@@ -57,6 +59,25 @@ def start_experiment(
 ) -> ExperimentActionResponse:
     service = ExperimentService(session)
     return service.start_experiment(experiment_id, background_tasks)
+
+
+@router.post(
+    "/{experiment_id}/run-next-step",
+    response_model=RunNextStepResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def run_next_step(
+    experiment_id: int,
+    payload: RunNextStepRequest | None = None,
+) -> RunNextStepResponse:
+    _ = payload
+    result = HistoricalStepRunner().run_next_step(experiment_id)
+    return RunNextStepResponse(
+        experimentId=result.experiment_id,
+        executionStepId=result.execution_step_id,
+        status=result.status.value,
+        message=result.message,
+    )
 
 
 @router.post("/{experiment_id}/pause", response_model=ExperimentActionResponse)

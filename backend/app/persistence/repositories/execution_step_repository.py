@@ -1,5 +1,6 @@
 from sqlalchemy import func, select
 
+from app.domain.enums import ExecutionStepStatus
 from app.persistence.models import ExecutionStepModel
 from app.persistence.repositories.base import BaseRepository
 
@@ -26,3 +27,14 @@ class ExecutionStepRepository(BaseRepository[ExecutionStepModel]):
             self.model.experiment_id == experiment_id
         )
         return int(self.session.scalar(statement) or 0)
+
+    def has_running_step(self, experiment_id: int) -> bool:
+        statement = (
+            select(self.model.id)
+            .where(
+                self.model.experiment_id == experiment_id,
+                self.model.status == ExecutionStepStatus.RUNNING,
+            )
+            .limit(1)
+        )
+        return self.session.scalar(statement) is not None
