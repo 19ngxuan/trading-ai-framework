@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -10,6 +12,7 @@ from app.api.routes.metrics import router as metrics_router
 from app.api.routes.options import router as options_router
 from app.core.config import get_settings
 from app.core.errors import AppError
+from app.modules.scheduler.scheduler import create_scheduler
 
 
 def _error_response(error_code: str, message: str, details: dict) -> dict:
@@ -20,9 +23,28 @@ def _error_response(error_code: str, message: str, details: dict) -> dict:
     ).model_dump(by_alias=True)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    scheduler = None
+    if settings.scheduler_enabled:
+        scheduler = create_scheduler(settings)
+        scheduler.start()
+        app.state.scheduler = scheduler
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, version=settings.app_version)
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        lifespan=lifespan,
+    )
 
     app.add_middleware(
         CORSMiddleware,

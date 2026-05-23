@@ -1,6 +1,11 @@
 from sqlalchemy import func, select
 
-from app.domain.enums import ExperimentMode, ExperimentStatus, StrategyType
+from app.domain.enums import (
+    ExperimentMode,
+    ExperimentStatus,
+    StrategyType,
+    TradingFrequency,
+)
 from app.persistence.models import ExperimentModel
 from app.persistence.repositories.base import BaseRepository
 
@@ -44,3 +49,18 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
         if mode is not None:
             statement = statement.where(self.model.mode == mode)
         return int(self.session.scalar(statement) or 0)
+
+    def list_scheduler_eligible_experiment_ids(self) -> list[int]:
+        statement = (
+            select(self.model.id)
+            .where(
+                self.model.status == ExperimentStatus.RUNNING,
+                self.model.mode == ExperimentMode.HISTORICAL_SIMULATION,
+                self.model.trading_frequency == TradingFrequency.DAILY,
+                self.model.strategy_type.in_(
+                    [StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE]
+                ),
+            )
+            .order_by(self.model.id.asc())
+        )
+        return list(self.session.scalars(statement))

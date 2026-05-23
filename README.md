@@ -2,7 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M4 foundation:
+This repository currently contains the M0-M7 backend/frontend foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -11,10 +11,13 @@ This repository currently contains the M0-M4 foundation:
 - Backend health, experiment, and options API endpoints
 - Deterministic Buy-and-Hold historical simulation for `BUY_AND_HOLD` + `HISTORICAL_SIMULATION`
 - Deterministic Moving Average historical simulation for `MOVING_AVERAGE` + `HISTORICAL_SIMULATION`
-- Basic frontend app shell
+- Metrics and portfolio snapshot APIs
+- Frontend dashboard, experiment creation, and experiment detail views
+- Manual run-next-step support for deterministic historical execution
+- Optional backend scheduler infrastructure for scheduled historical steps
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include Alpaca integration, external market data providers, broker integration, LLM/agent execution, scheduler behavior, or frontend trading UI.
+The current implementation intentionally does not include Alpaca integration, external market data providers, broker integration, LLM/agent execution, live or broker-backed scheduler execution, or frontend trading execution UI.
 
 ## Requirements
 
@@ -63,6 +66,16 @@ export DATABASE_URL=postgresql://trading_lab:trading_lab_password@127.0.0.1:5433
 uv run uvicorn app.main:app --reload
 uv run pytest
 ```
+
+Scheduler settings are disabled by default:
+
+```bash
+SCHEDULER_ENABLED=false
+SCHEDULER_INTERVAL_SECONDS=60
+SCHEDULER_JOB_ID=historical_step_scheduler
+```
+
+When enabled, the in-process scheduler advances each eligible running historical experiment by one step per tick. Scheduler-enabled mode assumes a single backend instance. In multi-instance deployments, enable the scheduler on at most one backend instance; M7b does not implement leader election.
 
 ## Database Migrations
 
