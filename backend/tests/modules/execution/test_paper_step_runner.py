@@ -1,0 +1,462 @@
+from datetime import date, datetime
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.errors import (
+    ExperimentStepAlreadyRunningAppError,
+    InvalidExperimentConfigurationAppError,
+)
+from app.domain.enums import (
+    BrokerName,
+    ExecutionStepStatus,
+    ExperimentMode,
+    ExperimentStatus,
+    FeeModelType,
+    OrderMode,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    StrategyType,
+    SystemEventType,
+    TradingFrequency,
+    TriggerType,
+)
+from app.modules.broker.broker_adapter import (
+    BrokerAccountState,
+    BrokerOrderResult,
+    BrokerPosition,
+)
+from app.modules.broker.errors import BrokerProviderError
+from app.modules.execution.paper_step_runner import PaperTradingStepRunner
+from app.modules.market_data.provider import DailyBar
+from app.persistence.database import create_session_factory
+from app.persistence.models import (
+    ExecutionStepModel,
+    ExperimentModel,
+    MarketDataSnapshotModel,
+    MetricSnapshotModel,
+    OrderModel,
+    PortfolioModel,
+    PortfolioSnapshotModel,
+    RiskCheckModel,
+    StrategyConfigModel,
+    SystemEventLogModel,
+    TradeModel,
+    TradingDecisionModel,
+)
+
+
+class FakeMarketDataProvider:
+    def __init__(self, price: Decimal = Decimal("100.00")) -> None:
+        self.price = price
+
+    def load_range(self, *args, **kwargs) -> list[DailyBar]:
+        return [self.get_latest_bar()]
+
+    def get_latest_bar(self, symbol: str = "SPY") -> DailyBar:
+        assert symbol == "SPY"
+        return DailyBar(
+            date=date(2026, 1, 2),
+            open=self.price,
+            high=self.price,
+            low=self.price,
+            close=self.price,
+            adjusted_close=self.price,
+            volume=Decimal("1000"),
+            raw={"provider": "fake", "symbol": symbol},
+        )
+
+
+class FakeBrokerAdapter:
+    def __init__(
+        self,
+        *,
+        result: BrokerOrderResult | None = None,
+        error: BrokerProviderError | None = None,
+        on_place_order=None,
+    ) -> None:
+        self.result = result or _broker_result(status="filled", filled_quantity="100")
+        self.error = error
+        self.on_place_order = on_place_order
+        self.calls: list[dict] = []
+
+    def place_order(
+        self,
+        *,
+        symbol: str,
+        side: OrderSide,
+        quantity: Decimal,
+        order_type: OrderType,
+        client_order_id: str,
+    ) -> BrokerOrderResult:
+        self.calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "orderType": order_type,
+                "clientOrderId": client_order_id,
+            }
+        )
+        if self.on_place_order is not None:
+            self.on_place_order()
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+    def get_order_status(self, broker_order_id: str) -> BrokerOrderResult:
+        return self.result
+
+    def get_account_state(self) -> BrokerAccountState:
+        return BrokerAccountState(cash=None, status=None, raw={})
+
+    def get_positions(self) -> list[BrokerPosition]:
+        return []
+
+
+def _broker_result(
+    *,
+    status: str,
+    filled_quantity: str = "0",
+    average_fill_price: str | None = "100.00",
+) -> BrokerOrderResult:
+    return BrokerOrderResult(
+        broker_order_id=f"alpaca-{status}",
+        status=status,
+        symbol="SPY",
+        side=OrderSide.BUY,
+        quantity=Decimal("100"),
+        filled_quantity=Decimal(filled_quantity),
+        average_fill_price=(
+            Decimal(average_fill_price) if average_fill_price is not None else None
+        ),
+        submitted_at=datetime(2026, 1, 2, 12, 0, 0),
+        filled_at=(
+            datetime(2026, 1, 2, 12, 1, 0) if filled_quantity != "0" else None
+        ),
+        raw={"status": status},
+    )
+
+
+def _create_experiment(
+    session: Session,
+    *,
+    status: ExperimentStatus = ExperimentStatus.RUNNING,
+    mode: ExperimentMode = ExperimentMode.PAPER_TRADING,
+    strategy_type: StrategyType = StrategyType.BUY_AND_HOLD,
+    trading_frequency: TradingFrequency = TradingFrequency.DAILY,
+    asset_symbol: str = "SPY",
+    cash: Decimal = Decimal("10000.0000"),
+    position_quantity: Decimal = Decimal("0"),
+) -> int:
+    now = datetime(2026, 1, 1, 12, 0, 0)
+    experiment = ExperimentModel(
+        name="M9 Paper Trading",
+        mode=mode,
+        strategy_type=strategy_type,
+        asset_symbol=asset_symbol,
+        status=status,
+        initial_capital=Decimal("10000.0000"),
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        trading_frequency=trading_frequency,
+        fee_model_type=FeeModelType.NONE,
+        fee_value=Decimal("0"),
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(experiment)
+    session.flush()
+    session.add(
+        StrategyConfigModel(
+            experiment_id=experiment.id,
+            strategy_type=strategy_type,
+            strategy_version="buy-and-hold-v1",
+            moving_average_window=None,
+            position_sizing_type="ALL_IN",
+            agent_mode=None,
+            model_name=None,
+            confidence_threshold=None,
+            parameters_json={"riskConfig": {"fallbackAction": "HOLD"}},
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    session.add(
+        PortfolioModel(
+            experiment_id=experiment.id,
+            cash=cash,
+            position_symbol="SPY" if position_quantity > 0 else None,
+            position_quantity=position_quantity,
+            current_price=None,
+            current_position_value=Decimal("0"),
+            current_portfolio_value=cash,
+            updated_at=now,
+        )
+    )
+    session.commit()
+    return experiment.id
+
+
+def _count(session: Session, model, experiment_id: int) -> int:
+    return int(
+        session.scalar(
+            select(func.count(model.id)).where(model.experiment_id == experiment_id)
+        )
+        or 0
+    )
+
+
+def _runner(database_url: str, broker: FakeBrokerAdapter) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=FakeMarketDataProvider(),
+        broker_adapter=broker,
+    )
+
+
+def test_filled_buy_creates_paper_order_trade_and_updates_portfolio(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="100")
+    )
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert len(broker.calls) == 1
+    assert broker.calls[0]["clientOrderId"] == (
+        f"experiment-{experiment_id}-step-{result.execution_step_id}-risk-1"
+    )
+
+    with session_factory() as session:
+        step = session.get(ExecutionStepModel, result.execution_step_id)
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        trade = session.scalar(select(TradeModel).where(TradeModel.experiment_id == experiment_id))
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        assert step is not None
+        assert step.status is ExecutionStepStatus.COMPLETED
+        assert step.trigger_type is TriggerType.MANUAL
+        assert order is not None
+        assert order.mode is OrderMode.PAPER_BROKER
+        assert order.broker_name is BrokerName.ALPACA
+        assert order.status is OrderStatus.FILLED
+        assert trade is not None
+        assert trade.quantity == Decimal("100.00000000")
+        assert portfolio is not None
+        assert portfolio.cash == Decimal("0.0000")
+        assert portfolio.position_symbol == "SPY"
+        assert portfolio.position_quantity == Decimal("100.00000000")
+        assert _count(session, MarketDataSnapshotModel, experiment_id) == 1
+        assert _count(session, TradingDecisionModel, experiment_id) == 1
+        assert _count(session, RiskCheckModel, experiment_id) == 1
+        assert _count(session, PortfolioSnapshotModel, experiment_id) == 1
+        assert _count(session, MetricSnapshotModel, experiment_id) == 1
+
+
+def test_hold_creates_no_broker_call_order_or_trade(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            cash=Decimal("0.0000"),
+            position_quantity=Decimal("10"),
+        )
+
+    broker = FakeBrokerAdapter()
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls == []
+    with session_factory() as session:
+        assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, TradeModel, experiment_id) == 0
+        assert _count(session, RiskCheckModel, experiment_id) == 1
+
+
+def test_submitted_unfilled_order_completes_without_trade(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="accepted",
+            filled_quantity="0",
+            average_fill_price=None,
+        )
+    )
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    with session_factory() as session:
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        assert order is not None
+        assert order.status is OrderStatus.SUBMITTED
+        assert _count(session, TradeModel, experiment_id) == 0
+
+
+def test_partial_fill_maps_to_submitted_and_updates_for_filled_quantity(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="partially_filled", filled_quantity="25")
+    )
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    with session_factory() as session:
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        trade = session.scalar(select(TradeModel).where(TradeModel.experiment_id == experiment_id))
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        assert order is not None
+        assert order.status is OrderStatus.SUBMITTED
+        assert trade is not None
+        assert trade.quantity == Decimal("25.00000000")
+        assert portfolio is not None
+        assert portfolio.cash == Decimal("7500.0000")
+        assert portfolio.position_quantity == Decimal("25.00000000")
+
+
+def test_rejected_order_fails_step_and_experiment(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="rejected",
+            filled_quantity="0",
+            average_fill_price=None,
+        )
+    )
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.FAILED
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step = session.get(ExecutionStepModel, result.execution_step_id)
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        event = session.scalar(
+            select(SystemEventLogModel).where(
+                SystemEventLogModel.experiment_id == experiment_id,
+                SystemEventLogModel.event_type == SystemEventType.EXPERIMENT_FAILED,
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.FAILED
+        assert step is not None
+        assert step.status is ExecutionStepStatus.FAILED
+        assert order is not None
+        assert order.status is OrderStatus.REJECTED
+        assert _count(session, TradeModel, experiment_id) == 0
+        assert event is not None
+        assert event.details_json["errorCode"] == "ORDER_REJECTED"
+        assert event.details_json["provider"] == "alpaca"
+
+
+def test_broker_provider_error_fails_step_and_experiment(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    broker = FakeBrokerAdapter(
+        error=BrokerProviderError("network failed", details={"statusCode": 500})
+    )
+    with pytest.raises(BrokerProviderError):
+        _runner(database_url, broker).run_next_step(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step = session.scalar(
+            select(ExecutionStepModel).where(
+                ExecutionStepModel.experiment_id == experiment_id
+            )
+        )
+        event = session.scalar(
+            select(SystemEventLogModel).where(
+                SystemEventLogModel.experiment_id == experiment_id,
+                SystemEventLogModel.event_type == SystemEventType.EXPERIMENT_FAILED,
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.FAILED
+        assert step is not None
+        assert step.status is ExecutionStepStatus.FAILED
+        assert event is not None
+        assert event.details_json["errorCode"] == "BROKER_PROVIDER_ERROR"
+        assert event.details_json["providerDetails"] == {"statusCode": 500}
+        assert _count(session, OrderModel, experiment_id) == 0
+
+
+def test_risk_check_is_committed_before_broker_submission(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    def assert_committed_risk_check() -> None:
+        with session_factory() as check_session:
+            assert _count(check_session, RiskCheckModel, experiment_id) == 1
+
+    broker = FakeBrokerAdapter(on_place_order=assert_committed_risk_check)
+    result = _runner(database_url, broker).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+
+
+def test_existing_running_step_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+        session.add(
+            ExecutionStepModel(
+                experiment_id=experiment_id,
+                scheduled_for=datetime(2026, 1, 2, 12, 0, 0),
+                started_at=datetime(2026, 1, 2, 12, 0, 0),
+                completed_at=None,
+                status=ExecutionStepStatus.RUNNING,
+                trigger_type=TriggerType.MANUAL,
+                sequence_number=1,
+                error_message=None,
+                created_at=datetime(2026, 1, 2, 12, 0, 0),
+            )
+        )
+        session.commit()
+
+    with pytest.raises(ExperimentStepAlreadyRunningAppError):
+        _runner(database_url, FakeBrokerAdapter()).run_next_step(experiment_id)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"mode": ExperimentMode.HISTORICAL_SIMULATION},
+        {"strategy_type": StrategyType.MOVING_AVERAGE},
+        {"trading_frequency": TradingFrequency.WEEKLY},
+        {"asset_symbol": "QQQ"},
+    ],
+)
+def test_unsupported_configuration_is_rejected(
+    database_url: str, overrides: dict
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session, **overrides)
+
+    with pytest.raises(InvalidExperimentConfigurationAppError):
+        _runner(database_url, FakeBrokerAdapter()).run_next_step(experiment_id)

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     alpaca_data_feed: str = "iex"
     alpaca_data_adjustment: str = "all"
     alpaca_request_timeout_seconds: int = 10
+    alpaca_paper_trading_enabled: bool = False
+    alpaca_trading_base_url: str = "https://paper-api.alpaca.markets"
+    alpaca_order_timeout_seconds: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -33,11 +36,23 @@ class Settings(BaseSettings):
             raise ValueError("MARKET_DATA_PROVIDER must be either 'csv' or 'alpaca'.")
         if self.alpaca_request_timeout_seconds <= 0:
             raise ValueError("ALPACA_REQUEST_TIMEOUT_SECONDS must be greater than 0.")
+        if self.alpaca_order_timeout_seconds <= 0:
+            raise ValueError("ALPACA_ORDER_TIMEOUT_SECONDS must be greater than 0.")
+        if self.alpaca_trading_base_url != "https://paper-api.alpaca.markets":
+            raise ValueError(
+                "ALPACA_TRADING_BASE_URL must be https://paper-api.alpaca.markets."
+            )
         if self.market_data_provider == "alpaca" and (
             not self.alpaca_api_key_id or not self.alpaca_api_secret_key
         ):
             raise ValueError(
                 "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required when MARKET_DATA_PROVIDER=alpaca."
+            )
+        if self.alpaca_paper_trading_enabled and (
+            not self.alpaca_api_key_id or not self.alpaca_api_secret_key
+        ):
+            raise ValueError(
+                "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required when ALPACA_PAPER_TRADING_ENABLED=true."
             )
         return self
 

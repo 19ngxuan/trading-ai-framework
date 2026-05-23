@@ -2,7 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M7 backend/frontend foundation:
+This repository currently contains the M0-M9 backend/frontend foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -16,9 +16,10 @@ This repository currently contains the M0-M7 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
+- Optional Alpaca paper trading adapter for manually stepped `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include Alpaca paper trading, broker integration, order submission, LLM/agent execution, live or broker-backed scheduler execution, or frontend trading execution UI.
+The current implementation intentionally does not include real-money trading, broker account/position reconciliation, scheduled paper trading, Moving Average paper trading, LLM/agent execution, live broker-backed scheduler execution, or frontend trading execution UI.
 
 ## Requirements
 
@@ -88,9 +89,13 @@ ALPACA_DATA_BASE_URL=https://data.alpaca.markets
 ALPACA_DATA_FEED=iex
 ALPACA_DATA_ADJUSTMENT=all
 ALPACA_REQUEST_TIMEOUT_SECONDS=10
+ALPACA_PAPER_TRADING_ENABLED=false
+ALPACA_TRADING_BASE_URL=https://paper-api.alpaca.markets
+ALPACA_ORDER_TIMEOUT_SECONDS=10
 ```
 
 Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. Tests use CSV fixtures or mocked HTTP transports and do not require real Alpaca network access.
+Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manually stepped SPY paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation.
 
 ## Database Migrations
 

@@ -10,9 +10,12 @@ from app.api.schemas.experiment_schemas import (
 )
 from app.api.schemas.execution_schemas import RunNextStepRequest, RunNextStepResponse
 from app.domain.enums import ExperimentMode, ExperimentStatus, StrategyType
+from app.core.errors import NotFoundAppError
+from app.modules.execution.paper_step_runner import PaperTradingStepRunner
 from app.modules.execution.step_runner import HistoricalStepRunner
 from app.modules.experiments.service import ExperimentService
 from app.persistence.database import get_session
+from app.persistence.repositories import ExperimentRepository
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
@@ -69,9 +72,19 @@ def start_experiment(
 def run_next_step(
     experiment_id: int,
     payload: RunNextStepRequest | None = None,
+    session: Session = Depends(get_session),
 ) -> RunNextStepResponse:
     _ = payload
-    result = HistoricalStepRunner().run_next_step(experiment_id)
+    experiment = ExperimentRepository(session).get_by_id(experiment_id)
+    if experiment is None:
+        raise NotFoundAppError(
+            "Experiment was not found.",
+            details={"experimentId": experiment_id},
+        )
+    if experiment.mode is ExperimentMode.PAPER_TRADING:
+        result = PaperTradingStepRunner().run_next_step(experiment_id)
+    else:
+        result = HistoricalStepRunner().run_next_step(experiment_id)
     return RunNextStepResponse(
         experimentId=result.experiment_id,
         executionStepId=result.execution_step_id,
