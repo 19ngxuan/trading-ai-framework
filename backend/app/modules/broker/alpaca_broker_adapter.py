@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -10,7 +11,7 @@ from app.modules.broker.broker_adapter import (
     BrokerOrderResult,
     BrokerPosition,
 )
-from app.modules.broker.errors import BrokerProviderError
+from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderError
 
 PAPER_TRADING_BASE_URL = "https://paper-api.alpaca.markets"
 SUPPORTED_SYMBOL = "SPY"
@@ -28,6 +29,7 @@ class AlpacaPaperTradingAdapter:
     ) -> None:
         self.api_key_id = api_key_id
         self.api_secret_key = api_secret_key
+        _validate_paper_base_url(base_url)
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.client = client or httpx.Client(timeout=timeout_seconds)
@@ -185,3 +187,19 @@ def _parse_datetime(value: Any) -> datetime | None:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(
         tzinfo=None
     )
+
+
+def _validate_paper_base_url(base_url: str) -> None:
+    parsed = urlparse(base_url)
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "paper-api.alpaca.markets"
+        or parsed.path.rstrip("/")
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise BrokerConfigurationError(
+            "Alpaca paper trading adapter only accepts the paper trading base URL.",
+            details={"baseUrl": base_url, "expectedBaseUrl": PAPER_TRADING_BASE_URL},
+        )

@@ -6,7 +6,7 @@ import pytest
 
 from app.domain.enums import OrderSide, OrderType
 from app.modules.broker.alpaca_broker_adapter import AlpacaPaperTradingAdapter
-from app.modules.broker.errors import BrokerProviderError
+from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderError
 
 
 def _adapter(handler) -> AlpacaPaperTradingAdapter:
@@ -64,6 +64,39 @@ def test_place_order_uses_paper_endpoint_headers_and_payload() -> None:
     assert result.status == "filled"
     assert result.filled_quantity == Decimal("10")
     assert result.average_fill_price == Decimal("100.50")
+
+
+def test_paper_base_url_is_accepted() -> None:
+    adapter = AlpacaPaperTradingAdapter(
+        api_key_id="key",
+        api_secret_key="secret",
+        base_url="https://paper-api.alpaca.markets",
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+    )
+
+    assert adapter.base_url == "https://paper-api.alpaca.markets"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://api.alpaca.markets",
+        "http://paper-api.alpaca.markets",
+        "https://example.test",
+        "https://paper-api.alpaca.markets/v2",
+        "https://paper-api.alpaca.markets?unsafe=true",
+    ],
+)
+def test_non_paper_base_urls_are_rejected(base_url: str) -> None:
+    with pytest.raises(BrokerConfigurationError):
+        AlpacaPaperTradingAdapter(
+            api_key_id="key",
+            api_secret_key="secret",
+            base_url=base_url,
+            client=httpx.Client(
+                transport=httpx.MockTransport(lambda _: httpx.Response(200))
+            ),
+        )
 
 
 def test_get_order_status_maps_response() -> None:
