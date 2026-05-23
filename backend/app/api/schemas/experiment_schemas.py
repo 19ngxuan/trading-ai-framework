@@ -12,6 +12,7 @@ from app.domain.enums import (
     StrategyType,
     TradingFrequency,
 )
+from app.api.schemas.metrics_schemas import MetricSnapshotResponse, TradeSummaryResponse
 
 
 class CamelModel(BaseModel):
@@ -105,7 +106,7 @@ class ExperimentSummaryResponse(CamelModel):
     profit_loss: Decimal | None = Field(alias="profitLoss")
     number_of_trades: int | None = Field(alias="numberOfTrades")
     max_drawdown: Decimal | None = Field(alias="maxDrawdown")
-    last_trade: dict[str, Any] | None = Field(alias="lastTrade")
+    last_trade: TradeSummaryResponse | None = Field(alias="lastTrade")
     latest_agent_decisions: list[dict[str, Any]] = Field(alias="latestAgentDecisions")
 
 
@@ -120,7 +121,7 @@ class ExperimentDetailResponse(CamelModel):
     experiment: ExperimentResponse
     strategy_config: StrategyConfigResponse = Field(alias="strategyConfig")
     portfolio: PortfolioResponse
-    latest_metrics: dict[str, Any] | None = Field(alias="latestMetrics")
+    latest_metrics: MetricSnapshotResponse | None = Field(alias="latestMetrics")
     latest_agent_decisions: list[dict[str, Any]] = Field(alias="latestAgentDecisions")
 
 

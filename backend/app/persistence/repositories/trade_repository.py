@@ -20,3 +20,12 @@ class TradeRepository(BaseRepository[TradeModel]):
             .order_by(self.model.timestamp, self.model.id)
         )
         return list(self.session.scalars(statement))
+
+    def latest_by_experiment(self, experiment_id: int) -> TradeModel | None:
+        statement = (
+            select(self.model)
+            .where(self.model.experiment_id == experiment_id)
+            .order_by(self.model.timestamp.desc(), self.model.id.desc())
+            .limit(1)
+        )
+        return self.session.scalar(statement)

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.schemas.error_schemas import ErrorResponse
 from app.api.routes.experiments import router as experiments_router
 from app.api.routes.health import router as health_router
+from app.api.routes.metrics import router as metrics_router
 from app.api.routes.options import router as options_router
 from app.core.config import get_settings
 from app.core.errors import AppError
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
+    app.include_router(metrics_router, prefix="/api/v1")
     app.include_router(options_router, prefix="/api/v1")
     return app
 

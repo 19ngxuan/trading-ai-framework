@@ -15,6 +15,7 @@ from app.api.schemas.experiment_schemas import (
     PortfolioResponse,
     StrategyConfigResponse,
 )
+from app.api.schemas.metrics_schemas import MetricSnapshotResponse, TradeSummaryResponse
 from app.api.schemas.options_schemas import OptionsResponse
 from app.core.errors import InvalidExperimentConfigurationAppError, NotFoundAppError
 from app.domain.enums import (
@@ -40,12 +41,16 @@ from app.persistence.models import (
     PortfolioModel,
     StrategyConfigModel,
     SystemEventLogModel,
+    MetricSnapshotModel,
+    TradeModel,
 )
 from app.persistence.repositories import (
     ExperimentRepository,
+    MetricSnapshotRepository,
     PortfolioRepository,
     StrategyConfigRepository,
     SystemEventLogRepository,
+    TradeRepository,
 )
 
 
@@ -65,8 +70,25 @@ def _to_strategy_config_response(model: StrategyConfigModel) -> StrategyConfigRe
     return StrategyConfigResponse.model_validate(model)
 
 
+def _to_metric_snapshot_response(
+    model: MetricSnapshotModel | None,
+) -> MetricSnapshotResponse | None:
+    if model is None:
+        return None
+    return MetricSnapshotResponse.model_validate(model)
+
+
+def _to_trade_summary_response(model: TradeModel | None) -> TradeSummaryResponse | None:
+    if model is None:
+        return None
+    return TradeSummaryResponse.model_validate(model)
+
+
 def _build_summary(
-    experiment: ExperimentModel, portfolio: PortfolioModel | None
+    experiment: ExperimentModel,
+    portfolio: PortfolioModel | None,
+    latest_metric: MetricSnapshotModel | None,
+    latest_trade: TradeModel | None,
 ) -> ExperimentSummaryResponse:
     return ExperimentSummaryResponse(
         id=experiment.id,
@@ -76,11 +98,11 @@ def _build_summary(
         assetSymbol=experiment.asset_symbol,
         status=experiment.status,
         currentPortfolioValue=portfolio.current_portfolio_value if portfolio else None,
-        totalReturn=None,
-        profitLoss=None,
-        numberOfTrades=None,
-        maxDrawdown=None,
-        lastTrade=None,
+        totalReturn=latest_metric.total_return if latest_metric else None,
+        profitLoss=latest_metric.profit_loss if latest_metric else None,
+        numberOfTrades=latest_metric.number_of_trades if latest_metric else None,
+        maxDrawdown=latest_metric.max_drawdown if latest_metric else None,
+        lastTrade=_to_trade_summary_response(latest_trade),
         latestAgentDecisions=[],
     )
 
@@ -92,6 +114,8 @@ class ExperimentService:
         self.portfolio_repository = PortfolioRepository(session)
         self.strategy_config_repository = StrategyConfigRepository(session)
         self.event_repository = SystemEventLogRepository(session)
+        self.metric_snapshot_repository = MetricSnapshotRepository(session)
+        self.trade_repository = TradeRepository(session)
 
     def create_experiment(self, request: CreateExperimentRequest) -> dict[str, Any]:
         validate_create_experiment_request(request)
@@ -194,7 +218,12 @@ class ExperimentService:
         )
         portfolios_by_experiment_id = {p.experiment_id: p for p in portfolios}
         items = [
-            _build_summary(experiment, portfolios_by_experiment_id.get(experiment.id))
+            _build_summary(
+                experiment,
+                portfolios_by_experiment_id.get(experiment.id),
+                self.metric_snapshot_repository.latest_by_experiment(experiment.id),
+                self.trade_repository.latest_by_experiment(experiment.id),
+            )
             for experiment in experiments
         ]
 
@@ -227,7 +256,9 @@ class ExperimentService:
             experiment=_to_experiment_response(experiment),
             strategyConfig=_to_strategy_config_response(strategy_config),
             portfolio=_to_portfolio_response(portfolio),
-            latestMetrics=None,
+            latestMetrics=_to_metric_snapshot_response(
+                self.metric_snapshot_repository.latest_by_experiment(experiment_id)
+            ),
             latestAgentDecisions=[],
         )
 

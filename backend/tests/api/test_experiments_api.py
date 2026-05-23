@@ -135,6 +135,37 @@ def test_list_and_detail_experiments(client) -> None:
     assert detail_body["latestAgentDecisions"] == []
 
 
+def test_completed_experiment_list_and_detail_include_latest_metrics_and_trade(
+    client,
+) -> None:
+    create_response = client.post("/api/v1/experiments", json=_create_buy_and_hold_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+    client.post(f"/api/v1/experiments/{experiment_id}/start")
+
+    list_response = client.get("/api/v1/experiments?limit=10&offset=0")
+    assert list_response.status_code == 200
+    item = list_response.json()["items"][0]
+    assert item["totalReturn"] == 0.0063
+    assert item["profitLoss"] == 63.0
+    assert item["numberOfTrades"] == 1
+    assert item["maxDrawdown"] == 0.0
+    assert item["lastTrade"]["side"] == "BUY"
+    assert item["lastTrade"]["quantity"] == 21.0
+    assert item["lastTrade"]["price"] == 471.0
+    assert item["latestAgentDecisions"] == []
+
+    detail_response = client.get(f"/api/v1/experiments/{experiment_id}")
+    assert detail_response.status_code == 200
+    latest_metrics = detail_response.json()["latestMetrics"]
+    assert latest_metrics["timestamp"] == "2024-01-05T00:00:00"
+    assert latest_metrics["totalReturn"] == 0.0063
+    assert latest_metrics["profitLoss"] == 63.0
+    assert latest_metrics["numberOfTrades"] == 1
+    assert latest_metrics["maxDrawdown"] == 0.0
+    assert latest_metrics["buyAndHoldReturn"] == 0.0063
+    assert latest_metrics["differenceToBuyAndHold"] == 0.0
+
+
 def test_detail_not_found_returns_normalized_error(client) -> None:
     response = client.get("/api/v1/experiments/9999")
     assert response.status_code == 404
