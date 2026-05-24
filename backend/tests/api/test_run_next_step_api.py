@@ -59,6 +59,31 @@ def _moving_average_payload() -> dict:
     return payload
 
 
+def _agentic_ai_payload() -> dict:
+    payload = _buy_and_hold_payload()
+    payload["name"] = "M10 Agentic AI"
+    payload["strategyType"] = "AGENTIC_AI"
+    payload["strategyConfig"] = {
+        "strategyVersion": "agentic-ai-v1",
+        "movingAverageWindow": None,
+        "positionSizingType": "ALL_IN",
+        "agentMode": "SINGLE_AGENT",
+        "modelName": "deterministic-fake-agent",
+        "confidenceThreshold": None,
+        "parametersJson": {
+            "riskConfig": {"fallbackAction": "HOLD"},
+            "fakeAgent": {
+                "output": {
+                    "action": "HOLD",
+                    "confidence": 0.8,
+                    "rationale": "API deterministic hold.",
+                }
+            },
+        },
+    }
+    return payload
+
+
 def _database_url() -> str:
     settings = get_settings()
     database_url = settings.test_database_url or settings.database_url
@@ -121,6 +146,32 @@ def test_run_next_step_executes_one_buy_and_hold_bar(client) -> None:
         assert steps[0].status is ExecutionStepStatus.COMPLETED
         assert steps[0].trigger_type is TriggerType.MANUAL
     engine.dispose()
+
+
+def test_run_next_step_executes_one_agentic_ai_bar(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_agentic_ai_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+    _set_status(experiment_id, ExperimentStatus.RUNNING)
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/run-next-step")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["experimentId"] == experiment_id
+    assert body["executionStepId"] is not None
+    assert body["status"] == "COMPLETED"
+    assert _count_steps(experiment_id) == 1
+
+
+def test_start_for_agentic_ai_is_lifecycle_only(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_agentic_ai_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "RUNNING"
+    assert _count_steps(experiment_id) == 0
 
 
 def test_run_next_step_after_final_bar_completes_then_rejects(client) -> None:
