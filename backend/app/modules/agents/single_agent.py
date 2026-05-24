@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from app.domain.enums import ParsingStatus, TradeAction
+from app.domain.enums import AgentStepName, ParsingStatus, TradeAction
 from app.modules.agents.fake_provider import FakeAgentProvider
 from app.modules.agents.output_parser import AgentOutputParseError, AgentOutputParser
 from app.modules.agents.prompt_builder import PromptBuilder
@@ -89,6 +89,7 @@ class SingleAgent:
             },
         )
         log_payload = AgentDecisionLogPayload(
+            agent_step_name=AgentStepName.SINGLE_DECISION_AGENT,
             agent_name=self.agent_name,
             prompt_version=self.prompt_builder.prompt_version,
             model_name=response.model_name,

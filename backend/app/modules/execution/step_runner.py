@@ -14,7 +14,6 @@ from app.core.errors import (
 )
 from app.domain.enums import (
     AgentMode,
-    AgentStepName,
     DecisionSourceType,
     EventLevel,
     ExecutionStepStatus,
@@ -371,28 +370,29 @@ class HistoricalStepRunner:
             )
             session.flush()
 
-            log_payload = agent_result.log_payload
-            agent_log_repository.add(
-                AgentDecisionLogModel(
-                    execution_step_id=execution_step.id,
-                    experiment_id=experiment_id,
-                    trading_decision_id=trading_decision.id,
-                    agent_mode=strategy_config.agent_mode or AgentMode.SINGLE_AGENT,
-                    agent_step_name=AgentStepName.SINGLE_DECISION_AGENT,
-                    agent_name=log_payload.agent_name,
-                    prompt_version=log_payload.prompt_version,
-                    model_name=log_payload.model_name,
-                    model_version=log_payload.model_version,
-                    input_json=log_payload.input_json,
-                    prompt_text=log_payload.prompt_text,
-                    raw_output_text=log_payload.raw_output_text,
-                    parsed_output_json=log_payload.parsed_output_json,
-                    parsing_status=log_payload.parsing_status,
-                    repair_prompt_text=log_payload.repair_prompt_text,
-                    repair_raw_output_text=log_payload.repair_raw_output_text,
-                    created_at=now,
+            log_payloads = agent_result.log_payloads or (agent_result.log_payload,)
+            for log_payload in log_payloads:
+                agent_log_repository.add(
+                    AgentDecisionLogModel(
+                        execution_step_id=execution_step.id,
+                        experiment_id=experiment_id,
+                        trading_decision_id=trading_decision.id,
+                        agent_mode=strategy_config.agent_mode or AgentMode.SINGLE_AGENT,
+                        agent_step_name=log_payload.agent_step_name,
+                        agent_name=log_payload.agent_name,
+                        prompt_version=log_payload.prompt_version,
+                        model_name=log_payload.model_name,
+                        model_version=log_payload.model_version,
+                        input_json=log_payload.input_json,
+                        prompt_text=log_payload.prompt_text,
+                        raw_output_text=log_payload.raw_output_text,
+                        parsed_output_json=log_payload.parsed_output_json,
+                        parsing_status=log_payload.parsing_status,
+                        repair_prompt_text=log_payload.repair_prompt_text,
+                        repair_raw_output_text=log_payload.repair_raw_output_text,
+                        created_at=now,
+                    )
                 )
-            )
             session.flush()
 
             risk_result = self.risk_validator.evaluate(

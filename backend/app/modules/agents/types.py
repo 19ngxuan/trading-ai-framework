@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Protocol
 
-from app.domain.enums import AgentMode, ParsingStatus, TradeAction
+from app.domain.enums import AgentMode, AgentStepName, ParsingStatus, TradeAction
 from app.modules.market_data.provider import DailyBar
 
 
@@ -60,6 +60,7 @@ class AgentDecision:
 
 @dataclass(frozen=True)
 class AgentDecisionLogPayload:
+    agent_step_name: AgentStepName
     agent_name: str
     prompt_version: str
     model_name: str | None
@@ -77,3 +78,4 @@ class AgentDecisionLogPayload:
 class AgentRunResult:
     decision: AgentDecision
     log_payload: AgentDecisionLogPayload
+    log_payloads: tuple[AgentDecisionLogPayload, ...] = ()

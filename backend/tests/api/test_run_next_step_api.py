@@ -84,6 +84,34 @@ def _agentic_ai_payload() -> dict:
     return payload
 
 
+def _agentic_ai_pipeline_payload() -> dict:
+    payload = _agentic_ai_payload()
+    payload["name"] = "M11 Agentic AI Pipeline"
+    payload["strategyConfig"]["agentMode"] = "PIPELINE"
+    payload["strategyConfig"]["modelName"] = "deterministic-fake-pipeline"
+    payload["strategyConfig"]["parametersJson"] = {
+        "riskConfig": {"fallbackAction": "HOLD"},
+        "fakePipeline": {
+            "marketAnalystOutput": {
+                "marketBias": "BULLISH",
+                "confidence": 0.8,
+                "rationale": "Bullish context.",
+            },
+            "tradingDecisionOutput": {
+                "action": "HOLD",
+                "confidence": 0.8,
+                "rationale": "Pipeline deterministic hold.",
+            },
+            "riskManagerOutput": {
+                "verdict": "APPROVE",
+                "confidence": 0.9,
+                "rationale": "Approved.",
+            },
+        },
+    }
+    return payload
+
+
 def _database_url() -> str:
     settings = get_settings()
     database_url = settings.test_database_url or settings.database_url
@@ -165,6 +193,19 @@ def test_run_next_step_executes_one_agentic_ai_bar(client) -> None:
 
 def test_start_for_agentic_ai_is_lifecycle_only(client) -> None:
     create_response = client.post("/api/v1/experiments", json=_agentic_ai_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "RUNNING"
+    assert _count_steps(experiment_id) == 0
+
+
+def test_start_for_agentic_ai_pipeline_is_lifecycle_only(client) -> None:
+    create_response = client.post(
+        "/api/v1/experiments", json=_agentic_ai_pipeline_payload()
+    )
     experiment_id = create_response.json()["experiment"]["id"]
 
     response = client.post(f"/api/v1/experiments/{experiment_id}/start")
