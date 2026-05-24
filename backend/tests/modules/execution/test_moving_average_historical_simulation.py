@@ -42,6 +42,8 @@ def _create_experiment(
     *,
     initial_capital: Decimal = Decimal("10000.0000"),
     moving_average_window: int | None = 3,
+    position_sizing_type: str = "ALL_IN",
+    position_sizing_value: Decimal | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -67,11 +69,18 @@ def _create_experiment(
             strategy_type=StrategyType.MOVING_AVERAGE,
             strategy_version="moving-average-v1",
             moving_average_window=moving_average_window,
-            position_sizing_type="ALL_IN",
+            position_sizing_type=position_sizing_type,
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,
-            parameters_json={"riskConfig": {"fallbackAction": "HOLD"}},
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                **(
+                    {"positionSizingValue": float(position_sizing_value)}
+                    if position_sizing_value is not None
+                    else {}
+                ),
+            },
             created_at=now,
             updated_at=now,
         )
@@ -209,6 +218,45 @@ def test_moving_average_orchestrator_persists_buy_hold_sell_audit_chain(
             )
         )
         assert SystemEventType.EXPERIMENT_COMPLETED in event_types
+
+
+def test_moving_average_buy_uses_configured_position_sizing(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            position_sizing_type="FIXED_CASH",
+            position_sizing_value=Decimal("1000"),
+        )
+
+    HistoricalMovingAverageOrchestrator(session_factory=session_factory).run(
+        experiment_id
+    )
+
+    with session_factory() as session:
+        buy_trade = session.scalar(
+            select(TradeModel)
+            .where(TradeModel.experiment_id == experiment_id)
+            .order_by(TradeModel.id)
+        )
+        buy_risk_check = session.scalar(
+            select(RiskCheckModel)
+            .where(
+                RiskCheckModel.experiment_id == experiment_id,
+                RiskCheckModel.final_action == FinalAction.BUY,
+            )
+            .order_by(RiskCheckModel.id)
+        )
+        assert buy_trade is not None
+        assert buy_risk_check is not None
+        assert buy_trade.quantity == Decimal("2.00000000")
+        assert buy_risk_check.final_quantity == Decimal("2.00000000")
+        assert (
+            buy_risk_check.rules_triggered_json["positionSizing"]["sizingReason"]
+            == "FIXED_CASH"
+        )
 
 
 def test_moving_average_insufficient_cash_holds_without_order(database_url: str) -> None:

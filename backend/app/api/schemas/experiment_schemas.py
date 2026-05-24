@@ -32,6 +32,9 @@ class StrategyConfigInput(CamelModel):
     strategy_version: str = Field(alias="strategyVersion")
     moving_average_window: int | None = Field(default=None, alias="movingAverageWindow")
     position_sizing_type: str | None = Field(default=None, alias="positionSizingType")
+    position_sizing_value: Decimal | None = Field(
+        default=None, alias="positionSizingValue"
+    )
     agent_mode: AgentMode | None = Field(default=None, alias="agentMode")
     model_name: str | None = Field(default=None, alias="modelName")
     confidence_threshold: Decimal | None = Field(default=None, alias="confidenceThreshold")

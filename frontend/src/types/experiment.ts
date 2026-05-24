@@ -19,6 +19,11 @@ export type ExperimentStatus =
 export type TradingFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
 export type FeeModelType = "NONE" | "FIXED" | "PERCENTAGE";
 export type AgentMode = "SINGLE_AGENT" | "PIPELINE";
+export type PositionSizingType =
+  | "ALL_IN"
+  | "FIXED_CASH"
+  | "PERCENT_OF_PORTFOLIO"
+  | "FIXED_QUANTITY";
 export type OrderStatus =
   | "CREATED"
   | "SUBMITTED"
@@ -57,7 +62,8 @@ export type StrategyConfig = {
   strategyType: StrategyType;
   strategyVersion: string;
   movingAverageWindow: number | null;
-  positionSizingType: string | null;
+  positionSizingType: PositionSizingType | null;
+  positionSizingValue: number | null;
   agentMode: AgentMode | null;
   modelName: string | null;
   confidenceThreshold: number | null;
@@ -118,7 +124,8 @@ export type OptionsResponse = {
 export type StrategyConfigInput = {
   strategyVersion: string;
   movingAverageWindow: number | null;
-  positionSizingType: string | null;
+  positionSizingType: PositionSizingType | null;
+  positionSizingValue: number | null;
   agentMode: AgentMode | null;
   modelName: string | null;
   confidenceThreshold: number | null;

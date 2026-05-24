@@ -61,6 +61,8 @@ def _create_agentic_experiment(
     mode: ExperimentMode = ExperimentMode.HISTORICAL_SIMULATION,
     trading_frequency: TradingFrequency = TradingFrequency.DAILY,
     asset_symbol: str = "SPY",
+    position_sizing_type: str = "ALL_IN",
+    position_sizing_value: Decimal | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -86,11 +88,18 @@ def _create_agentic_experiment(
             strategy_type=StrategyType.AGENTIC_AI,
             strategy_version="agentic-ai-v1",
             moving_average_window=None,
-            position_sizing_type="ALL_IN",
+            position_sizing_type=position_sizing_type,
             agent_mode=AgentMode.SINGLE_AGENT,
             model_name="deterministic-fake-agent",
             confidence_threshold=confidence_threshold,
-            parameters_json=parameters_json,
+            parameters_json={
+                **parameters_json,
+                **(
+                    {"positionSizingValue": float(position_sizing_value)}
+                    if position_sizing_value is not None
+                    else {}
+                ),
+            },
             created_at=now,
             updated_at=now,
         )
@@ -177,6 +186,43 @@ def test_agentic_ai_manual_step_persists_audit_chain_and_buy(
         assert risk_check.final_action is FinalAction.BUY
         assert agent_log.trading_decision_id == decision.id
         assert agent_log.parsing_status is ParsingStatus.SUCCESS
+
+
+def test_agentic_ai_buy_uses_configured_position_sizing(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_agentic_experiment(
+            session,
+            parameters_json={
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Deterministic buy.",
+                    }
+                }
+            },
+            position_sizing_type="FIXED_QUANTITY",
+            position_sizing_value=Decimal("3"),
+        )
+
+    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
+
+    with session_factory() as session:
+        risk_check = session.scalar(
+            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
+        )
+        trade = session.scalar(
+            select(TradeModel).where(TradeModel.experiment_id == experiment_id)
+        )
+        assert risk_check is not None
+        assert trade is not None
+        assert risk_check.final_quantity == Decimal("3.00000000")
+        assert trade.quantity == Decimal("3.00000000")
+        assert (
+            risk_check.rules_triggered_json["positionSizing"]["sizingReason"]
+            == "FIXED_QUANTITY"
+        )
 
 
 def test_agentic_ai_invalid_output_repairs_to_hold(database_url: str) -> None:
@@ -324,7 +370,11 @@ def test_agentic_ai_sell_never_shorts(database_url: str) -> None:
         assert risk_check is not None
         assert portfolio is not None
         assert risk_check.final_action is FinalAction.HOLD
-        assert risk_check.rules_triggered_json == {"reason": "NO_POSITION_TO_SELL"}
+        assert risk_check.rules_triggered_json["reason"] == "NO_POSITION_TO_SELL"
+        assert (
+            risk_check.rules_triggered_json["positionSizing"]["sizingReason"]
+            == "NO_POSITION_TO_SELL"
+        )
         assert portfolio.position_quantity == Decimal("0E-8")
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0

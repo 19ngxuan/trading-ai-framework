@@ -393,6 +393,11 @@ Portfolio cash must never become negative through simulation or paper-trading st
 
 Position quantity must never become negative in V1.
 
+M13 position sizing changes only executable `BUY` quantity. `SELL` always
+liquidates the existing long SPY position and must never open a short position.
+If a configured `BUY` size produces less than one whole share, the final action
+becomes `HOLD` with an auditable position-sizing reason.
+
 ---
 
 ### BR-045: Portfolio value must be calculated consistently

@@ -154,6 +154,7 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
     "strategyVersion": "moving-average-v1",
     "movingAverageWindow": 200,
     "positionSizingType": "ALL_IN",
+    "positionSizingValue": null,
     "agentMode": null,
     "modelName": null,
     "confidenceThreshold": null,
@@ -172,6 +173,15 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
   }
 }
 ```
+
+Position sizing is applied after a strategy or agent proposes `BUY`, `SELL`, or
+`HOLD` and before execution. Supported values are `ALL_IN`, `FIXED_CASH`,
+`PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`. `positionSizingValue` is optional
+for `ALL_IN`, required and positive for `FIXED_CASH`, required with `0 < value <=
+1` for `PERCENT_OF_PORTFOLIO`, and required as a positive whole number for
+`FIXED_QUANTITY`. In M13, `positionSizingValue` affects `BUY` only; `SELL`
+always liquidates the existing long SPY position and never opens a short
+position. The value is persisted in `strategyConfig.parametersJson`.
 
 ### Response `201 Created`
 
@@ -300,6 +310,7 @@ Returns the complete high-level experiment detail.
     "strategyVersion": "moving-average-v1",
     "movingAverageWindow": 200,
     "positionSizingType": "ALL_IN",
+    "positionSizingValue": null,
     "agentMode": null,
     "modelName": null,
     "confidenceThreshold": null,

@@ -476,6 +476,11 @@ components:
           nullable: true
         positionSizingType:
           type: string
+          enum: [ALL_IN, FIXED_CASH, PERCENT_OF_PORTFOLIO, FIXED_QUANTITY]
+          nullable: true
+        positionSizingValue:
+          type: number
+          format: double
           nullable: true
         agentMode:
           allOf:

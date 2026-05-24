@@ -7,6 +7,7 @@ from app.persistence.database import get_database_url
 from app.persistence.models import (
     ExecutionStepModel,
     ExperimentModel,
+    StrategyConfigModel,
     SystemEventLogModel,
 )
 
@@ -114,6 +115,53 @@ def test_create_experiment_validation_error_is_normalized(client) -> None:
     assert body["errorCode"] == "VALIDATION_ERROR"
     assert "message" in body
     assert "details" in body
+
+
+def test_create_experiment_accepts_and_persists_position_sizing_value(client) -> None:
+    payload = _create_buy_and_hold_payload()
+    payload["strategyConfig"]["positionSizingType"] = "FIXED_CASH"
+    payload["strategyConfig"]["positionSizingValue"] = 1000
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 201
+    experiment_id = response.json()["experiment"]["id"]
+    detail_response = client.get(f"/api/v1/experiments/{experiment_id}")
+    assert detail_response.status_code == 200
+    strategy_config = detail_response.json()["strategyConfig"]
+    assert strategy_config["positionSizingType"] == "FIXED_CASH"
+    assert strategy_config["positionSizingValue"] == 1000.0
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        stored = session.scalar(
+            select(StrategyConfigModel).where(
+                StrategyConfigModel.experiment_id == experiment_id
+            )
+        )
+        assert stored is not None
+        assert stored.parameters_json["positionSizingValue"] == 1000
+    engine.dispose()
+
+
+def test_create_experiment_rejects_invalid_position_sizing_configs(client) -> None:
+    invalid_cases = [
+        ("FIXED_CASH", 0),
+        ("PERCENT_OF_PORTFOLIO", 0),
+        ("PERCENT_OF_PORTFOLIO", 1.5),
+        ("FIXED_QUANTITY", 5.5),
+        ("FIXED_QUANTITY", None),
+    ]
+
+    for sizing_type, sizing_value in invalid_cases:
+        payload = _create_buy_and_hold_payload()
+        payload["strategyConfig"]["positionSizingType"] = sizing_type
+        payload["strategyConfig"]["positionSizingValue"] = sizing_value
+
+        response = client.post("/api/v1/experiments", json=payload)
+
+        assert response.status_code == 422
+        assert response.json()["errorCode"] == "VALIDATION_ERROR"
 
 
 def test_list_and_detail_experiments(client) -> None:

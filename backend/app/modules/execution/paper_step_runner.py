@@ -29,6 +29,7 @@ from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderEr
 from app.modules.broker.factory import create_broker_adapter
 from app.modules.execution.metrics import BasicMetricCalculator
 from app.modules.execution.paper_provider import PaperExecutionProvider
+from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import BuyAndHoldRiskValidator, RiskResult
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.factory import create_market_data_provider
@@ -54,6 +55,7 @@ from app.persistence.repositories import (
     PortfolioRepository,
     PortfolioSnapshotRepository,
     RiskCheckRepository,
+    StrategyConfigRepository,
     SystemEventLogRepository,
     TradeRepository,
     TradingDecisionRepository,
@@ -237,8 +239,16 @@ class PaperTradingStepRunner:
             now = _utcnow()
             experiment = ExperimentRepository(session).get_by_id(experiment_id)
             portfolio = PortfolioRepository(session).get_by_experiment_id(experiment_id)
+            strategy_config = StrategyConfigRepository(session).get_by_experiment_id(
+                experiment_id
+            )
             execution_step = ExecutionStepRepository(session).get(execution_step_id)
-            if experiment is None or portfolio is None or execution_step is None:
+            if (
+                experiment is None
+                or portfolio is None
+                or strategy_config is None
+                or execution_step is None
+            ):
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
 
             market_data = MarketDataSnapshotRepository(session).add(
@@ -285,7 +295,13 @@ class PaperTradingStepRunner:
             session.flush()
 
             risk_result = self.risk_validator.evaluate(
-                strategy_decision, portfolio, bar.adjusted_close
+                strategy_decision,
+                portfolio,
+                bar.adjusted_close,
+                position_sizing_type=strategy_config.position_sizing_type,
+                position_sizing_value=parse_position_sizing_value(
+                    strategy_config.parameters_json
+                ),
             )
             risk_check = RiskCheckRepository(session).add(
                 RiskCheckModel(

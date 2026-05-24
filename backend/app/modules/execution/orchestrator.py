@@ -13,6 +13,7 @@ from app.domain.enums import (
     TriggerType,
 )
 from app.modules.execution.metrics import BasicMetricCalculator
+from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import (
     BuyAndHoldRiskValidator,
     HistoricalSimulationRiskValidator,
@@ -141,6 +142,7 @@ class HistoricalBuyAndHoldOrchestrator:
             execution_step_repository = ExecutionStepRepository(session)
             market_data_repository = MarketDataSnapshotRepository(session)
             portfolio_repository = PortfolioRepository(session)
+            strategy_config_repository = StrategyConfigRepository(session)
             trading_decision_repository = TradingDecisionRepository(session)
             risk_check_repository = RiskCheckRepository(session)
             portfolio_snapshot_repository = PortfolioSnapshotRepository(session)
@@ -149,7 +151,8 @@ class HistoricalBuyAndHoldOrchestrator:
 
             experiment = experiment_repository.get_by_id(experiment_id)
             portfolio = portfolio_repository.get_by_experiment_id(experiment_id)
-            if experiment is None or portfolio is None:
+            strategy_config = strategy_config_repository.get_by_experiment_id(experiment_id)
+            if experiment is None or portfolio is None or strategy_config is None:
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
 
             execution_step = execution_step_repository.get(execution_step_id)
@@ -200,7 +203,13 @@ class HistoricalBuyAndHoldOrchestrator:
             session.flush()
 
             risk_result = self.risk_validator.evaluate(
-                strategy_decision, portfolio, bar.adjusted_close
+                strategy_decision,
+                portfolio,
+                bar.adjusted_close,
+                position_sizing_type=strategy_config.position_sizing_type,
+                position_sizing_value=parse_position_sizing_value(
+                    strategy_config.parameters_json
+                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(
@@ -443,6 +452,7 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
             execution_step_repository = ExecutionStepRepository(session)
             market_data_repository = MarketDataSnapshotRepository(session)
             portfolio_repository = PortfolioRepository(session)
+            strategy_config_repository = StrategyConfigRepository(session)
             trading_decision_repository = TradingDecisionRepository(session)
             risk_check_repository = RiskCheckRepository(session)
             portfolio_snapshot_repository = PortfolioSnapshotRepository(session)
@@ -451,7 +461,8 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
 
             experiment = experiment_repository.get_by_id(experiment_id)
             portfolio = portfolio_repository.get_by_experiment_id(experiment_id)
-            if experiment is None or portfolio is None:
+            strategy_config = strategy_config_repository.get_by_experiment_id(experiment_id)
+            if experiment is None or portfolio is None or strategy_config is None:
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
 
             execution_step = execution_step_repository.get(execution_step_id)
@@ -511,7 +522,13 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
             session.flush()
 
             risk_result = self.risk_validator.evaluate(
-                strategy_decision, portfolio, bar.adjusted_close
+                strategy_decision,
+                portfolio,
+                bar.adjusted_close,
+                position_sizing_type=strategy_config.position_sizing_type,
+                position_sizing_value=parse_position_sizing_value(
+                    strategy_config.parameters_json
+                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(

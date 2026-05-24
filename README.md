@@ -38,6 +38,20 @@ cp .env.example .env
 docker compose up --build
 ```
 
+For reset withou DB loss:
+```bash
+docker compose down
+docker compose up --build
+```
+
+If you want to fully reset DB:
+```bash
+docker compose down --v
+docker compose up --build
+cd backend
+DATABASE_URL=postgresql://trading_lab:trading_lab_password@127.0.0.1:5433/trading_lab uv run alembic upgrade head
+```
+
 Services:
 
 - Frontend: http://localhost:5173

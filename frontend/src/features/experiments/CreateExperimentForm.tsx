@@ -8,6 +8,7 @@ import type {
   CreateExperimentPayload,
   ExperimentMode,
   FeeModelType,
+  PositionSizingType,
   StrategyType,
   TradingFrequency,
 } from "../../types/experiment";
@@ -26,7 +27,8 @@ type FormState = {
   feeValue: string;
   strategyVersion: string;
   movingAverageWindow: string;
-  positionSizingType: string;
+  positionSizingType: PositionSizingType;
+  positionSizingValue: string;
   agentMode: AgentMode | "";
   modelName: string;
   confidenceThreshold: string;
@@ -47,6 +49,7 @@ const initialState: FormState = {
   strategyVersion: "buy-and-hold-v1",
   movingAverageWindow: "",
   positionSizingType: "ALL_IN",
+  positionSizingValue: "",
   agentMode: "",
   modelName: "",
   confidenceThreshold: "",
@@ -83,6 +86,27 @@ function validate(state: FormState): string | null {
     const threshold = Number(state.confidenceThreshold);
     if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
       return "Confidence threshold must be between 0 and 1.";
+    }
+  }
+  if (state.positionSizingType !== "ALL_IN") {
+    const sizingValue = Number(state.positionSizingValue);
+    if (!Number.isFinite(sizingValue)) {
+      return "Position sizing value is required.";
+    }
+    if (state.positionSizingType === "FIXED_CASH" && sizingValue <= 0) {
+      return "Fixed cash position sizing must be positive.";
+    }
+    if (
+      state.positionSizingType === "PERCENT_OF_PORTFOLIO" &&
+      (sizingValue <= 0 || sizingValue > 1)
+    ) {
+      return "Percent of portfolio must be greater than 0 and less than or equal to 1.";
+    }
+    if (
+      state.positionSizingType === "FIXED_QUANTITY" &&
+      (!Number.isInteger(sizingValue) || sizingValue <= 0)
+    ) {
+      return "Fixed quantity must be a positive whole number.";
     }
   }
   return null;
@@ -148,6 +172,10 @@ export function CreateExperimentForm() {
           ? Number(state.movingAverageWindow)
           : null,
         positionSizingType: state.positionSizingType || null,
+        positionSizingValue:
+          state.positionSizingType === "ALL_IN"
+            ? null
+            : Number(state.positionSizingValue),
         agentMode: state.agentMode || null,
         modelName: state.modelName || null,
         confidenceThreshold: state.confidenceThreshold
@@ -299,11 +327,49 @@ export function CreateExperimentForm() {
         )}
         <label>
           Position Sizing
-          <input
+          <select
             value={state.positionSizingType}
-            onChange={(event) => update("positionSizingType", event.target.value)}
-          />
+            onChange={(event) => {
+              const nextType = event.target.value as PositionSizingType;
+              setState((current) => ({
+                ...current,
+                positionSizingType: nextType,
+                positionSizingValue:
+                  nextType === "ALL_IN" ? "" : current.positionSizingValue,
+              }));
+            }}
+          >
+            <option value="ALL_IN">ALL_IN</option>
+            <option value="FIXED_CASH">FIXED_CASH</option>
+            <option value="PERCENT_OF_PORTFOLIO">PERCENT_OF_PORTFOLIO</option>
+            <option value="FIXED_QUANTITY">FIXED_QUANTITY</option>
+          </select>
         </label>
+        {state.positionSizingType !== "ALL_IN" && (
+          <label>
+            Position Sizing Value
+            <input
+              min={state.positionSizingType === "PERCENT_OF_PORTFOLIO" ? "0" : "1"}
+              max={
+                state.positionSizingType === "PERCENT_OF_PORTFOLIO"
+                  ? "1"
+                  : undefined
+              }
+              step={
+                state.positionSizingType === "FIXED_QUANTITY"
+                  ? "1"
+                  : state.positionSizingType === "PERCENT_OF_PORTFOLIO"
+                    ? "0.01"
+                    : "0.01"
+              }
+              type="number"
+              value={state.positionSizingValue}
+              onChange={(event) =>
+                update("positionSizingValue", event.target.value)
+              }
+            />
+          </label>
+        )}
         {state.strategyType === "AGENTIC_AI" && (
           <>
             <label>
