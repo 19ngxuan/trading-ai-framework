@@ -465,23 +465,139 @@ Used for equity curves and portfolio-value charts.
 
 ---
 
-## 8. Not Yet Implemented As Public APIs
+## 8. Comparison API
 
-The M0-M9 implementation persists execution steps, orders, trades, system events, agent log tables, and broker sync tables where applicable, but it does not expose public list/detail endpoints for:
+## 8.1 Compare Experiments
+
+```http
+POST /api/v1/experiments/compare
+```
+
+Compares selected experiments using existing persisted metrics and portfolio state.
+The backend does not recalculate metrics in this endpoint.
+
+### Request
+
+```json
+{
+  "experimentIds": [1, 2],
+  "benchmarkExperimentId": 1
+}
+```
+
+`benchmarkExperimentId` is optional. If omitted, `benchmarkReturn` and
+`differenceToBenchmark` are returned as `null`.
+
+Validation rules:
+
+- `experimentIds` must contain at least two unique IDs.
+- duplicate IDs return `422 VALIDATION_ERROR`.
+- `benchmarkExperimentId`, when provided, must be one of `experimentIds`.
+- missing experiment IDs return `404 EXPERIMENT_NOT_FOUND`.
+
+### Response `200 OK`
+
+```json
+{
+  "benchmarkExperimentId": 1,
+  "items": [
+    {
+      "experimentId": 1,
+      "name": "SPY Buy and Hold",
+      "mode": "HISTORICAL_SIMULATION",
+      "strategyType": "BUY_AND_HOLD",
+      "status": "COMPLETED",
+      "assetSymbol": "SPY",
+      "latestPortfolioValue": 10420.41,
+      "totalReturn": 0.042,
+      "profitLoss": 420.41,
+      "numberOfTrades": 1,
+      "maxDrawdown": 0,
+      "benchmarkReturn": 0.042,
+      "differenceToBenchmark": 0
+    }
+  ]
+}
+```
+
+---
+
+## 9. Events API
+
+## 9.1 List System Events
+
+```http
+GET /api/v1/events
+```
+
+Returns persisted `SystemEventLog` records ordered by `timestamp DESC, id DESC`.
+
+Query parameters:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `experimentId` | integer | Optional experiment filter. |
+| `level` | string | Optional event level filter. |
+| `eventType` | string | Optional system event type filter. |
+| `limit` | integer | Page size. |
+| `offset` | integer | Page offset. |
+
+## 9.2 List Experiment System Events
+
+```http
+GET /api/v1/experiments/{experiment_id}/events
+```
+
+Returns persisted `SystemEventLog` records for one experiment. Missing experiments
+return `404 EXPERIMENT_NOT_FOUND`.
+
+### Response `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "experimentId": 1,
+      "executionStepId": null,
+      "timestamp": "2026-05-24T10:00:00",
+      "level": "INFO",
+      "eventType": "EXPERIMENT_CREATED",
+      "message": "Experiment created.",
+      "detailsJson": {
+        "experimentId": 1
+      },
+      "createdAt": "2026-05-24T10:00:00"
+    }
+  ],
+  "limit": 50,
+  "offset": 0,
+  "total": 1
+}
+```
+
+M12 exposes `SystemEventLog` only. It does not expose public endpoints for
+agent logs, orders, trades, broker sync logs, or execution step details.
+
+---
+
+## 10. Not Yet Implemented As Public APIs
+
+The M0-M12 implementation persists execution steps, orders, trades, agent log
+tables, and broker sync tables where applicable, but it does not expose public
+list/detail endpoints for:
 
 - execution steps
 - orders
 - trades
 - agent logs
-- system events
 - broker sync logs
-- experiment comparison
 
 These endpoints are intentionally deferred and must not be assumed available by frontend or API clients until implemented and documented.
 
 ---
 
-## 9. Options API
+## 11. Options API
 
 ```http
 GET /api/v1/options
@@ -506,7 +622,7 @@ Returns frontend-selectable enum values and supported options.
 
 ---
 
-## 10. API Rules
+## 12. API Rules
 
 1. The API must not expose direct Alpaca access to the frontend.
 2. The API must not expose direct LLM provider access to the frontend.
@@ -533,7 +649,7 @@ ExecutionStep
 
 ---
 
-## 11. Related Documents
+## 13. Related Documents
 
 - `../01_architecture/system-overview.md`
 - `../01_architecture/01_c4-model/c4-container.md`

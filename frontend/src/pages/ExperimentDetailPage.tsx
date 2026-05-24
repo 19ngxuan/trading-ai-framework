@@ -8,6 +8,7 @@ import { ExperimentTabs } from "../features/experimentDetail/ExperimentTabs";
 import { PerformanceChartPanel } from "../features/experimentDetail/PerformanceChartPanel";
 import {
   useExperiment,
+  useExperimentEvents,
   useMetrics,
   usePortfolioSnapshots,
 } from "../features/experiments/hooks";
@@ -19,6 +20,7 @@ export function ExperimentDetailPage() {
   const status = detailQuery.data?.experiment.status;
   const metricsQuery = useMetrics(experimentId, status);
   const portfolioSnapshotsQuery = usePortfolioSnapshots(experimentId, status);
+  const eventsQuery = useExperimentEvents(experimentId, status);
 
   if (!Number.isFinite(experimentId)) {
     return <ErrorState error={new Error("Invalid experiment id.")} />;
@@ -45,8 +47,16 @@ export function ExperimentDetailPage() {
         <ExperimentHeader detail={detailQuery.data} />
       </section>
       <ExperimentKpiRow detail={detailQuery.data} />
-      {(metricsQuery.isError || portfolioSnapshotsQuery.isError) && (
-        <ErrorState error={metricsQuery.error ?? portfolioSnapshotsQuery.error} />
+      {(metricsQuery.isError ||
+        portfolioSnapshotsQuery.isError ||
+        eventsQuery.isError) && (
+        <ErrorState
+          error={
+            metricsQuery.error ??
+            portfolioSnapshotsQuery.error ??
+            eventsQuery.error
+          }
+        />
       )}
       <PerformanceChartPanel
         metrics={metrics}
@@ -56,6 +66,7 @@ export function ExperimentDetailPage() {
         detail={detailQuery.data}
         metrics={metrics}
         portfolioSnapshots={portfolioSnapshots}
+        events={eventsQuery.data?.items ?? []}
       />
     </div>
   );

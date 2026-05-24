@@ -10,6 +10,7 @@ import {
   stopExperiment,
   type ListExperimentsParams,
 } from "../../api/experimentsApi";
+import { listExperimentEvents } from "../../api/eventsApi";
 import { getMetrics, getPortfolioSnapshots } from "../../api/metricsApi";
 import { getOptions } from "../../api/optionsApi";
 import type {
@@ -26,6 +27,7 @@ export const experimentKeys = {
   metrics: (id: number) => [...experimentKeys.all, "metrics", id] as const,
   portfolioSnapshots: (id: number) =>
     [...experimentKeys.all, "portfolio-snapshots", id] as const,
+  events: (id: number) => [...experimentKeys.all, "events", id] as const,
   options: ["options"] as const,
 };
 
@@ -65,6 +67,15 @@ export function usePortfolioSnapshots(id: number, status?: ExperimentStatus) {
   });
 }
 
+export function useExperimentEvents(id: number, status?: ExperimentStatus) {
+  return useQuery({
+    queryKey: experimentKeys.events(id),
+    queryFn: () => listExperimentEvents(id, { limit: 50, offset: 0 }),
+    enabled: Number.isFinite(id),
+    refetchInterval: status === "RUNNING" ? 5_000 : false,
+  });
+}
+
 export function useOptions() {
   return useQuery({
     queryKey: experimentKeys.options,
@@ -86,6 +97,7 @@ function useActionMutation(
       void queryClient.invalidateQueries({
         queryKey: experimentKeys.portfolioSnapshots(id),
       });
+      void queryClient.invalidateQueries({ queryKey: experimentKeys.events(id) });
     },
   });
 }

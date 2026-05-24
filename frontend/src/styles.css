@@ -314,6 +314,41 @@ select {
   gap: 14px;
 }
 
+.compact-select {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+  color: #405069;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.selection-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.selection-item input {
+  width: auto;
+  margin-top: 4px;
+}
+
+.selection-item small {
+  display: block;
+  color: #66758c;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -382,6 +417,96 @@ select {
   padding: 12px;
 }
 
+.compare-chart {
+  height: 240px;
+}
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  color: #405069;
+  font-size: 13px;
+}
+
+.legend-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-row i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.events-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+}
+
+.event-detail-panel {
+  border-left: 1px solid #e6ebf2;
+  padding-left: 18px;
+}
+
+.event-detail-panel h3 {
+  margin: 0 0 12px;
+}
+
+.event-row-error {
+  background: #fff5f4;
+}
+
+.event-row-selected {
+  outline: 2px solid #9bb8df;
+  outline-offset: -2px;
+}
+
+.event-level {
+  display: inline-flex;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.event-level-info {
+  background: #e8eef7;
+  color: #14243d;
+}
+
+.event-level-warning {
+  background: #fff3d6;
+  color: #73510b;
+}
+
+.event-level-error {
+  background: #fde9e8;
+  color: #a6291f;
+}
+
+.json-block {
+  overflow: auto;
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+  background: #f7f9fc;
+  color: #172033;
+  font-size: 12px;
+  padding: 12px;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 .chart-empty {
   border: 1px dashed #c9d3e1;
   border-radius: 8px;
@@ -420,8 +545,16 @@ select {
   .kpi-grid,
   .form-grid,
   .detail-list,
-  .filter-row {
+  .filter-row,
+  .events-layout {
     grid-template-columns: 1fr;
+  }
+
+  .event-detail-panel {
+    border-left: 0;
+    border-top: 1px solid #e6ebf2;
+    padding-left: 0;
+    padding-top: 18px;
   }
 
   .page-title-row,

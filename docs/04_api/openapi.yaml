@@ -226,6 +226,97 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /experiments/compare:
+    post:
+      summary: Compare experiments using persisted metrics
+      operationId: compareExperiments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompareExperimentsRequest'
+      responses:
+        '200':
+          description: Comparison results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompareExperimentsResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /events:
+    get:
+      summary: List system events
+      operationId: listEvents
+      parameters:
+        - in: query
+          name: experimentId
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: level
+          schema:
+            $ref: '#/components/schemas/EventLevel'
+        - in: query
+          name: eventType
+          schema:
+            $ref: '#/components/schemas/SystemEventType'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: System events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSystemEventResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/events:
+    get:
+      summary: List experiment system events
+      operationId: listExperimentEvents
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - in: query
+          name: level
+          schema:
+            $ref: '#/components/schemas/EventLevel'
+        - in: query
+          name: eventType
+          schema:
+            $ref: '#/components/schemas/SystemEventType'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment system events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSystemEventResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   parameters:
     ExperimentId:
@@ -996,6 +1087,9 @@ components:
           type: object
           additionalProperties: true
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
     BrokerSyncLog:
       type: object
       properties:
@@ -1063,22 +1157,25 @@ components:
           $ref: '#/components/schemas/MetricSnapshot'
     CompareExperimentsRequest:
       type: object
-      required: [experimentIds, benchmarkExperimentId]
+      required: [experimentIds]
       properties:
         experimentIds:
           type: array
+          minItems: 2
           items:
             type: integer
             format: int64
         benchmarkExperimentId:
           type: integer
           format: int64
+          nullable: true
     CompareExperimentsResponse:
       type: object
       properties:
         benchmarkExperimentId:
           type: integer
           format: int64
+          nullable: true
         items:
           type: array
           items:
@@ -1089,8 +1186,18 @@ components:
                 format: int64
               name:
                 type: string
+              mode:
+                $ref: '#/components/schemas/ExperimentMode'
               strategyType:
                 $ref: '#/components/schemas/StrategyType'
+              status:
+                $ref: '#/components/schemas/ExperimentStatus'
+              assetSymbol:
+                type: string
+              latestPortfolioValue:
+                type: number
+                format: double
+                nullable: true
               totalReturn:
                 type: number
                 format: double

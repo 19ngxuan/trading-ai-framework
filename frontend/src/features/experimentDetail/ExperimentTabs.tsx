@@ -1,15 +1,17 @@
 import { useState } from "react";
 
 import type { ExperimentDetail } from "../../types/experiment";
+import type { SystemEvent } from "../../types/event";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
 
 type ExperimentTabsProps = {
   detail: ExperimentDetail;
   metrics: MetricSnapshot[];
   portfolioSnapshots: PortfolioSnapshot[];
+  events: SystemEvent[];
 };
 
-type Tab = "overview" | "metrics" | "portfolio" | "config";
+type Tab = "overview" | "metrics" | "portfolio" | "events" | "config";
 
 function formatValue(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
@@ -21,6 +23,7 @@ export function ExperimentTabs({
   detail,
   metrics,
   portfolioSnapshots,
+  events,
 }: ExperimentTabsProps) {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -50,6 +53,12 @@ export function ExperimentTabs({
           onClick={() => setTab("config")}
         >
           Config
+        </button>
+        <button
+          className={tab === "events" ? "tab-active" : undefined}
+          onClick={() => setTab("events")}
+        >
+          Events
         </button>
       </div>
 
@@ -170,6 +179,35 @@ export function ExperimentTabs({
             <dd>{detail.experiment.feeValue}</dd>
           </div>
         </dl>
+      )}
+
+      {tab === "events" && (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Type</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((event) => (
+                <tr
+                  key={event.id}
+                  className={event.level === "ERROR" ? "event-row-error" : ""}
+                >
+                  <td>{event.timestamp}</td>
+                  <td>{event.level}</td>
+                  <td>{event.eventType}</td>
+                  <td>{event.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {events.length === 0 && <p className="muted">No system events available.</p>}
+        </div>
       )}
     </section>
   );
