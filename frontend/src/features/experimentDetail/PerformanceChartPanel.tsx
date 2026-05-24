@@ -1,45 +1,10 @@
+import { SvgLineChart } from "../../components/charts/SvgLineChart";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
 
 type PerformanceChartPanelProps = {
   metrics: MetricSnapshot[];
   portfolioSnapshots: PortfolioSnapshot[];
 };
-
-type Point = {
-  label: string;
-  value: number;
-};
-
-function buildPath(points: Point[], width: number, height: number) {
-  if (points.length === 0) return "";
-  const values = points.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  return points
-    .map((point, index) => {
-      const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
-      const y = height - ((point.value - min) / span) * height;
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
-function LineChart({ points }: { points: Point[] }) {
-  const width = 720;
-  const height = 180;
-  const path = buildPath(points, width, height);
-
-  if (points.length === 0) {
-    return <div className="chart-empty">No snapshot data available.</div>;
-  }
-
-  return (
-    <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img">
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="3" />
-    </svg>
-  );
-}
 
 export function PerformanceChartPanel({
   metrics,
@@ -66,11 +31,39 @@ export function PerformanceChartPanel({
           <h3>Portfolio Value</h3>
         </div>
       </div>
-      <LineChart points={portfolioPoints} />
+      <SvgLineChart
+        emptyMessage="No snapshot data available."
+        series={[
+          {
+            id: "portfolio-value",
+            name: "Portfolio Value",
+            color: "#245ca7",
+            points: portfolioPoints,
+          },
+        ]}
+        height={480}
+        valueFormat="currency"
+        xAxisLabel="Date"
+        yAxisLabel="Portfolio Value"
+      />
       <div className="section-header compact-header">
         <h3>Return</h3>
       </div>
-      <LineChart points={returnPoints} />
+      <SvgLineChart
+        emptyMessage="No metric data available."
+        series={[
+          {
+            id: "return",
+            name: "Return",
+            color: "#16845b",
+            points: returnPoints,
+          },
+        ]}
+        height={440}
+        valueFormat="percent"
+        xAxisLabel="Date"
+        yAxisLabel="Return"
+      />
     </section>
   );
 }

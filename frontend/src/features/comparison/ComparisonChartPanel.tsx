@@ -1,3 +1,4 @@
+import { SvgLineChart } from "../../components/charts/SvgLineChart";
 import type { PortfolioSnapshot } from "../../types/metrics";
 
 type Series = {
@@ -12,35 +13,32 @@ type ComparisonChartPanelProps = {
 
 const colors = ["#245ca7", "#16845b", "#9d5a00", "#7c3aed", "#b42318"];
 
-function buildPath(values: number[], width: number, height: number) {
-  if (values.length === 0) return "";
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  return values
-    .map((value, index) => {
-      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-      const y = height - ((value - min) / span) * height;
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
 export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
   const drawableSeries = series
     .map((item) => ({
       ...item,
-      values: item.snapshots
-        .map((snapshot) => snapshot.totalPortfolioValue)
-        .filter((value): value is number => value !== null),
+      points: item.snapshots
+        .filter((snapshot) => snapshot.totalPortfolioValue !== null)
+        .map((snapshot) => ({
+          label: snapshot.timestamp,
+          value: snapshot.totalPortfolioValue ?? 0,
+        })),
     }))
-    .filter((item) => item.values.length > 0);
+    .filter((item) => item.points.length > 0);
 
   if (drawableSeries.length === 0) {
     return (
       <section className="panel wide-panel">
         <h2>Equity Curves</h2>
-        <div className="chart-empty">No portfolio snapshots available.</div>
+        <SvgLineChart
+          className="compare-chart"
+          emptyMessage="No portfolio snapshots available."
+          height={560}
+          series={[]}
+          valueFormat="currency"
+          xAxisLabel="Date"
+          yAxisLabel="Portfolio Value"
+        />
       </section>
     );
   }
@@ -53,18 +51,20 @@ export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
           <h2>Equity Curves</h2>
         </div>
       </div>
-      <svg className="line-chart compare-chart" viewBox="0 0 640 220" role="img">
-        {drawableSeries.map((item, index) => (
-          <path
-            key={item.experimentId}
-            d={buildPath(item.values, 600, 180)}
-            fill="none"
-            stroke={colors[index % colors.length]}
-            strokeWidth="3"
-            transform="translate(20 20)"
-          />
-        ))}
-      </svg>
+      <SvgLineChart
+        className="compare-chart"
+        emptyMessage="No portfolio snapshots available."
+        height={560}
+        series={drawableSeries.map((item, index) => ({
+          id: item.experimentId,
+          name: item.name,
+          color: colors[index % colors.length],
+          points: item.points,
+        }))}
+        valueFormat="currency"
+        xAxisLabel="Date"
+        yAxisLabel="Portfolio Value"
+      />
       <div className="legend-row">
         {drawableSeries.map((item, index) => (
           <span key={item.experimentId}>

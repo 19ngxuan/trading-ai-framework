@@ -406,19 +406,52 @@ select {
   font-weight: 600;
 }
 
-.line-chart {
-  width: 100%;
-  height: 180px;
+.chart-shell {
+  position: relative;
   margin-top: 12px;
+  width: 100%;
+}
+
+.line-chart {
+  display: block;
+  height: auto;
+  width: 100%;
   color: #245ca7;
   border: 1px solid #e6ebf2;
   border-radius: 8px;
   background: linear-gradient(#ffffff, #f7f9fc);
-  padding: 12px;
 }
 
 .compare-chart {
-  height: 240px;
+  width: 100%;
+}
+
+.chart-axis {
+  stroke: #66758c;
+  stroke-width: 1.5;
+}
+
+.chart-grid {
+  stroke: #e6ebf2;
+  stroke-width: 1;
+}
+
+.chart-tick {
+  stroke: #66758c;
+  stroke-width: 1;
+}
+
+.chart-label {
+  fill: #66758c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chart-axis-title {
+  fill: #405069;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .legend-row {
@@ -512,6 +545,17 @@ select {
   border-radius: 8px;
   color: #66758c;
   padding: 24px;
+}
+
+.overlay-empty {
+  background: rgba(255, 255, 255, 0.82);
+  left: 50%;
+  min-width: 220px;
+  padding: 14px 18px;
+  position: absolute;
+  text-align: center;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .tab-list {
