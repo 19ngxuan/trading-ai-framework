@@ -50,6 +50,12 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
             statement = statement.where(self.model.mode == mode)
         return int(self.session.scalar(statement) or 0)
 
+    def list_by_ids(self, experiment_ids: list[int]) -> list[ExperimentModel]:
+        if not experiment_ids:
+            return []
+        statement = select(self.model).where(self.model.id.in_(experiment_ids))
+        return list(self.session.scalars(statement))
+
     def list_scheduler_eligible_experiment_ids(self) -> list[int]:
         statement = (
             select(self.model.id)
