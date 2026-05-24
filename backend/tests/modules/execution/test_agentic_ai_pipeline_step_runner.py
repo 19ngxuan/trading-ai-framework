@@ -170,6 +170,11 @@ def test_pipeline_manual_step_persists_three_logs_and_single_decision(
             AgentStepName.TRADING_DECISION,
             AgentStepName.RISK_MANAGER,
         ]
+        assert [log.parsed_output_json["pipelineStage"] for log in logs] == [
+            AgentStepName.MARKET_ANALYST.value,
+            AgentStepName.TRADING_DECISION.value,
+            AgentStepName.RISK_MANAGER.value,
+        ]
 
         decision = session.scalar(
             select(TradingDecisionModel).where(
@@ -183,6 +188,13 @@ def test_pipeline_manual_step_persists_three_logs_and_single_decision(
         assert risk_check is not None
         assert decision.source_type is DecisionSourceType.AGENT
         assert decision.action is TradeAction.BUY
+        assert decision.raw_decision_json["originalAction"] == "BUY"
+        assert decision.raw_decision_json["finalAction"] == "BUY"
+        assert decision.raw_decision_json["pipelineStages"] == [
+            AgentStepName.MARKET_ANALYST.value,
+            AgentStepName.TRADING_DECISION.value,
+            AgentStepName.RISK_MANAGER.value,
+        ]
         assert risk_check.trading_decision_id == decision.id
         assert risk_check.final_action is FinalAction.BUY
         assert {log.trading_decision_id for log in logs} == {decision.id}
@@ -210,6 +222,11 @@ def test_pipeline_rejected_proposal_creates_no_order_or_trade(database_url: str)
         assert decision is not None
         assert risk_check is not None
         assert decision.action is TradeAction.HOLD
+        assert decision.raw_decision_json["originalAction"] == "BUY"
+        assert decision.raw_decision_json["finalAction"] == "HOLD"
+        assert decision.raw_decision_json["fallbackReason"] == (
+            "AGENT_RISK_MANAGER_REJECTED"
+        )
         assert risk_check.final_action is FinalAction.HOLD
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0

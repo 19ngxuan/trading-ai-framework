@@ -2,9 +2,38 @@ from datetime import date
 from decimal import Decimal
 
 from app.domain.enums import AgentMode, AgentStepName, ParsingStatus, TradeAction
+from app.modules.agents.fake_pipeline_provider import FakePipelineProvider
 from app.modules.agents.pipeline_agent import AgentDecisionPipeline
 from app.modules.agents.types import AgentContext
 from app.modules.market_data.provider import DailyBar
+
+
+class MarketAnalystRaisesProvider(FakePipelineProvider):
+    def complete_market_analyst(self, prompt: str, context: AgentContext):
+        raise RuntimeError("market analyst failed")
+
+
+class TradingDecisionRaisesProvider(FakePipelineProvider):
+    def complete_trading_decision(self, prompt, context, market_analysis):
+        raise RuntimeError("trading decision failed")
+
+
+class RiskManagerRaisesProvider(FakePipelineProvider):
+    def complete_risk_manager(
+        self, prompt, context, market_analysis, proposed_decision
+    ):
+        raise RuntimeError("risk manager failed")
+
+
+class TradingDecisionRepairRaisesProvider(FakePipelineProvider):
+    def repair_trading_decision(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ):
+        raise RuntimeError("trading decision repair failed")
 
 
 def _context(
@@ -87,6 +116,9 @@ def test_pipeline_rejected_proposal_returns_hold() -> None:
     assert result.decision.raw_decision_json["fallbackReason"] == (
         "AGENT_RISK_MANAGER_REJECTED"
     )
+    assert result.decision.raw_decision_json["originalAction"] == "BUY"
+    assert result.decision.raw_decision_json["finalAction"] == "HOLD"
+    assert len(result.decision.raw_decision_json["pipelineStageSummary"]) == 3
 
 
 def test_pipeline_failed_repair_returns_hold() -> None:
@@ -117,6 +149,12 @@ def test_pipeline_failed_repair_returns_hold() -> None:
         "PIPELINE_STAGE_PARSE_FAILED"
     )
     assert result.log_payloads[1].parsing_status is ParsingStatus.FAILED
+    assert result.log_payloads[1].parsed_output_json["fallbackReason"] == (
+        "REPAIR_PARSE_FAILED"
+    )
+    assert result.log_payloads[1].parsed_output_json["pipelineStage"] == (
+        AgentStepName.TRADING_DECISION.value
+    )
 
 
 def test_pipeline_invalid_output_repairs() -> None:
@@ -159,6 +197,9 @@ def test_pipeline_low_confidence_returns_hold() -> None:
     assert result.decision.raw_decision_json["fallbackReason"] == (
         "CONFIDENCE_BELOW_THRESHOLD"
     )
+    assert result.decision.raw_decision_json["originalAction"] == "BUY"
+    assert result.decision.raw_decision_json["originalConfidence"] == 0.2
+    assert result.decision.raw_decision_json["finalAction"] == "HOLD"
 
 
 def test_pipeline_default_output_is_hold() -> None:
@@ -166,3 +207,75 @@ def test_pipeline_default_output_is_hold() -> None:
 
     assert result.decision.action is TradeAction.HOLD
     assert len(result.log_payloads) == 3
+
+
+def test_pipeline_market_analyst_provider_exception_falls_back_to_hold() -> None:
+    result = AgentDecisionPipeline(provider=MarketAnalystRaisesProvider()).run(
+        _context(_pipeline_outputs())
+    )
+
+    assert result.decision.action is TradeAction.HOLD
+    assert result.decision.raw_decision_json["fallbackReason"] == (
+        "PIPELINE_STAGE_PARSE_FAILED"
+    )
+    assert result.log_payloads[0].parsing_status is ParsingStatus.FAILED
+    assert result.log_payloads[0].parsed_output_json["fallbackReason"] == (
+        "PROVIDER_COMPLETE_EXCEPTION"
+    )
+    assert result.log_payloads[0].parsed_output_json["parseError"] == (
+        "market analyst failed"
+    )
+
+
+def test_pipeline_trading_decision_provider_exception_falls_back_to_hold() -> None:
+    result = AgentDecisionPipeline(provider=TradingDecisionRaisesProvider()).run(
+        _context(_pipeline_outputs())
+    )
+
+    assert result.decision.action is TradeAction.HOLD
+    assert result.log_payloads[1].parsing_status is ParsingStatus.FAILED
+    assert result.log_payloads[1].parsed_output_json["fallbackReason"] == (
+        "PROVIDER_COMPLETE_EXCEPTION"
+    )
+    assert result.log_payloads[1].parsed_output_json["finalAction"] == "HOLD"
+
+
+def test_pipeline_risk_manager_provider_exception_falls_back_to_hold() -> None:
+    result = AgentDecisionPipeline(provider=RiskManagerRaisesProvider()).run(
+        _context(_pipeline_outputs())
+    )
+
+    assert result.decision.action is TradeAction.HOLD
+    assert result.log_payloads[2].parsing_status is ParsingStatus.FAILED
+    assert result.log_payloads[2].parsed_output_json["fallbackReason"] == (
+        "PROVIDER_COMPLETE_EXCEPTION"
+    )
+
+
+def test_pipeline_repair_provider_exception_falls_back_to_hold() -> None:
+    result = AgentDecisionPipeline(provider=TradingDecisionRepairRaisesProvider()).run(
+        _context(
+            {
+                "fakePipeline": {
+                    "marketAnalystOutput": {
+                        "marketBias": "NEUTRAL",
+                        "confidence": 0.5,
+                        "rationale": "Neutral.",
+                    },
+                    "tradingDecisionOutput": "not json",
+                    "riskManagerOutput": {
+                        "verdict": "APPROVE",
+                        "confidence": 0.9,
+                        "rationale": "Approved.",
+                    },
+                }
+            }
+        )
+    )
+
+    assert result.decision.action is TradeAction.HOLD
+    assert result.log_payloads[1].parsing_status is ParsingStatus.FAILED
+    assert result.log_payloads[1].repair_prompt_text is not None
+    assert result.log_payloads[1].parsed_output_json["fallbackReason"] == (
+        "PROVIDER_REPAIR_EXCEPTION"
+    )

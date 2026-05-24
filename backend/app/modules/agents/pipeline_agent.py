@@ -98,7 +98,22 @@ class AgentDecisionPipeline:
         self, context: AgentContext, input_json: dict
     ) -> PipelineStageResult:
         prompt = self.prompt_builder.build_market_analyst_prompt(input_json)
-        response = self.provider.complete_market_analyst(prompt, context)
+        try:
+            response = self.provider.complete_market_analyst(prompt, context)
+        except Exception as exc:
+            return self._provider_exception_stage(
+                step_name=AgentStepName.MARKET_ANALYST,
+                stage_label="MarketAnalystAgent",
+                input_json={
+                    **_base_stage_input(context, AgentStepName.MARKET_ANALYST),
+                    "context": input_json,
+                },
+                prompt=prompt,
+                context=context,
+                exc=exc,
+                fallback=self._fallback_market_analysis,
+                serializer=self.prompt_builder.market_analysis_json,
+            )
         return self._parse_with_repair(
             step_name=AgentStepName.MARKET_ANALYST,
             stage_label="MarketAnalystAgent",
@@ -126,9 +141,27 @@ class AgentDecisionPipeline:
         prompt = self.prompt_builder.build_trading_decision_prompt(
             input_json, market_analysis
         )
-        response = self.provider.complete_trading_decision(
-            prompt, context, market_analysis
-        )
+        try:
+            response = self.provider.complete_trading_decision(
+                prompt, context, market_analysis
+            )
+        except Exception as exc:
+            return self._provider_exception_stage(
+                step_name=AgentStepName.TRADING_DECISION,
+                stage_label="TradingDecisionAgent",
+                input_json={
+                    **_base_stage_input(context, AgentStepName.TRADING_DECISION),
+                    "context": input_json,
+                    "marketAnalysis": self.prompt_builder.market_analysis_json(
+                        market_analysis
+                    ),
+                },
+                prompt=prompt,
+                context=context,
+                exc=exc,
+                fallback=lambda reason: self._fallback_decision(reason),
+                serializer=self.prompt_builder.trading_decision_json,
+            )
         return self._parse_with_repair(
             step_name=AgentStepName.TRADING_DECISION,
             stage_label="TradingDecisionAgent",
@@ -160,9 +193,30 @@ class AgentDecisionPipeline:
         prompt = self.prompt_builder.build_risk_manager_prompt(
             input_json, market_analysis, proposed_decision
         )
-        response = self.provider.complete_risk_manager(
-            prompt, context, market_analysis, proposed_decision
-        )
+        try:
+            response = self.provider.complete_risk_manager(
+                prompt, context, market_analysis, proposed_decision
+            )
+        except Exception as exc:
+            return self._provider_exception_stage(
+                step_name=AgentStepName.RISK_MANAGER,
+                stage_label="AgentRiskManager",
+                input_json={
+                    **_base_stage_input(context, AgentStepName.RISK_MANAGER),
+                    "context": input_json,
+                    "marketAnalysis": self.prompt_builder.market_analysis_json(
+                        market_analysis
+                    ),
+                    "proposedDecision": self.prompt_builder.trading_decision_json(
+                        proposed_decision
+                    ),
+                },
+                prompt=prompt,
+                context=context,
+                exc=exc,
+                fallback=self._fallback_risk_manager,
+                serializer=self._risk_manager_json,
+            )
         return self._parse_with_repair(
             step_name=AgentStepName.RISK_MANAGER,
             stage_label="AgentRiskManager",
@@ -205,6 +259,7 @@ class AgentDecisionPipeline:
         repair_raw: str | None = None
         parse_error: str | None = None
         parsing_failed = False
+        fallback_reason: str | None = None
         try:
             parsed = parser(response.raw_output_text)
         except AgentOutputParseError as exc:
@@ -212,27 +267,40 @@ class AgentDecisionPipeline:
             repair_prompt = self.prompt_builder.build_stage_repair_prompt(
                 stage_label, response.raw_output_text, parse_error
             )
-            repair_response = repair(
-                repair_prompt,
-                response.raw_output_text,
-                parse_error,
-            )
-            if repair_response is not None:
-                repair_raw = repair_response.raw_output_text
-                try:
-                    parsed = parser(repair_raw)
-                except AgentOutputParseError as repair_exc:
-                    parse_error = str(repair_exc)
-                    parsed = fallback(parse_error)
-                    parsing_failed = True
-            else:
+            try:
+                repair_response = repair(
+                    repair_prompt,
+                    response.raw_output_text,
+                    parse_error,
+                )
+            except Exception as repair_exc:
+                parse_error = str(repair_exc)
                 parsed = fallback(parse_error)
                 parsing_failed = True
+                fallback_reason = "PROVIDER_REPAIR_EXCEPTION"
+            else:
+                if repair_response is not None:
+                    repair_raw = repair_response.raw_output_text
+                    try:
+                        parsed = parser(repair_raw)
+                    except AgentOutputParseError as repair_exc:
+                        parse_error = str(repair_exc)
+                        parsed = fallback(parse_error)
+                        parsing_failed = True
+                        fallback_reason = "REPAIR_PARSE_FAILED"
+                else:
+                    parsed = fallback(parse_error)
+                    parsing_failed = True
+                    fallback_reason = "REPAIR_UNAVAILABLE"
 
         parsed_json = serializer(parsed)
         parsed_json["parseError"] = parse_error
         parsed_json["fallbackUsed"] = parsing_failed
+        parsed_json["fallbackReason"] = fallback_reason
         parsed_json["stage"] = step_name.value
+        parsed_json["pipelineStage"] = step_name.value
+        if step_name is AgentStepName.TRADING_DECISION:
+            parsed_json["finalAction"] = parsed_json.get("action")
         parsed_json["modelName"] = response.model_name
         parsed_json["modelVersion"] = response.model_version
         _ = context
@@ -245,8 +313,56 @@ class AgentDecisionPipeline:
             parsed_output_json=parsed_json,
             parsing_failed=parsing_failed,
             parse_error=parse_error,
+            fallback_reason=fallback_reason,
             repair_prompt_text=repair_prompt,
             repair_raw_output_text=repair_raw,
+        )
+
+    def _provider_exception_stage(
+        self,
+        *,
+        step_name: AgentStepName,
+        stage_label: str,
+        input_json: dict,
+        prompt: str,
+        context: AgentContext,
+        exc: Exception,
+        fallback: Callable[[str], object],
+        serializer: Callable[[object], dict],
+    ) -> PipelineStageResult:
+        parse_error = str(exc)
+        parsed = fallback(parse_error)
+        response = self._failed_provider_response(context)
+        parsed_json = serializer(parsed)
+        parsed_json["parseError"] = parse_error
+        parsed_json["fallbackUsed"] = True
+        parsed_json["fallbackReason"] = "PROVIDER_COMPLETE_EXCEPTION"
+        parsed_json["stage"] = step_name.value
+        parsed_json["pipelineStage"] = step_name.value
+        if step_name is AgentStepName.TRADING_DECISION:
+            parsed_json["finalAction"] = parsed_json.get("action")
+        parsed_json["modelName"] = response.model_name
+        parsed_json["modelVersion"] = response.model_version
+        parsed_json["stageLabel"] = stage_label
+        return PipelineStageResult(
+            step_name=step_name,
+            input_json=input_json,
+            prompt_text=prompt,
+            parsed_output=parsed,
+            raw_output_text=response.raw_output_text,
+            parsed_output_json=parsed_json,
+            parsing_failed=True,
+            parse_error=parse_error,
+            fallback_reason="PROVIDER_COMPLETE_EXCEPTION",
+            repair_prompt_text=None,
+            repair_raw_output_text=None,
+        )
+
+    def _failed_provider_response(self, context: AgentContext) -> AgentProviderResponse:
+        return AgentProviderResponse(
+            raw_output_text="",
+            model_name=context.model_name or "deterministic-fake-pipeline",
+            model_version=None,
         )
 
     def _select_final_decision(
@@ -305,8 +421,21 @@ class AgentDecisionPipeline:
             "action": final_decision.action.value,
             "confidence": float(final_decision.confidence),
             "rationale": final_decision.rationale,
+            "originalAction": proposed_decision.action.value,
+            "originalConfidence": float(proposed_decision.confidence),
+            "finalAction": final_decision.action.value,
             "fallbackUsed": fallback_reason is not None,
             "fallbackReason": fallback_reason,
+            "pipelineStages": [
+                market_stage.step_name.value,
+                decision_stage.step_name.value,
+                risk_stage.step_name.value,
+            ],
+            "pipelineStageSummary": [
+                self._stage_summary(market_stage),
+                self._stage_summary(decision_stage),
+                self._stage_summary(risk_stage),
+            ],
             "confidenceThresholdApplied": threshold_applied,
             "agentRiskManagerVerdict": risk_manager.verdict.value,
             "agentRiskManagerConfidence": float(risk_manager.confidence),
@@ -336,6 +465,20 @@ class AgentDecisionPipeline:
             repair_prompt_text=stage_result.repair_prompt_text,
             repair_raw_output_text=stage_result.repair_raw_output_text,
         )
+
+    def _stage_summary(self, stage_result: PipelineStageResult) -> dict:
+        parsing_status = "FAILED" if stage_result.parsing_failed else "SUCCESS"
+        if (
+            stage_result.repair_prompt_text is not None
+            and not stage_result.parsing_failed
+        ):
+            parsing_status = "REPAIRED"
+        return {
+            "pipelineStage": stage_result.step_name.value,
+            "parsingStatus": parsing_status,
+            "fallbackUsed": stage_result.parsing_failed,
+            "fallbackReason": stage_result.fallback_reason,
+        }
 
     def _fallback_market_analysis(self, reason: str) -> MarketAnalysisOutput:
         return MarketAnalysisOutput(

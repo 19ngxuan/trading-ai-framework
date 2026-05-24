@@ -17,6 +17,7 @@ from app.domain.enums import (
     StrategyType,
     TradeAction,
     TradingFrequency,
+    TriggerType,
 )
 from app.modules.execution.step_runner import HistoricalStepRunner
 from app.persistence.database import create_session_factory
@@ -361,5 +362,42 @@ def test_agentic_ai_paper_trading_is_rejected_without_broker_call(
 
     with session_factory() as session:
         assert _count(session, ExecutionStepModel, experiment_id) == 0
+        assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, TradeModel, experiment_id) == 0
+
+
+def test_agentic_ai_scheduled_trigger_is_rejected_before_artifacts(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_agentic_experiment(
+            session,
+            parameters_json={
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Scheduled agent is out of scope.",
+                    }
+                }
+            },
+        )
+
+    try:
+        HistoricalStepRunner(session_factory=session_factory).run_next_step(
+            experiment_id, trigger_type=TriggerType.SCHEDULED
+        )
+    except InvalidExperimentConfigurationAppError as exc:
+        assert exc.details["triggerType"] == TriggerType.SCHEDULED.value
+    else:
+        raise AssertionError("Scheduled Agentic AI execution should be rejected.")
+
+    with session_factory() as session:
+        assert _count(session, ExecutionStepModel, experiment_id) == 0
+        assert _count(session, MarketDataSnapshotModel, experiment_id) == 0
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 0
+        assert _count(session, TradingDecisionModel, experiment_id) == 0
+        assert _count(session, RiskCheckModel, experiment_id) == 0
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0

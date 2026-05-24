@@ -8,6 +8,7 @@ from app.modules.agents.types import (
     AgentContext,
     AgentDecision,
     AgentDecisionLogPayload,
+    AgentProviderResponse,
     AgentProvider,
     AgentRunResult,
     ParsedAgentOutput,
@@ -30,50 +31,80 @@ class SingleAgent:
     def run(self, context: AgentContext) -> AgentRunResult:
         input_json = self.prompt_builder.build_input(context)
         prompt = self.prompt_builder.build_prompt(input_json)
-        response = self.provider.complete(prompt, context)
 
         repair_prompt: str | None = None
         repair_raw_output: str | None = None
         parsing_status = ParsingStatus.SUCCESS
         fallback_used = False
+        fallback_reason: str | None = None
         parse_error: str | None = None
+
         try:
-            parsed = self.output_parser.parse(response.raw_output_text)
-        except AgentOutputParseError as exc:
+            response = self.provider.complete(prompt, context)
+        except Exception as exc:
             parse_error = str(exc)
-            repair_prompt = self.prompt_builder.build_repair_prompt(
-                response.raw_output_text, parse_error
-            )
-            repair_response = self.provider.repair(
-                repair_prompt,
-                context,
-                response.raw_output_text,
-                parse_error,
-            )
-            if repair_response is not None:
-                repair_raw_output = repair_response.raw_output_text
+            parsed = self._fallback_output(parse_error)
+            response = self._failed_provider_response(context)
+            parsing_status = ParsingStatus.FAILED
+            fallback_used = True
+            fallback_reason = "PROVIDER_COMPLETE_EXCEPTION"
+        else:
+            try:
+                parsed = self.output_parser.parse(response.raw_output_text)
+            except AgentOutputParseError as exc:
+                parse_error = str(exc)
+                repair_prompt = self.prompt_builder.build_repair_prompt(
+                    response.raw_output_text, parse_error
+                )
                 try:
-                    parsed = self.output_parser.parse(repair_raw_output)
-                    parsing_status = ParsingStatus.REPAIRED
-                except AgentOutputParseError as repair_exc:
-                    parsed = self._fallback_output(str(repair_exc))
+                    repair_response = self.provider.repair(
+                        repair_prompt,
+                        context,
+                        response.raw_output_text,
+                        parse_error,
+                    )
+                except Exception as repair_exc:
+                    parse_error = str(repair_exc)
+                    parsed = self._fallback_output(parse_error)
                     parsing_status = ParsingStatus.FAILED
                     fallback_used = True
-                    parse_error = str(repair_exc)
-            else:
-                parsed = self._fallback_output(parse_error)
-                parsing_status = ParsingStatus.FAILED
-                fallback_used = True
+                    fallback_reason = "PROVIDER_REPAIR_EXCEPTION"
+                else:
+                    if repair_response is not None:
+                        repair_raw_output = repair_response.raw_output_text
+                        try:
+                            parsed = self.output_parser.parse(repair_raw_output)
+                            parsing_status = ParsingStatus.REPAIRED
+                        except AgentOutputParseError as repair_parse_exc:
+                            parse_error = str(repair_parse_exc)
+                            parsed = self._fallback_output(parse_error)
+                            parsing_status = ParsingStatus.FAILED
+                            fallback_used = True
+                            fallback_reason = "REPAIR_PARSE_FAILED"
+                    else:
+                        parsed = self._fallback_output(parse_error)
+                        parsing_status = ParsingStatus.FAILED
+                        fallback_used = True
+                        fallback_reason = "REPAIR_UNAVAILABLE"
 
+        original_action = parsed.action
+        original_confidence = parsed.confidence
         final_parsed, threshold_applied = self._apply_confidence_threshold(
             parsed, context.confidence_threshold
         )
+        if threshold_applied:
+            fallback_used = True
+            fallback_reason = "CONFIDENCE_BELOW_THRESHOLD"
         decision_json = {
             "action": final_parsed.action.value,
             "confidence": float(final_parsed.confidence),
             "rationale": final_parsed.rationale,
+            "originalAction": original_action.value,
+            "originalConfidence": float(original_confidence),
+            "finalAction": final_parsed.action.value,
             "parseError": parse_error,
             "fallbackUsed": fallback_used,
+            "fallbackReason": fallback_reason,
             "confidenceThresholdApplied": threshold_applied,
         }
         decision = AgentDecision(
@@ -103,6 +134,13 @@ class SingleAgent:
             repair_raw_output_text=repair_raw_output,
         )
         return AgentRunResult(decision=decision, log_payload=log_payload)
+
+    def _failed_provider_response(self, context: AgentContext) -> AgentProviderResponse:
+        return AgentProviderResponse(
+            raw_output_text="",
+            model_name=context.model_name or "deterministic-fake-agent",
+            model_version=None,
+        )
 
     def _fallback_output(self, reason: str) -> ParsedAgentOutput:
         return ParsedAgentOutput(

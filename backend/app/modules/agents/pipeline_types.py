@@ -42,6 +42,7 @@ class PipelineStageResult:
     parsed_output_json: dict
     parsing_failed: bool
     parse_error: str | None
+    fallback_reason: str | None
     repair_prompt_text: str | None
     repair_raw_output_text: str | None
 

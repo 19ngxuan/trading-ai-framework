@@ -182,6 +182,18 @@ class HistoricalStepRunner:
                         "assetSymbol": experiment.asset_symbol,
                     },
                 )
+            if (
+                experiment.strategy_type is StrategyType.AGENTIC_AI
+                and trigger_type is TriggerType.SCHEDULED
+            ):
+                raise InvalidExperimentConfigurationAppError(
+                    "Agentic AI historical execution supports manual run-next-step only.",
+                    details={
+                        "experimentId": experiment_id,
+                        "strategyType": experiment.strategy_type.value,
+                        "triggerType": trigger_type.value,
+                    },
+                )
 
             lock_acquired = session.scalar(
                 text("SELECT pg_try_advisory_xact_lock(:experiment_id)"),
