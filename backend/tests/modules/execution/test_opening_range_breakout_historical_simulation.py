@@ -1,6 +1,9 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
+import httpx
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +19,10 @@ from app.domain.enums import (
     TradingFrequency,
 )
 from app.modules.execution.orchestrator import HistoricalOpeningRangeBreakoutOrchestrator
+from app.modules.market_data.alpaca_intraday_provider import (
+    AlpacaIntradayMarketDataProvider,
+)
+from app.modules.market_data.errors import MarketDataUnavailableError
 from app.modules.market_data.intraday_csv_loader import EXPECTED_BARS_PER_SESSION
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
@@ -32,6 +39,8 @@ from app.persistence.models import (
     TradeModel,
     TradingDecisionModel,
 )
+
+NEW_YORK_TZ = ZoneInfo("America/New_York")
 
 
 def _create_experiment(
@@ -113,6 +122,59 @@ def _count(session: Session, model, experiment_id: int) -> int:
             select(func.count(model.id)).where(model.experiment_id == experiment_id)
         )
         or 0
+    )
+
+
+def _alpaca_payload_bar(local_timestamp: datetime, close: str) -> dict:
+    timestamp = (
+        local_timestamp.replace(tzinfo=NEW_YORK_TZ)
+        .astimezone(UTC)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    close_decimal = Decimal(close)
+    return {
+        "t": timestamp,
+        "o": str(close_decimal - Decimal("0.05")),
+        "h": str(close_decimal + Decimal("0.20")),
+        "l": str(close_decimal - Decimal("0.20")),
+        "c": close,
+        "v": "1000",
+    }
+
+
+def _alpaca_orb_session_payload() -> list[dict]:
+    timestamp = datetime(2024, 1, 2, 9, 30)
+    rows: list[dict] = []
+    for index in range(EXPECTED_BARS_PER_SESSION):
+        if index < 6:
+            close = "100.00"
+            high = Decimal("101.00") if index == 2 else Decimal("100.20")
+            low = Decimal("99.00") if index == 3 else Decimal("99.80")
+            row = _alpaca_payload_bar(timestamp, close)
+            row["h"] = str(high)
+            row["l"] = str(low)
+        elif index == 6:
+            row = _alpaca_payload_bar(timestamp, "101.50")
+        elif index == 12:
+            row = _alpaca_payload_bar(timestamp, "98.50")
+        else:
+            row = _alpaca_payload_bar(timestamp, "100.25")
+        rows.append(row)
+        timestamp += timedelta(minutes=5)
+    return rows
+
+
+def _alpaca_intraday_provider(payload: list[dict]) -> AlpacaIntradayMarketDataProvider:
+    return AlpacaIntradayMarketDataProvider(
+        api_key_id="key",
+        api_secret_key="secret",
+        base_url="https://data.example.test",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, json={"bars": payload})
+            )
+        ),
     )
 
 
@@ -242,3 +304,72 @@ def test_opening_range_breakout_fixed_quantity_sizing_is_used(
             "finalQuantity": 3.0,
             "sizingReason": "FIXED_QUANTITY",
         }
+
+
+def test_opening_range_breakout_accepts_injected_alpaca_intraday_provider(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            start_date=date(2024, 1, 2),
+            end_date=date(2024, 1, 2),
+        )
+
+    HistoricalOpeningRangeBreakoutOrchestrator(
+        session_factory=session_factory,
+        intraday_provider=_alpaca_intraday_provider(_alpaca_orb_session_payload()),
+    ).run(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        first_snapshot = session.scalar(
+            select(MarketDataSnapshotModel)
+            .where(MarketDataSnapshotModel.experiment_id == experiment_id)
+            .order_by(MarketDataSnapshotModel.timestamp)
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.COMPLETED
+        assert first_snapshot is not None
+        assert first_snapshot.raw_data_json["provider"] == "alpaca_intraday"
+        assert _count(session, ExecutionStepModel, experiment_id) == 78
+        assert _count(session, OrderModel, experiment_id) == 2
+        assert _count(session, TradeModel, experiment_id) == 2
+
+
+def test_opening_range_breakout_alpaca_missing_data_fails_before_orders(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            start_date=date(2024, 1, 2),
+            end_date=date(2024, 1, 2),
+        )
+
+    provider = _alpaca_intraday_provider(_alpaca_orb_session_payload()[1:])
+    with pytest.raises(MarketDataUnavailableError):
+        HistoricalOpeningRangeBreakoutOrchestrator(
+            session_factory=session_factory,
+            intraday_provider=provider,
+        ).run(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        event = session.scalar(
+            select(SystemEventLogModel)
+            .where(
+                SystemEventLogModel.experiment_id == experiment_id,
+                SystemEventLogModel.event_type == SystemEventType.EXPERIMENT_FAILED,
+            )
+            .order_by(SystemEventLogModel.id.desc())
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.FAILED
+        assert event is not None
+        assert event.details_json["errorCode"] == "MARKET_DATA_MISSING"
+        assert _count(session, ExecutionStepModel, experiment_id) == 0
+        assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, TradeModel, experiment_id) == 0

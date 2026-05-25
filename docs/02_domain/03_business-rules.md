@@ -135,7 +135,8 @@ actions to `HOLD`, and missing market data may fail safely.
 
 `INTRADAY_5_MIN` frequency means five-minute bar evaluation cadence. In the
 current implementation it is supported only by Opening Range Breakout historical
-simulation using deterministic local SPY fixture data.
+simulation using deterministic local SPY fixture data by default or Alpaca
+historical 5-minute bars when configured.
 
 ---
 
@@ -268,9 +269,10 @@ opening range is complete:
 M16 allows at most one completed round trip per session. `SELL` only closes an
 existing long SPY position and must never open a short position.
 
-Opening Range Breakout uses local deterministic intraday CSV fixture data only
-in M16. Missing regular-session bars are fatal; there is no forward-fill or
-interpolation.
+Opening Range Breakout uses local deterministic intraday CSV fixture data by
+default. When `MARKET_DATA_PROVIDER=alpaca`, it uses Alpaca historical
+five-minute SPY bars through the Market Data Module. Missing regular-session
+bars are fatal; there is no forward-fill or interpolation.
 
 ---
 

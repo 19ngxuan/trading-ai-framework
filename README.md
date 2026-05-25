@@ -11,7 +11,7 @@ This repository currently contains the M0-M16 backend/frontend foundation:
 - Backend health, experiment, and options API endpoints
 - Deterministic Buy-and-Hold historical simulation for `BUY_AND_HOLD` + `HISTORICAL_SIMULATION`
 - Deterministic Moving Average historical simulation for `MOVING_AVERAGE` + `HISTORICAL_SIMULATION`
-- Deterministic Opening Range Breakout historical simulation for `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN`
+- Opening Range Breakout historical simulation for `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN`, using local CSV by default or Alpaca 5-minute bars when configured
 - Metrics and portfolio snapshot APIs
 - Frontend dashboard, experiment creation, and experiment detail views
 - Frontend compare and events views
@@ -121,7 +121,13 @@ ALPACA_TRADING_BASE_URL=https://paper-api.alpaca.markets
 ALPACA_ORDER_TIMEOUT_SECONDS=10
 ```
 
-Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. CSV remains the default for deterministic local development and tests. Tests use CSV fixtures or mocked HTTP transports and do not require real Alpaca network access. When Alpaca is selected, empty or missing market data is fatal; the system does not forward-fill or interpolate bars.
+Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured.
+CSV remains the default for deterministic local development and tests. Tests use
+CSV fixtures or mocked HTTP transports and do not require real Alpaca network
+access. When Alpaca is selected, empty or missing market data is fatal; the
+system does not forward-fill or interpolate bars. Opening Range Breakout uses
+the same provider selection: local `spy_5min.csv` when `csv`, or Alpaca
+historical `5Min` SPY bars when `alpaca`.
 
 Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manual `run-next-step` SPY Buy-and-Hold paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation and by the broker adapter. Broker reconciliation, outbox processing, account sync, position sync, and order polling are not implemented.
 
@@ -248,7 +254,7 @@ After migrations and local services are running:
 
 - The CSV fixtures are deterministic and intentionally small; they are not full historical SPY coverage.
 - `startDate` and `endDate` filter available bars; they do not guarantee data coverage.
-- Opening Range Breakout uses local SPY 5-minute fixture data only, requires a complete 09:30-16:00 America/New_York regular session, and fails safely on missing session bars.
+- Opening Range Breakout uses local SPY 5-minute fixture data by default and Alpaca historical `5Min` bars when `MARKET_DATA_PROVIDER=alpaca`; it requires a complete 09:30-16:00 America/New_York regular session and fails safely on missing session bars.
 - Alpaca missing/empty bars are fatal; there is no trading-calendar service, forward-fill, or interpolation.
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.

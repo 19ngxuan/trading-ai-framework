@@ -10,10 +10,10 @@ simulation for:
 - `tradingFrequency = INTRADAY_5_MIN`
 - `assetSymbol = SPY`
 
-M16 uses local SPY 5-minute CSV fixture data only. It does not add an Alpaca
-intraday provider, paper-trading ORB, scheduler-triggered ORB, manual ORB
-`run-next-step`, broker behavior, agent behavior, real-time data, or real-money
-trading.
+M16 used local SPY 5-minute CSV fixture data only. M17 adds optional Alpaca
+historical 5-minute bars behind the Market Data Module. ORB still does not add
+paper-trading ORB, scheduler-triggered ORB, manual ORB `run-next-step`, broker
+behavior, agent behavior, real-time data, or real-money trading.
 
 ## Strategy Rules
 

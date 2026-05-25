@@ -24,13 +24,16 @@ from app.modules.market_data.errors import (
     MarketDataProviderError,
     MarketDataUnavailableError,
 )
-from app.modules.market_data.factory import create_market_data_provider
+from app.modules.market_data.factory import (
+    create_intraday_market_data_provider,
+    create_market_data_provider,
+)
 from app.modules.market_data.provider import DailyBar, MarketDataProvider
-from app.modules.market_data.intraday_csv_loader import (
+from app.modules.market_data.intraday_provider import (
     OPENING_RANGE_END,
     REGULAR_SESSION_FINAL_BAR,
     IntradayBar,
-    SpyIntradayCsvLoader,
+    IntradayMarketDataProvider,
 )
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
 from app.modules.strategies.moving_average import (
@@ -646,10 +649,15 @@ class HistoricalOpeningRangeBreakoutOrchestrator(HistoricalBuyAndHoldOrchestrato
     def __init__(
         self,
         session_factory: sessionmaker[Session] | None = None,
-        intraday_loader: SpyIntradayCsvLoader | None = None,
+        intraday_provider: IntradayMarketDataProvider | None = None,
+        intraday_loader: IntradayMarketDataProvider | None = None,
     ) -> None:
         self.session_factory = session_factory or create_session_factory()
-        self.intraday_loader = intraday_loader or SpyIntradayCsvLoader()
+        self.intraday_provider = (
+            intraday_provider
+            or intraday_loader
+            or create_intraday_market_data_provider(get_settings())
+        )
         self.strategy = OpeningRangeBreakoutStrategy()
         self.risk_validator = HistoricalSimulationRiskValidator()
         self.execution_provider = SimulationExecutionProvider()
@@ -659,7 +667,7 @@ class HistoricalOpeningRangeBreakoutOrchestrator(HistoricalBuyAndHoldOrchestrato
         current_step_id: int | None = None
         try:
             experiment = self._load_experiment(experiment_id)
-            bars = self.intraday_loader.load_range(
+            bars = self.intraday_provider.load_range(
                 experiment.start_date,
                 experiment.end_date,
                 symbol=experiment.asset_symbol,

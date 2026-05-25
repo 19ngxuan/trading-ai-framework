@@ -185,7 +185,9 @@ position. The value is persisted in `strategyConfig.parametersJson`.
 
 Opening Range Breakout creation is supported only for
 `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
-It uses local deterministic 5-minute SPY fixture data.
+It uses local deterministic 5-minute SPY fixture data when
+`MARKET_DATA_PROVIDER=csv`, and Alpaca historical 5-minute SPY bars when
+`MARKET_DATA_PROVIDER=alpaca`.
 
 ### Response `201 Created`
 
