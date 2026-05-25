@@ -6,7 +6,11 @@ export type ExperimentMode =
   | "LIVE_SIMULATION"
   | "PAPER_TRADING";
 
-export type StrategyType = "BUY_AND_HOLD" | "MOVING_AVERAGE" | "AGENTIC_AI";
+export type StrategyType =
+  | "BUY_AND_HOLD"
+  | "MOVING_AVERAGE"
+  | "AGENTIC_AI"
+  | "OPENING_RANGE_BREAKOUT";
 
 export type ExperimentStatus =
   | "CREATED"
@@ -16,7 +20,11 @@ export type ExperimentStatus =
   | "COMPLETED"
   | "FAILED";
 
-export type TradingFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
+export type TradingFrequency =
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "INTRADAY_5_MIN";
 export type FeeModelType = "NONE" | "FIXED" | "PERCENTAGE";
 export type AgentMode = "SINGLE_AGENT" | "PIPELINE";
 export type PositionSizingType =

@@ -77,6 +77,25 @@ def _create_moving_average_payload() -> dict:
     return payload
 
 
+def _create_opening_range_breakout_payload() -> dict:
+    payload = _create_request_payload()
+    payload["name"] = "M16 Opening Range Breakout"
+    payload["strategyType"] = "OPENING_RANGE_BREAKOUT"
+    payload["startDate"] = "2024-01-02"
+    payload["endDate"] = "2024-01-02"
+    payload["tradingFrequency"] = "INTRADAY_5_MIN"
+    payload["strategyConfig"] = {
+        "strategyVersion": "opening-range-breakout-v1",
+        "movingAverageWindow": None,
+        "positionSizingType": "ALL_IN",
+        "agentMode": None,
+        "modelName": None,
+        "confidenceThreshold": None,
+        "parametersJson": {"riskConfig": {"fallbackAction": "HOLD"}},
+    }
+    return payload
+
+
 def _database_url() -> str:
     settings = get_settings()
     database_url = settings.test_database_url or settings.database_url
@@ -162,6 +181,28 @@ def test_create_experiment_rejects_invalid_position_sizing_configs(client) -> No
 
         assert response.status_code == 422
         assert response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
+def test_create_experiment_accepts_opening_range_breakout_intraday(client) -> None:
+    response = client.post(
+        "/api/v1/experiments",
+        json=_create_opening_range_breakout_payload(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["experiment"]["strategyType"] == "OPENING_RANGE_BREAKOUT"
+    assert body["experiment"]["tradingFrequency"] == "INTRADAY_5_MIN"
+
+
+def test_create_experiment_rejects_unsupported_orb_configuration(client) -> None:
+    payload = _create_opening_range_breakout_payload()
+    payload["tradingFrequency"] = "DAILY"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
 
 
 def test_list_and_detail_experiments(client) -> None:
@@ -346,6 +387,33 @@ def test_start_moving_average_historical_runs_background_simulation(client) -> N
         assert experiment is not None
         assert experiment.status is ExperimentStatus.COMPLETED
         assert step_count == 7
+    engine.dispose()
+
+
+def test_start_opening_range_breakout_historical_runs_background_simulation(
+    client,
+) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json=_create_opening_range_breakout_payload(),
+    )
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    response = client.post(f"/api/v1/experiments/{experiment_id}/start")
+    assert response.status_code == 202
+    assert response.json()["status"] == "RUNNING"
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    with Session(engine) as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step_count = session.scalar(
+            select(func.count(ExecutionStepModel.id)).where(
+                ExecutionStepModel.experiment_id == experiment_id
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.COMPLETED
+        assert step_count == 78
     engine.dispose()
 
 

@@ -11,6 +11,7 @@ class StrategyType(str, Enum):
     BUY_AND_HOLD = "BUY_AND_HOLD"
     MOVING_AVERAGE = "MOVING_AVERAGE"
     AGENTIC_AI = "AGENTIC_AI"
+    OPENING_RANGE_BREAKOUT = "OPENING_RANGE_BREAKOUT"
 
 
 class ExperimentStatus(str, Enum):
@@ -26,6 +27,7 @@ class TradingFrequency(str, Enum):
     DAILY = "DAILY"
     WEEKLY = "WEEKLY"
     MONTHLY = "MONTHLY"
+    INTRADAY_5_MIN = "INTRADAY_5_MIN"
 
 
 class FeeModelType(str, Enum):

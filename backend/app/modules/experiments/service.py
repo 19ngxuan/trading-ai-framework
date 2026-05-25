@@ -32,6 +32,7 @@ from app.domain.enums import (
 from app.modules.execution.orchestrator import (
     HistoricalBuyAndHoldOrchestrator,
     HistoricalMovingAverageOrchestrator,
+    HistoricalOpeningRangeBreakoutOrchestrator,
 )
 from app.modules.execution.position_sizing import ALL_IN, parse_position_sizing_value
 from app.modules.experiments.status_machine import validate_transition
@@ -358,6 +359,22 @@ class ExperimentService:
                     "tradingFrequency": experiment.trading_frequency.value,
                 },
             )
+        if experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+            if (
+                experiment.mode is not ExperimentMode.HISTORICAL_SIMULATION
+                or experiment.trading_frequency is not TradingFrequency.INTRADAY_5_MIN
+                or experiment.asset_symbol != "SPY"
+            ):
+                raise InvalidExperimentConfigurationAppError(
+                    "Opening Range Breakout supports HISTORICAL_SIMULATION, "
+                    "INTRADAY_5_MIN, SPY only.",
+                    details={
+                        "experimentId": experiment_id,
+                        "mode": experiment.mode.value,
+                        "tradingFrequency": experiment.trading_frequency.value,
+                        "assetSymbol": experiment.asset_symbol,
+                    },
+                )
 
         response = self.apply_lifecycle_action(experiment_id, "start")
         experiment = self.experiment_repository.get_by_id(experiment_id)
@@ -375,6 +392,17 @@ class ExperimentService:
             and background_tasks is not None
         ):
             background_tasks.add_task(run_moving_average_historical_simulation, experiment_id)
+        elif (
+            experiment is not None
+            and experiment.mode is ExperimentMode.HISTORICAL_SIMULATION
+            and experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
+            and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
+            and background_tasks is not None
+        ):
+            background_tasks.add_task(
+                run_opening_range_breakout_historical_simulation,
+                experiment_id,
+            )
         return response
 
     def get_options(self) -> OptionsResponse:
@@ -399,6 +427,13 @@ def run_buy_and_hold_historical_simulation(experiment_id: int) -> None:
 
 def run_moving_average_historical_simulation(experiment_id: int) -> None:
     orchestrator = HistoricalMovingAverageOrchestrator(
+        session_factory=create_session_factory()
+    )
+    orchestrator.run(experiment_id)
+
+
+def run_opening_range_breakout_historical_simulation(experiment_id: int) -> None:
+    orchestrator = HistoricalOpeningRangeBreakoutOrchestrator(
         session_factory=create_session_factory()
     )
     orchestrator.run(experiment_id)

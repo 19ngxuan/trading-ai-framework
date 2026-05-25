@@ -45,6 +45,7 @@ An experiment must have exactly one configured strategy type:
 - `BUY_AND_HOLD`
 - `MOVING_AVERAGE`
 - `AGENTIC_AI`
+- `OPENING_RANGE_BREAKOUT`
 
 Strategy comparisons must be represented as multiple experiments, not as multiple strategy types inside one experiment.
 
@@ -131,6 +132,10 @@ Manual and scheduled execution must use the same business pipeline.
 `DAILY` frequency means daily bar evaluation cadence. It does not guarantee one
 trade per day; strategies may produce `HOLD`, risk may convert executable
 actions to `HOLD`, and missing market data may fail safely.
+
+`INTRADAY_5_MIN` frequency means five-minute bar evaluation cadence. In the
+current implementation it is supported only by Opening Range Breakout historical
+simulation using deterministic local SPY fixture data.
 
 ---
 
@@ -229,6 +234,43 @@ Expected V1 behavior:
 - price above moving average and already positioned → `HOLD`
 - price below moving average and positioned → `SELL`
 - price below moving average and no position → `HOLD`
+
+---
+
+### BR-022A: Opening Range Breakout uses the regular-session opening range
+
+Opening Range Breakout is supported for `OPENING_RANGE_BREAKOUT` +
+`HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
+
+It uses the US regular market session, interpreted as 09:30-16:00
+America/New_York, with timestamps representing 5-minute bar starts.
+
+The opening range is the first 30 minutes:
+
+- 09:30
+- 09:35
+- 09:40
+- 09:45
+- 09:50
+- 09:55
+
+`openingRangeHigh` is the maximum high across those bars. `openingRangeLow` is
+the minimum low across those bars.
+
+Before the opening range is complete, the strategy returns `HOLD`. After the
+opening range is complete:
+
+- close above opening range high and no position → `BUY`
+- close below opening range low and holding SPY → `SELL`
+- final regular-session bar and holding SPY → `SELL`
+- otherwise → `HOLD`
+
+M16 allows at most one completed round trip per session. `SELL` only closes an
+existing long SPY position and must never open a short position.
+
+Opening Range Breakout uses local deterministic intraday CSV fixture data only
+in M16. Missing regular-session bars are fatal; there is no forward-fill or
+interpolation.
 
 ---
 

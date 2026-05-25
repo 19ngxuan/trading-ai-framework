@@ -59,6 +59,9 @@ const initialState: FormState = {
 function strategyVersion(strategyType: StrategyType) {
   if (strategyType === "MOVING_AVERAGE") return "moving-average-v1";
   if (strategyType === "AGENTIC_AI") return "agentic-ai-v1";
+  if (strategyType === "OPENING_RANGE_BREAKOUT") {
+    return "opening-range-breakout-v1";
+  }
   return "buy-and-hold-v1";
 }
 
@@ -232,6 +235,12 @@ export function CreateExperimentForm() {
                 strategyVersion: strategyVersion(nextStrategy),
                 movingAverageWindow:
                   nextStrategy === "MOVING_AVERAGE" ? "3" : "",
+                tradingFrequency:
+                  nextStrategy === "OPENING_RANGE_BREAKOUT"
+                    ? "INTRADAY_5_MIN"
+                    : current.tradingFrequency === "INTRADAY_5_MIN"
+                      ? "DAILY"
+                      : current.tradingFrequency,
               }));
             }}
           >

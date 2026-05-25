@@ -3,6 +3,7 @@ from typing import Any
 
 from app.api.schemas.experiment_schemas import CreateExperimentRequest
 from app.core.errors import ValidationAppError
+from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 from app.modules.execution.position_sizing import (
     PositionSizingConfigurationError,
     validate_position_sizing_config,
@@ -41,6 +42,29 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
         raise ValidationAppError(
             "feeValue must be greater than or equal to 0.",
             details={"field": "feeValue"},
+        )
+
+    if request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+        if request.mode is not ExperimentMode.HISTORICAL_SIMULATION:
+            raise ValidationAppError(
+                "Opening Range Breakout supports HISTORICAL_SIMULATION mode only.",
+                details={"field": "mode", "value": request.mode.value},
+            )
+        if request.trading_frequency is not TradingFrequency.INTRADAY_5_MIN:
+            raise ValidationAppError(
+                "Opening Range Breakout supports INTRADAY_5_MIN frequency only.",
+                details={
+                    "field": "tradingFrequency",
+                    "value": request.trading_frequency.value,
+                },
+            )
+    elif request.trading_frequency is TradingFrequency.INTRADAY_5_MIN:
+        raise ValidationAppError(
+            "INTRADAY_5_MIN frequency is supported only for Opening Range Breakout.",
+            details={
+                "field": "tradingFrequency",
+                "strategyType": request.strategy_type.value,
+            },
         )
 
     if request.strategy_config.moving_average_window is not None:

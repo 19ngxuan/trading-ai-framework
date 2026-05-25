@@ -2,8 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M13 backend/frontend foundation plus
-frontend chart polish:
+This repository currently contains the M0-M16 backend/frontend foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -12,6 +11,7 @@ frontend chart polish:
 - Backend health, experiment, and options API endpoints
 - Deterministic Buy-and-Hold historical simulation for `BUY_AND_HOLD` + `HISTORICAL_SIMULATION`
 - Deterministic Moving Average historical simulation for `MOVING_AVERAGE` + `HISTORICAL_SIMULATION`
+- Deterministic Opening Range Breakout historical simulation for `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN`
 - Metrics and portfolio snapshot APIs
 - Frontend dashboard, experiment creation, and experiment detail views
 - Frontend compare and events views
@@ -26,9 +26,11 @@ frontend chart polish:
 
 The current implementation intentionally does not include real-money trading,
 broker account/position reconciliation, scheduled paper trading, Moving Average
-paper trading, real LLM provider/network calls, live broker-backed scheduler
-execution, execution-step/order/trade/agent-log public detail APIs, or frontend
-trading execution detail UI.
+paper trading, Opening Range Breakout paper trading, scheduled Opening Range
+Breakout execution, Opening Range Breakout manual `run-next-step`, real LLM
+provider/network calls, live broker-backed scheduler execution,
+execution-step/order/trade/agent-log public detail APIs, or frontend trading
+execution detail UI.
 
 Trading Lab is not financial advice and is not a live trading system. Version 1 is for simulation and Alpaca paper trading only.
 
@@ -234,20 +236,23 @@ After migrations and local services are running:
 
 1. Create a `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
 2. Create a `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
-3. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, start it, then call `run-next-step`.
-4. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=PIPELINE`, start it, then call `run-next-step`.
-5. Verify metrics and portfolio snapshot charts on experiment detail.
-6. Open `/compare`, select at least two experiments, and compare persisted metrics.
-7. Open `/events` and verify lifecycle/system events are visible.
-8. Validate paper-trading safety by confirming `ALPACA_PAPER_TRADING_ENABLED=false` rejects paper `run-next-step`, and that only the paper Alpaca base URL is accepted when enabled.
+3. Create an `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` experiment and start it.
+4. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, start it, then call `run-next-step`.
+5. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=PIPELINE`, start it, then call `run-next-step`.
+6. Verify metrics and portfolio snapshot charts on experiment detail.
+7. Open `/compare`, select at least two experiments, and compare persisted metrics.
+8. Open `/events` and verify lifecycle/system events are visible.
+9. Validate paper-trading safety by confirming `ALPACA_PAPER_TRADING_ENABLED=false` rejects paper `run-next-step`, and that only the paper Alpaca base URL is accepted when enabled.
 
 ## Known Limitations
 
-- The CSV fixture is deterministic and intentionally small; it is not full historical SPY coverage.
+- The CSV fixtures are deterministic and intentionally small; they are not full historical SPY coverage.
 - `startDate` and `endDate` filter available bars; they do not guarantee data coverage.
+- Opening Range Breakout uses local SPY 5-minute fixture data only, requires a complete 09:30-16:00 America/New_York regular session, and fails safely on missing session bars.
 - Alpaca missing/empty bars are fatal; there is no trading-calendar service, forward-fill, or interpolation.
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.
+- Opening Range Breakout runs through `/start` full-run only in M16; manual `run-next-step`, scheduler-triggered ORB, and paper-trading ORB are deferred.
 - Paper trading is manual `run-next-step` only for Buy-and-Hold SPY daily experiments.
 - Broker reconciliation, outbox processing, account sync, position sync, and order polling are deferred.
 - Agentic AI uses deterministic fake providers only; real LLM providers are not implemented.

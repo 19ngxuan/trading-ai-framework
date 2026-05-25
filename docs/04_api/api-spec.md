@@ -183,6 +183,10 @@ for `ALL_IN`, required and positive for `FIXED_CASH`, required with `0 < value <
 always liquidates the existing long SPY position and never opens a short
 position. The value is persisted in `strategyConfig.parametersJson`.
 
+Opening Range Breakout creation is supported only for
+`OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
+It uses local deterministic 5-minute SPY fixture data.
+
 ### Response `201 Created`
 
 ```json
@@ -354,6 +358,14 @@ Starts an experiment asynchronously.
 
 `start` is valid only for experiments in `CREATED`. A `PAUSED` experiment must use `/resume`; `start` on `PAUSED` returns `409 Conflict`.
 
+Current `/start` full-run execution support:
+
+- `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY`
+- `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
+- `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN`
+
+`/start` remains lifecycle-only for paper-trading and Agentic-AI experiments.
+
 ### Response `202 Accepted`
 
 ```json
@@ -431,8 +443,9 @@ Triggers one manual execution step. In the current implementation this supports:
 - `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 
-`/start` remains lifecycle-only for paper-trading and Agentic-AI experiments.
-It never submits broker orders and does not run full historical agent execution.
+Opening Range Breakout is not supported by manual `run-next-step` in M16.
+`/start` remains lifecycle-only for paper-trading and Agentic-AI experiments. It
+never submits broker orders and does not run full historical agent execution.
 
 Manual run-next-step creates exactly one execution step and is intended for deterministic debugging. It uses the same execution pipeline as scheduled/background execution.
 
@@ -629,9 +642,9 @@ Returns frontend-selectable enum values and supported options.
 {
   "assets": ["SPY"],
   "modes": ["HISTORICAL_SIMULATION", "LIVE_SIMULATION", "PAPER_TRADING"],
-  "strategies": ["BUY_AND_HOLD", "MOVING_AVERAGE", "AGENTIC_AI"],
+  "strategies": ["BUY_AND_HOLD", "MOVING_AVERAGE", "AGENTIC_AI", "OPENING_RANGE_BREAKOUT"],
   "experimentStatuses": ["CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED", "FAILED"],
-  "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY"],
+  "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY", "INTRADAY_5_MIN"],
   "feeModelTypes": ["NONE", "FIXED", "PERCENTAGE"],
   "agentModes": ["SINGLE_AGENT", "PIPELINE"],
   "orderStatuses": ["CREATED", "SUBMITTED", "FILLED", "REJECTED", "FAILED", "CANCELLED"]
