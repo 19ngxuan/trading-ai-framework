@@ -187,7 +187,10 @@ Opening Range Breakout creation is supported only for
 `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
 It uses local deterministic 5-minute SPY fixture data when
 `MARKET_DATA_PROVIDER=csv`, and Alpaca historical 5-minute SPY bars when
-`MARKET_DATA_PROVIDER=alpaca`.
+`MARKET_DATA_PROVIDER=alpaca`. Intraday bars are validated against the US
+equities trading calendar, including early-close sessions. Date ranges
+containing only weekends or full market holidays complete with zero execution
+steps.
 
 ### Response `201 Created`
 

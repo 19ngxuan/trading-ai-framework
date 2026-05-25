@@ -23,7 +23,7 @@ from app.modules.market_data.alpaca_intraday_provider import (
     AlpacaIntradayMarketDataProvider,
 )
 from app.modules.market_data.errors import MarketDataUnavailableError
-from app.modules.market_data.intraday_csv_loader import EXPECTED_BARS_PER_SESSION
+from app.modules.market_data.intraday_provider import EXPECTED_BARS_PER_SESSION
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExecutionStepModel,
@@ -158,6 +158,28 @@ def _alpaca_orb_session_payload() -> list[dict]:
             row = _alpaca_payload_bar(timestamp, "101.50")
         elif index == 12:
             row = _alpaca_payload_bar(timestamp, "98.50")
+        else:
+            row = _alpaca_payload_bar(timestamp, "100.25")
+        rows.append(row)
+        timestamp += timedelta(minutes=5)
+    return rows
+
+
+def _alpaca_orb_early_close_payload() -> list[dict]:
+    timestamp = datetime(2024, 7, 3, 9, 30)
+    rows: list[dict] = []
+    for index in range(42):
+        if index < 6:
+            close = "100.00"
+            high = Decimal("101.00") if index == 2 else Decimal("100.20")
+            low = Decimal("99.00") if index == 3 else Decimal("99.80")
+            row = _alpaca_payload_bar(timestamp, close)
+            row["h"] = str(high)
+            row["l"] = str(low)
+        elif index == 6:
+            row = _alpaca_payload_bar(timestamp, "101.50")
+        elif index == 41:
+            row = _alpaca_payload_bar(timestamp, "102.00")
         else:
             row = _alpaca_payload_bar(timestamp, "100.25")
         rows.append(row)
@@ -373,3 +395,82 @@ def test_opening_range_breakout_alpaca_missing_data_fails_before_orders(
         assert _count(session, ExecutionStepModel, experiment_id) == 0
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0
+
+
+def test_opening_range_breakout_early_close_exits_on_early_final_bar(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            start_date=date(2024, 7, 3),
+            end_date=date(2024, 7, 3),
+        )
+
+    HistoricalOpeningRangeBreakoutOrchestrator(
+        session_factory=session_factory,
+        intraday_provider=_alpaca_intraday_provider(_alpaca_orb_early_close_payload()),
+    ).run(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        decisions = list(
+            session.scalars(
+                select(TradingDecisionModel)
+                .where(TradingDecisionModel.experiment_id == experiment_id)
+                .order_by(TradingDecisionModel.id)
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.COMPLETED
+        assert len(decisions) == 42
+        assert decisions[-1].action.value == "SELL"
+        assert decisions[-1].raw_decision_json["eodExit"] is True
+        assert decisions[-1].created_at is not None
+        assert _count(session, OrderModel, experiment_id) == 2
+        last_snapshot = session.scalar(
+            select(MarketDataSnapshotModel)
+            .where(MarketDataSnapshotModel.experiment_id == experiment_id)
+            .order_by(MarketDataSnapshotModel.timestamp.desc())
+        )
+        assert last_snapshot is not None
+        assert last_snapshot.timestamp.isoformat() == "2024-07-03T12:55:00"
+
+
+def test_opening_range_breakout_non_trading_range_completes_with_zero_steps(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            start_date=date(2024, 1, 6),
+            end_date=date(2024, 1, 7),
+        )
+
+    HistoricalOpeningRangeBreakoutOrchestrator(
+        session_factory=session_factory,
+        intraday_provider=_alpaca_intraday_provider(
+            [_alpaca_payload_bar(datetime(2024, 1, 6, 9, 30), "100.00")]
+        ),
+    ).run(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        event_types = list(
+            session.scalars(
+                select(SystemEventLogModel.event_type)
+                .where(SystemEventLogModel.experiment_id == experiment_id)
+                .order_by(SystemEventLogModel.id)
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.COMPLETED
+        assert _count(session, ExecutionStepModel, experiment_id) == 0
+        assert _count(session, MarketDataSnapshotModel, experiment_id) == 0
+        assert _count(session, TradingDecisionModel, experiment_id) == 0
+        assert _count(session, RiskCheckModel, experiment_id) == 0
+        assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, TradeModel, experiment_id) == 0
+        assert SystemEventType.EXPERIMENT_COMPLETED in event_types

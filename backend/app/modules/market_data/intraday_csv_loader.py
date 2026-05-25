@@ -1,5 +1,4 @@
 import csv
-from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -10,17 +9,24 @@ from app.modules.market_data.errors import (
     MarketDataUnavailableError,
 )
 from app.modules.market_data.intraday_provider import (
-    EXPECTED_BARS_PER_SESSION,
     NEW_YORK_TZ,
     IntradayBar,
-    expected_session_timestamps,
-    is_regular_session_bar,
+)
+from app.modules.market_data.intraday_validation import validate_intraday_bars
+from app.modules.market_data.trading_calendar import (
+    TradingCalendar,
+    UsEquitiesTradingCalendar,
 )
 
 
 class SpyIntradayCsvLoader:
-    def __init__(self, csv_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        csv_path: Path | None = None,
+        trading_calendar: TradingCalendar | None = None,
+    ) -> None:
         self.csv_path = csv_path or Path(__file__).parent / "fixtures" / "spy_5min.csv"
+        self.trading_calendar = trading_calendar or UsEquitiesTradingCalendar()
 
     def load_range(
         self,
@@ -36,21 +42,23 @@ class SpyIntradayCsvLoader:
         if start_date > end_date:
             raise MarketDataProviderError("start_date must be before or equal to end_date.")
 
+        sessions = self.trading_calendar.sessions_between(start_date, end_date)
         rows = self._read_rows()
-        bars = [
+        candidate_bars = [
             bar
             for bar in rows
             if start_date <= bar.session_date <= end_date
         ]
-        if not bars:
+        if not candidate_bars and sessions:
             raise MarketDataUnavailableError(
                 "No intraday SPY fixture bars are available for the requested range."
             )
-
-        bars.sort(key=lambda bar: bar.timestamp)
-        self._validate_no_duplicates(bars)
-        self._validate_sessions_complete(bars)
-        return bars
+        return validate_intraday_bars(
+            bars=candidate_bars,
+            sessions=sessions,
+            symbol=symbol,
+            provider="csv_intraday",
+        )
 
     def _read_rows(self) -> list[IntradayBar]:
         if not self.csv_path.exists():
@@ -80,10 +88,6 @@ class SpyIntradayCsvLoader:
             )
 
         local_timestamp = parsed_timestamp.astimezone(NEW_YORK_TZ).replace(tzinfo=None)
-        if not is_regular_session_bar(local_timestamp):
-            raise MarketDataProviderError(
-                f"Intraday timestamp at row {row_number} is outside regular session."
-            )
 
         try:
             open_price = Decimal(row["open"])
@@ -112,33 +116,3 @@ class SpyIntradayCsvLoader:
                 "row": raw_row,
             },
         )
-
-    def _validate_no_duplicates(self, bars: list[IntradayBar]) -> None:
-        seen: set[datetime] = set()
-        for bar in bars:
-            if bar.timestamp in seen:
-                raise MarketDataProviderError(
-                    f"Duplicate intraday timestamp: {bar.timestamp.isoformat()}."
-                )
-            seen.add(bar.timestamp)
-
-    def _validate_sessions_complete(self, bars: list[IntradayBar]) -> None:
-        by_session: dict[date, set[datetime]] = defaultdict(set)
-        for bar in bars:
-            by_session[bar.session_date].add(bar.timestamp)
-
-        for session_date, timestamps in by_session.items():
-            expected = set(expected_session_timestamps(session_date))
-            missing = sorted(expected - timestamps)
-            extra = sorted(timestamps - expected)
-            if missing or extra or len(timestamps) != EXPECTED_BARS_PER_SESSION:
-                missing_preview = [value.isoformat() for value in missing[:3]]
-                extra_preview = [value.isoformat() for value in extra[:3]]
-                raise MarketDataUnavailableError(
-                    "Intraday SPY fixture session is incomplete.",
-                    details={
-                        "sessionDate": session_date.isoformat(),
-                        "missing": missing_preview,
-                        "extra": extra_preview,
-                    },
-                )

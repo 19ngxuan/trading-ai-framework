@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -11,13 +10,15 @@ from app.modules.market_data.errors import (
     MarketDataUnavailableError,
 )
 from app.modules.market_data.intraday_provider import (
-    EXPECTED_BARS_PER_SESSION,
     NEW_YORK_TZ,
     REGULAR_SESSION_END,
     REGULAR_SESSION_START,
     IntradayBar,
-    expected_session_timestamps,
-    is_regular_session_bar,
+)
+from app.modules.market_data.intraday_validation import validate_intraday_bars
+from app.modules.market_data.trading_calendar import (
+    TradingCalendar,
+    UsEquitiesTradingCalendar,
 )
 
 SUPPORTED_SYMBOL = "SPY"
@@ -34,6 +35,7 @@ class AlpacaIntradayMarketDataProvider:
         adjustment: str = "all",
         timeout_seconds: int = 10,
         client: httpx.Client | None = None,
+        trading_calendar: TradingCalendar | None = None,
     ) -> None:
         self.api_key_id = api_key_id
         self.api_secret_key = api_secret_key
@@ -42,6 +44,7 @@ class AlpacaIntradayMarketDataProvider:
         self.adjustment = adjustment
         self.timeout_seconds = timeout_seconds
         self.client = client or httpx.Client(timeout=timeout_seconds)
+        self.trading_calendar = trading_calendar or UsEquitiesTradingCalendar()
 
     def load_range(
         self,
@@ -56,8 +59,9 @@ class AlpacaIntradayMarketDataProvider:
                 "start_date must be before or equal to end_date."
             )
 
+        sessions = self.trading_calendar.sessions_between(start_date, end_date)
         bars_payload = self._load_all_pages(symbol, start_date, end_date)
-        if not bars_payload:
+        if not bars_payload and sessions:
             raise MarketDataUnavailableError(
                 "Alpaca returned no intraday bars.",
                 details={
@@ -77,13 +81,16 @@ class AlpacaIntradayMarketDataProvider:
             self._map_bar(item, symbol=symbol, provider_metadata=metadata)
             for item in bars_payload
         ]
-        regular_session_bars = [
-            bar
-            for bar in bars
-            if is_regular_session_bar(bar.timestamp)
-            and start_date <= bar.session_date <= end_date
+        candidate_bars = [
+            bar for bar in bars if start_date <= bar.session_date <= end_date
         ]
-        if not regular_session_bars:
+        validated_bars = validate_intraday_bars(
+            bars=candidate_bars,
+            sessions=sessions,
+            symbol=symbol,
+            provider="alpaca_intraday",
+        )
+        if not validated_bars and sessions:
             raise MarketDataUnavailableError(
                 "Alpaca returned no regular-session intraday bars.",
                 details={
@@ -93,10 +100,7 @@ class AlpacaIntradayMarketDataProvider:
                 },
             )
 
-        regular_session_bars.sort(key=lambda bar: bar.timestamp)
-        self._validate_no_duplicates(regular_session_bars, symbol)
-        self._validate_sessions_complete(regular_session_bars, symbol)
-        return regular_session_bars
+        return validated_bars
 
     def _load_all_pages(
         self,
@@ -245,41 +249,3 @@ class AlpacaIntradayMarketDataProvider:
                 "Alpaca intraday market data provider supports INTRADAY_5_MIN only.",
                 details={"frequency": frequency.value},
             )
-
-    def _validate_no_duplicates(
-        self,
-        bars: list[IntradayBar],
-        symbol: str,
-    ) -> None:
-        seen: set[datetime] = set()
-        for bar in bars:
-            if bar.timestamp in seen:
-                raise MarketDataProviderError(
-                    "Alpaca returned duplicate intraday bars.",
-                    details={"symbol": symbol, "timestamp": bar.timestamp.isoformat()},
-                )
-            seen.add(bar.timestamp)
-
-    def _validate_sessions_complete(
-        self,
-        bars: list[IntradayBar],
-        symbol: str,
-    ) -> None:
-        by_session: dict[date, set[datetime]] = defaultdict(set)
-        for bar in bars:
-            by_session[bar.session_date].add(bar.timestamp)
-
-        for session_date, timestamps in by_session.items():
-            expected = set(expected_session_timestamps(session_date))
-            missing = sorted(expected - timestamps)
-            extra = sorted(timestamps - expected)
-            if missing or extra or len(timestamps) != EXPECTED_BARS_PER_SESSION:
-                raise MarketDataUnavailableError(
-                    "Alpaca intraday session is incomplete.",
-                    details={
-                        "symbol": symbol,
-                        "sessionDate": session_date.isoformat(),
-                        "missing": [value.isoformat() for value in missing[:3]],
-                        "extra": [value.isoformat() for value in extra[:3]],
-                    },
-                )

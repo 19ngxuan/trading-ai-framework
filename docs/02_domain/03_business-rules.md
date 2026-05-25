@@ -243,8 +243,9 @@ Expected V1 behavior:
 Opening Range Breakout is supported for `OPENING_RANGE_BREAKOUT` +
 `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
 
-It uses the US regular market session, interpreted as 09:30-16:00
-America/New_York, with timestamps representing 5-minute bar starts.
+It uses US equities regular sessions, interpreted in America/New_York local
+time, with timestamps representing 5-minute bar starts. Full sessions usually
+run 09:30-16:00. Early-close sessions may close earlier, for example 13:00.
 
 The opening range is the first 30 minutes:
 
@@ -271,8 +272,11 @@ existing long SPY position and must never open a short position.
 
 Opening Range Breakout uses local deterministic intraday CSV fixture data by
 default. When `MARKET_DATA_PROVIDER=alpaca`, it uses Alpaca historical
-five-minute SPY bars through the Market Data Module. Missing regular-session
-bars are fatal; there is no forward-fill or interpolation.
+five-minute SPY bars through the Market Data Module. Bars are validated against
+the US equities trading calendar. Full sessions require 09:30 through 15:55 bar
+starts. A 13:00 early-close session requires 09:30 through 12:55 bar starts.
+Weekends and full market holidays require no bars. Missing expected session bars
+are fatal; there is no forward-fill or interpolation.
 
 ---
 

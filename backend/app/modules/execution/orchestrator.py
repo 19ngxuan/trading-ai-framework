@@ -31,7 +31,6 @@ from app.modules.market_data.factory import (
 from app.modules.market_data.provider import DailyBar, MarketDataProvider
 from app.modules.market_data.intraday_provider import (
     OPENING_RANGE_END,
-    REGULAR_SESSION_FINAL_BAR,
     IntradayBar,
     IntradayMarketDataProvider,
 )
@@ -686,6 +685,7 @@ class HistoricalOpeningRangeBreakoutOrchestrator(HistoricalBuyAndHoldOrchestrato
                 )
                 round_trip_completed = False
                 for bar in session_bars:
+                    final_session_bar = bar.timestamp == session_bars[-1].timestamp
                     state = OpeningRangeBreakoutState(
                         session_date=bar.session_date,
                         opening_range_high=opening_range_high
@@ -695,7 +695,7 @@ class HistoricalOpeningRangeBreakoutOrchestrator(HistoricalBuyAndHoldOrchestrato
                         if bar.timestamp.time() > OPENING_RANGE_END
                         else None,
                         opening_range_complete=bar.timestamp.time() > OPENING_RANGE_END,
-                        final_bar=bar.timestamp.time() == REGULAR_SESSION_FINAL_BAR,
+                        final_bar=final_session_bar,
                         round_trip_completed=round_trip_completed,
                     )
                     current_step_id = self._create_running_step(experiment_id, bar)

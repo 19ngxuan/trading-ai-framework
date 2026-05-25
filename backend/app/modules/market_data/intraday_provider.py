@@ -14,6 +14,7 @@ REGULAR_SESSION_END = time(16, 0)
 OPENING_RANGE_END = time(9, 55)
 BAR_INTERVAL = timedelta(minutes=5)
 EXPECTED_BARS_PER_SESSION = 78
+EARLY_CLOSE_13_BARS_PER_SESSION = 42
 
 
 @dataclass(frozen=True)

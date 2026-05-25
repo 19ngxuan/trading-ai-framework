@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -14,6 +14,11 @@ from app.modules.market_data.errors import (
     MarketDataUnavailableError,
 )
 from app.modules.market_data.intraday_provider import EXPECTED_BARS_PER_SESSION
+from app.modules.market_data.trading_calendar import (
+    StaticTradingCalendar,
+    TradingSession,
+    expected_bar_start_times,
+)
 
 NEW_YORK_TZ = ZoneInfo("America/New_York")
 
@@ -36,16 +41,30 @@ def _payload_bar(local_timestamp: datetime, close: str = "100.00") -> dict:
     }
 
 
-def _full_session_payload(session_date: date) -> list[dict]:
-    timestamp = datetime.combine(session_date, datetime.min.time()).replace(
-        hour=9,
-        minute=30,
+def _session(session_date: date, close_hour: int = 16) -> TradingSession:
+    close_minute = 0
+    return TradingSession(
+        session_date=session_date,
+        open_time=datetime.min.time().replace(hour=9, minute=30),
+        close_time=datetime.min.time().replace(hour=close_hour, minute=close_minute),
+        expected_bar_start_times=expected_bar_start_times(
+            session_date,
+            datetime.min.time().replace(hour=9, minute=30),
+            datetime.min.time().replace(hour=close_hour, minute=close_minute),
+        ),
+        is_early_close=close_hour != 16,
     )
+
+
+def _session_payload(session: TradingSession) -> list[dict]:
     rows: list[dict] = []
-    for index in range(EXPECTED_BARS_PER_SESSION):
+    for index, timestamp in enumerate(session.expected_bar_start_times):
         rows.append(_payload_bar(timestamp, close=f"{100 + index / 100:.2f}"))
-        timestamp += timedelta(minutes=5)
     return rows
+
+
+def _full_session_payload(session_date: date) -> list[dict]:
+    return _session_payload(_session(session_date))
 
 
 def _provider(handler) -> AlpacaIntradayMarketDataProvider:
@@ -56,6 +75,21 @@ def _provider(handler) -> AlpacaIntradayMarketDataProvider:
         feed="iex",
         adjustment="all",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+
+def _provider_with_calendar(
+    handler,
+    calendar: StaticTradingCalendar,
+) -> AlpacaIntradayMarketDataProvider:
+    return AlpacaIntradayMarketDataProvider(
+        api_key_id="key",
+        api_secret_key="secret",
+        base_url="https://data.example.test",
+        feed="iex",
+        adjustment="all",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        trading_calendar=calendar,
     )
 
 
@@ -117,6 +151,31 @@ def test_alpaca_intraday_provider_ignores_out_of_session_bars() -> None:
     assert rows[0].timestamp.minute == 30
     assert rows[-1].timestamp.hour == 15
     assert rows[-1].timestamp.minute == 55
+
+
+def test_alpaca_intraday_provider_accepts_early_close_session() -> None:
+    session = _session(date(2024, 7, 3), close_hour=13)
+    provider = _provider_with_calendar(
+        lambda _: httpx.Response(200, json={"bars": _session_payload(session)}),
+        StaticTradingCalendar([session]),
+    )
+
+    rows = provider.load_range(date(2024, 7, 3), date(2024, 7, 3))
+
+    assert len(rows) == 42
+    assert rows[-1].timestamp.isoformat() == "2024-07-03T12:55:00"
+
+
+def test_alpaca_intraday_provider_ignores_non_trading_day_bars() -> None:
+    provider = _provider_with_calendar(
+        lambda _: httpx.Response(
+            200,
+            json={"bars": [_payload_bar(datetime(2024, 1, 6, 9, 30))]},
+        ),
+        StaticTradingCalendar([]),
+    )
+
+    assert provider.load_range(date(2024, 1, 6), date(2024, 1, 6)) == []
 
 
 def test_alpaca_intraday_provider_duplicate_and_missing_bars_are_fatal() -> None:

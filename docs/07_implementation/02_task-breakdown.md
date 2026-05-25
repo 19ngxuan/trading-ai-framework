@@ -32,6 +32,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M15 | `tasks/M15-hardening-documentation.md` | Documentation, API contract, runbook, and safety-boundary hardening |
 | M16 | `tasks/M16-opening-range-breakout.md` | Opening Range Breakout historical simulation |
 | M17 | `tasks/M17-alpaca-intraday-market-data.md` | Alpaca intraday market data for Opening Range Breakout |
+| M18 | `tasks/M18-trading-calendar-intraday-orb.md` | Trading calendar and early-close support for intraday ORB |
 
 ---
 
@@ -55,6 +56,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 16. M15 Hardening + Documentation
 17. M16 Opening Range Breakout
 18. M17 Alpaca Intraday Market Data for ORB
+19. M18 Trading Calendar + Early-Close Support
 
 ---
 

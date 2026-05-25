@@ -254,7 +254,7 @@ After migrations and local services are running:
 
 - The CSV fixtures are deterministic and intentionally small; they are not full historical SPY coverage.
 - `startDate` and `endDate` filter available bars; they do not guarantee data coverage.
-- Opening Range Breakout uses local SPY 5-minute fixture data by default and Alpaca historical `5Min` bars when `MARKET_DATA_PROVIDER=alpaca`; it requires a complete 09:30-16:00 America/New_York regular session and fails safely on missing session bars.
+- Opening Range Breakout uses local SPY 5-minute fixture data by default and Alpaca historical `5Min` bars when `MARKET_DATA_PROVIDER=alpaca`; it validates bars against the US equities calendar, supports early-close sessions, ignores weekends/holidays, and fails safely on missing expected session bars.
 - Alpaca missing/empty bars are fatal; there is no trading-calendar service, forward-fill, or interpolation.
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.

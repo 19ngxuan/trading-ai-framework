@@ -48,10 +48,9 @@ preserved in `MarketDataSnapshot.raw_data_json`.
 
 ## Data Policy
 
-Only regular-session 5-minute bar starts from 09:30 through 15:55
-America/New_York are used. Premarket and after-hours bars are ignored. Each
-included session must have a complete regular session of 78 bars.
+Only expected US equities session 5-minute bar starts are used. Premarket and
+after-hours bars are ignored. M18 adds trading-calendar validation, so full
+sessions require 78 bars and 13:00 early-close sessions require 42 bars.
 
 Missing bars, duplicate timestamps, malformed payloads, empty results, and
-provider errors are fatal. There is no forward-fill, interpolation, or trading
-calendar inference in M17.
+provider errors are fatal. There is no forward-fill or interpolation.

@@ -17,8 +17,10 @@ behavior, agent behavior, real-time data, or real-money trading.
 
 ## Strategy Rules
 
-The regular session is 09:30-16:00 America/New_York, with timestamps interpreted
-as five-minute bar starts. The opening range is the first 30 minutes:
+The regular session is interpreted in America/New_York local time, with
+timestamps interpreted as five-minute bar starts. Full sessions are normally
+09:30-16:00. M18 adds early-close support. The opening range is the first 30
+minutes:
 
 - 09:30
 - 09:35
@@ -45,8 +47,11 @@ Fixture location:
 backend/app/modules/market_data/fixtures/spy_5min.csv
 ```
 
-The loader requires complete regular-session five-minute bars for every included
-session. Missing bars are fatal. There is no forward-fill or interpolation.
+The loader validates five-minute bars against the US equities trading calendar.
+Full sessions require 09:30 through 15:55 bar starts. A 13:00 early-close
+session requires 09:30 through 12:55 bar starts. Weekends and full market
+holidays require no bars. Missing expected bars are fatal. There is no
+forward-fill or interpolation.
 
 `/start` runs ORB historical simulations to completion. Manual `run-next-step`
 and scheduler-triggered ORB are deferred.
