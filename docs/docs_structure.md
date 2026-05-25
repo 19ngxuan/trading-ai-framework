@@ -25,7 +25,10 @@ must not be used.
 ├── 07_implementation
 │   └── tasks
 │       ├── M0-setup.md
-│       └── M13-testing-hardening-readme.md
+│       ├── ...
+│       ├── M13-testing-hardening-readme.md
+│       ├── M14-frontend-chart-polish.md
+│       └── M15-hardening-documentation.md
 ├── 08_agent_instructions
 └── docs_structure.md
 ```

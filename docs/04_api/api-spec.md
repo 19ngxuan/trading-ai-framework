@@ -330,6 +330,7 @@ Returns the complete high-level experiment detail.
     "currentPortfolioValue": 10420.41
   },
   "latestMetrics": {
+    "timestamp": "2024-03-01T00:00:00",
     "totalReturn": 0.042,
     "profitLoss": 420.41,
     "numberOfTrades": 6,
@@ -423,13 +424,15 @@ POST /api/v1/experiments/{experiment_id}/stop
 POST /api/v1/experiments/{experiment_id}/run-next-step
 ```
 
-Triggers one manual execution step. In the current M0-M9 implementation this supports:
+Triggers one manual execution step. In the current implementation this supports:
 
 - `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY`
 - `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
+- `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 
-`/start` remains lifecycle-only for paper-trading experiments and never submits broker orders.
+`/start` remains lifecycle-only for paper-trading and Agentic-AI experiments.
+It never submits broker orders and does not run full historical agent execution.
 
 Manual run-next-step creates exactly one execution step and is intended for deterministic debugging. It uses the same execution pipeline as scheduled/background execution.
 
@@ -594,7 +597,7 @@ agent logs, orders, trades, broker sync logs, or execution step details.
 
 ## 10. Not Yet Implemented As Public APIs
 
-The M0-M12 implementation persists execution steps, orders, trades, agent log
+The current implementation persists execution steps, orders, trades, agent log
 tables, and broker sync tables where applicable, but it does not expose public
 list/detail endpoints for:
 
@@ -605,6 +608,10 @@ list/detail endpoints for:
 - broker sync logs
 
 These endpoints are intentionally deferred and must not be assumed available by frontend or API clients until implemented and documented.
+
+Some OpenAPI component schemas may exist for deferred audit entities because the
+database models already exist. A component schema alone does not imply a public
+endpoint is implemented.
 
 ---
 

@@ -238,17 +238,19 @@ Manual and scheduled execution must not use different business logic.
 
 Goal:
 
-Run a strategy using Alpaca Paper Trading instead of internal simulated execution.
+Run a supported strategy using Alpaca Paper Trading instead of internal simulated
+execution. In the current implementation this is limited to manual
+`run-next-step` for `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`.
 
 Flow:
 
 1. Experiment is created with `mode = PAPER_TRADING`.
-2. User starts the experiment.
+2. User starts the experiment. `/start` changes lifecycle status only and must not submit an order.
 3. Backend validates that only paper-trading endpoints are configured.
-4. Scheduler or manual trigger creates an `ExecutionStep`.
+4. Manual `run-next-step` creates an `ExecutionStep`.
 5. Backend fetches market data.
 6. Backend stores `MarketDataSnapshot`.
-7. Backend runs strategy or agent.
+7. Backend runs Buy-and-Hold strategy.
 8. Backend stores `TradingDecision`.
 9. Backend runs Risk Engine.
 10. Backend stores `RiskCheck`.
@@ -256,19 +258,17 @@ Flow:
 12. If final action is `BUY` or `SELL`, Execution Module calls Broker Module.
 13. Broker Module submits a paper order through Alpaca.
 14. Backend stores `Order`.
-15. Backend retrieves broker order status.
-16. If filled, backend stores `Trade`.
-17. Backend synchronizes broker state.
-18. Backend stores `BrokerSyncLog`.
-19. Backend updates local portfolio from broker state.
-20. Backend stores `PortfolioSnapshot` and `MetricSnapshot`.
+15. If the immediate broker response reports filled quantity, backend stores `Trade`.
+16. Backend updates local portfolio only for filled quantity.
+17. Backend stores `PortfolioSnapshot` and `MetricSnapshot`.
 
 Important rules:
 
 - Broker API must only be accessed through the Broker Module.
 - Paper trading must not use live-trading endpoints.
-- Broker state is the source of truth.
-- Broker/local state mismatch pauses the experiment.
+- Broker reconciliation, account sync, position sync, scheduled broker sync, and order polling are deferred.
+- Scheduler-triggered paper trading is not implemented.
+- Agentic-AI and Moving Average paper trading are not implemented.
 
 ---
 
@@ -439,6 +439,12 @@ Important rules:
 Goal:
 
 Keep local paper-trading state aligned with broker state.
+
+Status:
+
+This workflow is deferred. The M9 paper-trading path does not implement broker
+account/position reconciliation, outbox processing, scheduled broker sync, or
+broker-state mismatch pause policy.
 
 Flow:
 

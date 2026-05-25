@@ -154,6 +154,8 @@ Responsibilities:
 - support flexible strategy parameters through `parameters_json`
 
 For V1, risk configuration is stored inside `parameters_json.riskConfig`.
+M13 position sizing stores the sizing type in `position_sizing_type` and the
+optional ergonomic API value in `parameters_json.positionSizingValue`.
 
 Default V1 risk configuration:
 
@@ -180,6 +182,14 @@ Validation rules:
 - `fallbackAction`: V1 must be `HOLD`, default `HOLD`.
 - Unknown keys may be preserved in JSON but ignored by the V1 Risk Engine.
 
+Position sizing rules:
+
+- `ALL_IN`: `positionSizingValue` is optional and ignored.
+- `FIXED_CASH`: `positionSizingValue` must be positive.
+- `PERCENT_OF_PORTFOLIO`: `positionSizingValue` must satisfy `0 < value <= 1`.
+- `FIXED_QUANTITY`: `positionSizingValue` must be a positive whole number.
+- In M13, position sizing affects BUY only. SELL liquidates the current long SPY position.
+
 Examples:
 
 Moving Average strategy:
@@ -188,6 +198,7 @@ Moving Average strategy:
 {
   "movingAverageWindow": 200,
   "positionSizingType": "ALL_IN",
+  "positionSizingValue": null,
   "tradeOnCrossOnly": false
 }
 ```
@@ -197,10 +208,15 @@ Agentic-AI strategy:
 ```json
 {
   "agentMode": "SINGLE_AGENT",
-  "modelName": "gpt-4.1",
+  "modelName": "deterministic-fake-agent",
   "confidenceThreshold": 0.65,
-  "useRsi": true,
-  "useNewsSentiment": false
+  "fakeAgent": {
+    "output": {
+      "action": "HOLD",
+      "confidence": 0.5,
+      "rationale": "Deterministic local test decision."
+    }
+  }
 }
 ```
 

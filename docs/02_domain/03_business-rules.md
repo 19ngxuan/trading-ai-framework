@@ -128,6 +128,10 @@ Valid trigger types:
 
 Manual and scheduled execution must use the same business pipeline.
 
+`DAILY` frequency means daily bar evaluation cadence. It does not guarantee one
+trade per day; strategies may produce `HOLD`, risk may convert executable
+actions to `HOLD`, and missing market data may fail safely.
+
 ---
 
 ### BR-013: Concurrent execution for the same experiment is not allowed
@@ -168,7 +172,10 @@ Every decision must be linked to the `MarketDataSnapshot` used to produce it.
 
 If required market data is missing, the execution step must be skipped or failed safely.
 
-The system must store a `MARKET_DATA_MISSING` event.
+The system must store an auditable failure. The current implementation records
+`EXPERIMENT_FAILED` with diagnostic details such as
+`details_json.errorCode = MARKET_DATA_MISSING`; it does not require a dedicated
+new event type for every failure category.
 
 ---
 
@@ -269,7 +276,8 @@ If LLM output is invalid, the Agent Module must attempt a repair prompt.
 
 If repair fails, the system must use `HOLD` as fallback.
 
-A `FALLBACK_HOLD_USED` event should be recorded.
+Fallback details must be auditable in `AgentDecisionLog`. A dedicated
+`FALLBACK_HOLD_USED` system event is not required by the current implementation.
 
 ---
 
@@ -325,19 +333,23 @@ The system must not allow purchases beyond available cash and configured limits.
 
 ### BR-035: Maximum position size must be enforced
 
-If a decision exceeds configured maximum position size, the Risk Engine must reduce or reject it.
+The current implementation enforces configured M13 position sizing for BUY
+quantity. Broader max-position-percent risk limits are documented for future
+expansion.
 
 ---
 
 ### BR-036: Maximum trade frequency must be enforced
 
-If max trades per day or week is configured and exceeded, the Risk Engine must block further trades.
+Max trades per day or week are future risk-rule extensions and are not enforced
+by the current implementation.
 
 ---
 
 ### BR-037: Max drawdown limit must be enforced if configured
 
-If a configured max drawdown limit is exceeded, the system must warn, pause, stop, or block trading according to experiment configuration.
+Max drawdown pause/stop/block policies are future risk-rule extensions and are
+not enforced by the current implementation.
 
 ---
 
@@ -454,17 +466,24 @@ Strategies, agents, API routes, and frontend code must not call Broker API direc
 
 ### BR-052: Broker is source of truth in paper-trading mode
 
-For paper-trading experiments, broker cash, positions, and order state are authoritative.
+For fully reconciled paper-trading workflows, broker cash, positions, and order
+state should be authoritative. The current M9 implementation does not perform
+broker account/position reconciliation; it updates local state from immediate
+paper order responses only.
 
 ---
 
 ### BR-053: Broker state mismatch pauses experiment
+
+Deferred.
 
 If local state and broker state diverge, the system must:
 
 1. record a `BrokerSyncLog`
 2. record a `BROKER_STATE_MISMATCH` event
 3. pause the affected experiment
+
+The mismatch pause workflow is not implemented in the current M9 path.
 
 ---
 
@@ -496,13 +515,16 @@ Errors must be stored as `SystemEventLog` records with an appropriate level and 
 
 ### BR-057: Risk limit triggers must be logged
 
-When a risk rule blocks or modifies a decision, the system should log `RISK_LIMIT_TRIGGERED`.
+When a risk rule blocks or modifies a decision, the result must be auditable in
+`RiskCheck`. Dedicated `RISK_LIMIT_TRIGGERED` system events are a future
+extension unless explicitly emitted by an implemented path.
 
 ---
 
 ### BR-058: Agent parsing failures must be logged
 
-Invalid LLM outputs and repair attempts must be logged.
+Invalid deterministic agent outputs and repair attempts must be logged in
+`AgentDecisionLog`. Real LLM providers are not implemented.
 
 ---
 

@@ -2,7 +2,8 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M9 backend/frontend foundation:
+This repository currently contains the M0-M13 backend/frontend foundation plus
+frontend chart polish:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -13,13 +14,21 @@ This repository currently contains the M0-M9 backend/frontend foundation:
 - Deterministic Moving Average historical simulation for `MOVING_AVERAGE` + `HISTORICAL_SIMULATION`
 - Metrics and portfolio snapshot APIs
 - Frontend dashboard, experiment creation, and experiment detail views
+- Frontend compare and events views
+- Local SVG performance and comparison charts with visible axes and responsive proportional sizing
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
 - Optional Alpaca paper trading adapter for manually stepped `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments
+- Deterministic single-agent and pipeline-agent `AGENTIC_AI` historical manual steps using fake providers only
+- Configurable position sizing for BUY quantities: `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
-The current implementation intentionally does not include real-money trading, broker account/position reconciliation, scheduled paper trading, Moving Average paper trading, LLM/agent execution, live broker-backed scheduler execution, or frontend trading execution UI.
+The current implementation intentionally does not include real-money trading,
+broker account/position reconciliation, scheduled paper trading, Moving Average
+paper trading, real LLM provider/network calls, live broker-backed scheduler
+execution, execution-step/order/trade/agent-log public detail APIs, or frontend
+trading execution detail UI.
 
 Trading Lab is not financial advice and is not a live trading system. Version 1 is for simulation and Alpaca paper trading only.
 
@@ -38,7 +47,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-For reset withou DB loss:
+For reset without DB loss:
 ```bash
 docker compose down
 docker compose up --build
@@ -114,6 +123,27 @@ Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured. C
 
 Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manual `run-next-step` SPY Buy-and-Hold paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation and by the broker adapter. Broker reconciliation, outbox processing, account sync, position sync, and order polling are not implemented.
 
+Agentic AI execution is deterministic in the current implementation. `AGENTIC_AI`
+is supported only for manual historical `run-next-step` on `HISTORICAL_SIMULATION`
++ `DAILY` + `SPY` experiments. The single-agent and pipeline-agent paths use fake
+providers configured through strategy parameters. No real LLM SDK, API key,
+network call, paper-trading agent execution, or scheduled agent execution is
+implemented.
+
+Position sizing is configured in experiment creation through
+`strategyConfig.positionSizingType` and optional `strategyConfig.positionSizingValue`.
+`positionSizingValue` is persisted in `strategy_configs.parameters_json`.
+Supported sizing types are:
+
+- `ALL_IN`: buy as many whole shares as available cash allows.
+- `FIXED_CASH`: cap BUY notional by a positive cash amount.
+- `PERCENT_OF_PORTFOLIO`: cap BUY notional by `currentPortfolioValue * value`, where `0 < value <= 1`.
+- `FIXED_QUANTITY`: request a positive whole-share quantity capped by available cash.
+
+In M13, position sizing affects BUY only. SELL always liquidates the existing long
+SPY position and never opens a short position. If sizing yields less than one
+whole share, the final action becomes HOLD with an auditable reason.
+
 ## Database Migrations
 
 Start PostgreSQL first:
@@ -155,6 +185,19 @@ npm run dev
 npm run build
 ```
 
+Implemented frontend routes:
+
+- `/dashboard`
+- `/experiments`
+- `/experiments/new`
+- `/experiments/:experimentId`
+- `/compare`
+- `/events`
+- `/settings`
+
+The frontend is presentation-only. It calls backend REST APIs and must not contain
+trading, risk, broker, scheduler, market-data-provider, or agent decision logic.
+
 ## Environment Files
 
 Use the committed `.env.example` files as templates:
@@ -169,4 +212,45 @@ Do not commit real `.env` files or secrets.
 
 The backend is a FastAPI modular monolith. The frontend calls only backend REST APIs. PostgreSQL is the persistent database for later milestones.
 
-Version 1 is simulation and paper-trading only. Real-money trading, live-trading endpoints, short selling, margin, options, and multi-user support are out of scope. Agents must never access Alpaca or broker APIs directly; agent output must be converted to a `TradingDecision` and pass through the system RiskCheck before any execution path.
+Version 1 is simulation and paper-trading only. Real-money trading,
+live-trading endpoints, short selling, margin, options, and multi-user support
+are out of scope. Agents must never access Alpaca or broker APIs directly; agent
+output must be converted to a `TradingDecision` and pass through the system
+RiskCheck before any execution path.
+
+The core execution invariant is:
+
+```text
+Strategy / Agent
+→ TradingDecision
+→ RiskCheck
+→ ExecutionStep
+→ Order / Trade, when applicable
+```
+
+## Manual Smoke Checklist
+
+After migrations and local services are running:
+
+1. Create a `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
+2. Create a `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
+3. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, start it, then call `run-next-step`.
+4. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=PIPELINE`, start it, then call `run-next-step`.
+5. Verify metrics and portfolio snapshot charts on experiment detail.
+6. Open `/compare`, select at least two experiments, and compare persisted metrics.
+7. Open `/events` and verify lifecycle/system events are visible.
+8. Validate paper-trading safety by confirming `ALPACA_PAPER_TRADING_ENABLED=false` rejects paper `run-next-step`, and that only the paper Alpaca base URL is accepted when enabled.
+
+## Known Limitations
+
+- The CSV fixture is deterministic and intentionally small; it is not full historical SPY coverage.
+- `startDate` and `endDate` filter available bars; they do not guarantee data coverage.
+- Alpaca missing/empty bars are fatal; there is no trading-calendar service, forward-fill, or interpolation.
+- Scheduler mode assumes one backend instance; there is no leader election.
+- Scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.
+- Paper trading is manual `run-next-step` only for Buy-and-Hold SPY daily experiments.
+- Broker reconciliation, outbox processing, account sync, position sync, and order polling are deferred.
+- Agentic AI uses deterministic fake providers only; real LLM providers are not implemented.
+- Agentic AI is historical manual-step only; no paper-trading or scheduled agent execution is implemented.
+- Compare UI may issue multiple frontend requests for chart time series.
+- Public execution-step, order, trade, broker-sync, and agent-log list/detail APIs are deferred.

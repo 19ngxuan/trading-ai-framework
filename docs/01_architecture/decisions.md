@@ -120,12 +120,17 @@ The common flow remains:
 ```text
 Strategy / Agent
 → TradingDecision
-→ RiskEngine
-→ ExecutionEngine
-→ Simulation or Paper Trading
+→ RiskCheck
+→ ExecutionStep
+→ Order / Trade, when applicable
 ```
 
 This keeps rule-based strategies and agentic-AI strategies comparable and prevents the agent from bypassing system safety rules.
+
+The current Agentic-AI implementation uses deterministic fake single-agent and
+pipeline-agent providers only. Real LLM provider SDKs, credentials, network
+calls, paper-trading agent execution, and scheduled agent execution are not
+implemented.
 
 ---
 
@@ -140,13 +145,17 @@ This applies to:
 - Single-Agent decisions
 - Pipeline-Agent decisions
 - manual execution triggers
-- scheduled execution triggers
+- scheduled historical execution triggers
 
 The Risk Engine is authoritative.
 
 Agents and strategies may suggest actions and position sizes, but the Risk Engine determines the final executable action and size.
 
 No order may be created without a `RiskCheck`.
+
+M13 configurable position sizing is part of this RiskCheck path. It affects BUY
+quantity only; SELL liquidates the existing long SPY position and must never
+open a short position.
 
 ---
 
@@ -211,6 +220,11 @@ Real-money trading is explicitly out of scope.
 The system must not use live-trading endpoints.
 
 The system must reject or block configurations that would route orders to real-money trading.
+
+Current paper trading is intentionally narrow: manual `run-next-step` only for
+`PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`. Broker reconciliation,
+outbox processing, account sync, position sync, order polling, scheduled paper
+trading, Moving Average paper trading, and Agentic-AI paper trading are deferred.
 
 ---
 
@@ -287,8 +301,8 @@ The following rules must be preserved during implementation.
 2. Broker access must go through the Broker Module.
 3. Alpaca-specific logic must not leak into strategies or agents.
 4. Paper-trading mode must use only paper-trading endpoints.
-5. Broker state is the source of truth in paper-trading mode.
-6. If broker state and local state diverge, the experiment must be paused and a broker sync event must be recorded.
+5. Current paper trading updates local state from immediate paper order responses only.
+6. Full broker reconciliation, mismatch pause policy, and broker sync events are deferred.
 
 ---
 

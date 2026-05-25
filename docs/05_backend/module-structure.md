@@ -453,7 +453,8 @@ Allowed dependencies:
 
 - Domain Model
 - Persistence Layer for agent logs
-- LLM Provider through `LLMClient`
+- Deterministic fake agent providers in the current implementation
+- Future LLM Provider through an explicit adapter/client only after a separate safety milestone
 
 Not allowed:
 
@@ -468,6 +469,8 @@ Key rules:
 - LLM output must be logged, parsed, and validated.
 - If repair fails, fallback action is `HOLD`.
 - The system Risk Module remains mandatory even if the agent pipeline includes an Agent Risk Manager.
+- Current M10/M11 agent execution is historical manual-step only. Paper-trading
+  and scheduler-triggered agent execution are not implemented.
 
 ---
 
@@ -509,6 +512,8 @@ Key rules:
 - The Risk Module is authoritative over agent suggestions.
 - Agents may suggest position size, but Risk Module decides final executable size.
 - V1 receives risk configuration from `strategy_configs.parameters_json.riskConfig` after applying documented defaults.
+- M13 position sizing receives `position_sizing_type` from `strategy_configs` and
+  optional `positionSizingValue` from `strategy_configs.parameters_json`.
 
 ---
 

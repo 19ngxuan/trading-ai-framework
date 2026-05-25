@@ -1,25 +1,28 @@
-# M13: Testing, Hardening, and README
+# M13: Configurable Position Sizing
 
 ## Goal
 
-Stabilize the project, expand tests, and make the repository presentable.
+Add configurable position sizing so experiment creators can control BUY order
+size without changing strategy or agent decision logic.
 
 ---
 
 ## Scope
 
-- Add missing unit tests
-- Add integration tests for key flows
-- Add Playwright E2E demo flow if UI stable
-- Finalize Docker Compose
-- Write README setup and architecture summary
-- Verify docs alignment
+- Backend position sizing calculator
+- API validation for position sizing config
+- Frontend create-form support
+- Documentation/OpenAPI alignment
+- Regression tests for historical, agentic historical, and paper-trading paths
 
 ---
 
 ## Out of Scope
 
-- No new product features unless needed for completion
+- No schema migration
+- No new strategy behavior
+- No broker behavior expansion
+- No scheduler behavior changes
 
 ---
 
@@ -32,28 +35,33 @@ Stabilize the project, expand tests, and make the repository presentable.
 
 ## Acceptance Criteria
 
-- Tests pass
-- docker compose up works
-- README explains setup
-- Architecture and docs are consistent
-- All documentation references use the canonical numbered folder structure
+- `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY` are supported.
+- Existing `ALL_IN` behavior remains backward compatible.
+- Position sizing affects BUY quantity only.
+- SELL always liquidates the existing long SPY position and never shorts.
+- Invalid create payloads return `422 VALIDATION_ERROR`.
+- Position sizing details are auditable through `RiskCheck`.
 
 ---
 
 ## Test Requirements
 
-- Full backend test run
-- Frontend build/test
-- Optional E2E demo test
+- Position sizing unit tests
+- API validation tests
+- Historical Buy-and-Hold, Moving Average, Agentic-AI, and paper-trading regression tests
+- Full backend PostgreSQL suite
+- Frontend build
 
 ---
 
 ## Files Likely Affected
 
-- README.md
+- backend/app/modules/execution/position_sizing.py
+- backend/app/modules/execution/risk.py
+- backend/app/api/schemas/experiment_schemas.py
+- frontend/src/features/experiments/CreateExperimentForm.tsx
+- docs/04_api/
 - backend/tests/
-- frontend/src/**/*.test.tsx
-- docs/
 
 ---
 

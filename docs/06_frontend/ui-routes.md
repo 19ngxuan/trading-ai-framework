@@ -38,7 +38,6 @@ The Version 1 frontend contains these routes:
  /experiments
  /experiments/new
  /experiments/:experimentId
- /execution-steps/:executionStepId
  /compare
  /events
  /settings
@@ -206,6 +205,8 @@ Strategy Configuration:
 For `BUY_AND_HOLD`:
 
 - strategy version
+- position sizing type
+- optional position sizing value
 - optional parameters
 
 For `MOVING_AVERAGE`:
@@ -220,8 +221,20 @@ For `AGENTIC_AI`:
 - agent mode
 - model name
 - confidence threshold
+- position sizing type
+- optional position sizing value
 - strategy version
-- optional parameters such as `useRsi`, `useNewsSentiment`, or `allowPositionSizeSuggestion`
+- deterministic fake single-agent or pipeline parameters in `parametersJson`
+
+Position sizing fields:
+
+- `ALL_IN`: hide or disable value input.
+- `FIXED_CASH`: show positive cash amount input.
+- `PERCENT_OF_PORTFOLIO`: show decimal percentage input with `0 < value <= 1`.
+- `FIXED_QUANTITY`: show positive whole-number quantity input.
+
+Backend validation remains authoritative. In M13, position sizing affects BUY
+quantity only; SELL always liquidates the existing long SPY position.
 
 Risk Configuration:
 
@@ -271,7 +284,9 @@ The frontend validates basic required fields for usability, but backend validati
 
 The Experiment Detail page is the main analysis page for a single experiment.
 
-It shows configuration, status, metrics, charts, trades, orders, execution steps, agent logs, events, and config details.
+It shows configuration, status, metrics, charts, latest persisted summary data,
+events, and config details. Public execution-step, order, trade, and agent-log
+detail views are deferred.
 
 ## 8.2 Main UI Layout
 
@@ -283,11 +298,7 @@ ExperimentDetailPage
 ├── Performance Chart
 └── Tabs
     ├── Overview
-    ├── Trades
-    ├── Orders
-    ├── Execution Steps
     ├── Metrics
-    ├── Agent Logs
     ├── Events
     └── Config
 ```
@@ -298,12 +309,12 @@ ExperimentDetailPage
 GET /api/v1/experiments/{experimentId}
 GET /api/v1/experiments/{experimentId}/portfolio-snapshots
 GET /api/v1/experiments/{experimentId}/metrics
-GET /api/v1/experiments/{experimentId}/trades
-GET /api/v1/experiments/{experimentId}/orders
-GET /api/v1/experiments/{experimentId}/execution-steps
-GET /api/v1/experiments/{experimentId}/agent-logs
 GET /api/v1/experiments/{experimentId}/events
 ```
+
+Charts use local lightweight SVG components. They derive coordinates, axes,
+ticks, and labels from backend-provided metrics and snapshots only; they do not
+calculate authoritative metrics.
 
 ## 8.4 Polling
 
@@ -326,13 +337,9 @@ Polling can be disabled or reduced for:
 - stop
 - run next step
 - open compare view with this experiment preselected
-- open execution step detail
-- expand agent decision logs
 - filter events
 
 ## 8.6 Tab Rules
-
-The `Agent Logs` tab should be visible for all experiments but may display an empty state for non-agentic strategies.
 
 The `Events` tab must show errors and warnings clearly.
 
@@ -340,54 +347,15 @@ The `Config` tab must show immutable configuration used by the experiment.
 
 ---
 
-## 9. `/execution-steps/:executionStepId`
+## 9. Deferred Public Detail Routes
 
-## 9.1 Purpose
+The backend persists execution steps, market snapshots, trading decisions,
+risk checks, orders, trades, portfolio snapshots, metric snapshots, and agent
+decision logs. Public list/detail endpoints and frontend pages for execution
+steps, orders, trades, and agent logs are not implemented in the current UI.
 
-The Execution Step Detail page is the technical audit screen for one execution step.
-
-It answers:
-
-```text
-What exactly happened in this execution step?
-```
-
-## 9.2 Main UI Sections
-
-- ExecutionStep summary
-- MarketDataSnapshot
-- TradingDecision
-- RiskCheck
-- Order
-- Trades
-- PortfolioSnapshot
-- MetricSnapshot
-- AgentDecisionLogs
-- SystemEventLogs
-
-## 9.3 Data Dependencies
-
-```http
-GET /api/v1/execution-steps/{executionStepId}
-```
-
-## 9.4 User Actions
-
-- navigate back to experiment detail
-- open related agent log details
-- inspect JSON payloads
-- inspect errors
-- copy diagnostic payloads
-
-## 9.5 Route Rules
-
-This page is primarily a debugging and audit view.
-
-It may display technical JSON structures.
-
-It must not provide direct order execution or broker actions.
-
-The order section must handle `order = null` for HOLD or blocked decisions. The trades section renders an array and may be empty because one order may produce zero, one, or many fills.
+The frontend must not render disabled or fake tabs for endpoints that do not
+exist.
 
 ---
 
@@ -404,10 +372,7 @@ It allows users to compare multiple experiments against a benchmark, usually Buy
 - experiment selector
 - benchmark selector
 - comparison KPI table
-- ranking table
 - equity curve chart
-- return curve chart
-- drawdown comparison
 
 ## 10.3 Data Dependencies
 
@@ -428,7 +393,6 @@ GET /api/v1/experiments/{experimentId}/metrics
 - select experiments
 - select benchmark
 - compare experiments
-- toggle chart mode: Portfolio Value / Return
 - open experiment detail from comparison result
 
 ## 10.5 Route Rules
@@ -464,26 +428,24 @@ It helps diagnose:
 
 ## 11.3 Data Dependencies
 
-Version 1 may use one of the following:
+Version 1 uses:
 
 ```http
 GET /api/v1/events
 ```
 
-or experiment-scoped endpoints:
+and experiment-scoped endpoints:
 
 ```http
 GET /api/v1/experiments/{experimentId}/events
 ```
-
-If a global events endpoint is not implemented initially, the Events page may be deferred or backed by experiment-scoped event queries.
 
 ## 11.4 Filters
 
 - experiment
 - level
 - event type
-- date range
+- limit and offset pagination
 
 ## 11.5 Route Rules
 
@@ -509,7 +471,7 @@ It does not expose secrets.
 - scheduler status
 - Alpaca Market Data configured
 - Alpaca Paper Trading configured
-- LLM Provider configured
+- deterministic agent mode status
 - paper-trading-only status
 
 ## 12.3 Data Dependencies
@@ -519,12 +481,6 @@ Recommended endpoint:
 ```http
 GET /api/v1/options
 GET /api/v1/health
-```
-
-Optional future endpoint:
-
-```http
-GET /api/v1/settings/status
 ```
 
 ## 12.4 Route Rules
@@ -569,12 +525,6 @@ Dashboard:
 
 ```text
 No experiments yet. Create your first experiment.
-```
-
-Agent Logs tab:
-
-```text
-No agent logs for this experiment.
 ```
 
 Events tab:
