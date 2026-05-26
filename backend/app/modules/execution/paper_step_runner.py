@@ -14,6 +14,8 @@ from app.core.errors import (
 )
 from app.domain.enums import (
     DecisionSourceType,
+    BrokerName,
+    BrokerSyncStatus,
     EventLevel,
     ExecutionStepStatus,
     ExperimentMode,
@@ -33,11 +35,16 @@ from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import BuyAndHoldRiskValidator, RiskResult
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.factory import create_market_data_provider
+from app.modules.market_data.errors import (
+    MarketDataProviderError,
+    MarketDataUnavailableError,
+)
 from app.modules.market_data.provider import MarketDataProvider
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExecutionStepModel,
+    BrokerSyncLogModel,
     MarketDataSnapshotModel,
     MetricSnapshotModel,
     PortfolioModel,
@@ -49,6 +56,7 @@ from app.persistence.models import (
 )
 from app.persistence.repositories import (
     ExecutionStepRepository,
+    BrokerSyncLogRepository,
     ExperimentRepository,
     MarketDataSnapshotRepository,
     MetricSnapshotRepository,
@@ -95,12 +103,13 @@ class PaperTradingStepRunner:
         self,
         experiment_id: int,
         trigger_type: TriggerType = TriggerType.MANUAL,
+        scheduled_for: datetime | None = None,
     ) -> StepRunResult:
         execution_step_id: int | None = None
         try:
             broker_adapter = self.broker_adapter or self._create_broker_adapter()
             execution_step_id = self._validate_and_create_step(
-                experiment_id, trigger_type
+                experiment_id, trigger_type, scheduled_for
             )
             failure = self._run_step_artifacts(
                 experiment_id, execution_step_id, broker_adapter
@@ -125,6 +134,28 @@ class PaperTradingStepRunner:
             NotFoundAppError,
         ):
             raise
+        except MarketDataUnavailableError as exc:
+            self._persist_failure(
+                experiment_id,
+                execution_step_id,
+                error_code="MARKET_DATA_MISSING",
+                message=exc.message,
+                provider_details=exc.details,
+                fail_experiment=False,
+                event_type=SystemEventType.MARKET_DATA_MISSING,
+            )
+            raise
+        except MarketDataProviderError as exc:
+            self._persist_failure(
+                experiment_id,
+                execution_step_id,
+                error_code="MARKET_DATA_PROVIDER_ERROR",
+                message=exc.message,
+                provider_details=exc.details,
+                fail_experiment=False,
+                event_type=SystemEventType.MARKET_DATA_MISSING,
+            )
+            raise
         except BrokerProviderError as exc:
             self._persist_failure(
                 experiment_id,
@@ -132,6 +163,8 @@ class PaperTradingStepRunner:
                 error_code="BROKER_PROVIDER_ERROR",
                 message=exc.message,
                 provider_details=exc.details,
+                fail_experiment=False,
+                event_type=SystemEventType.ORDER_FAILED,
             )
             raise
         except Exception as exc:
@@ -140,6 +173,8 @@ class PaperTradingStepRunner:
                 execution_step_id,
                 error_code="BROKER_PROVIDER_ERROR",
                 message=str(exc),
+                fail_experiment=False,
+                event_type=SystemEventType.ORDER_FAILED,
             )
             raise
 
@@ -153,11 +188,14 @@ class PaperTradingStepRunner:
             ) from exc
 
     def _validate_and_create_step(
-        self, experiment_id: int, trigger_type: TriggerType
+        self,
+        experiment_id: int,
+        trigger_type: TriggerType,
+        scheduled_for: datetime | None,
     ) -> int:
-        if trigger_type is not TriggerType.MANUAL:
+        if trigger_type not in {TriggerType.MANUAL, TriggerType.SCHEDULED}:
             raise InvalidExperimentConfigurationAppError(
-                "Paper trading supports manual run-next-step only.",
+                "Paper trading supports manual and scheduled execution only.",
                 details={"triggerType": trigger_type.value},
             )
         with self.session_factory() as session:
@@ -207,14 +245,29 @@ class PaperTradingStepRunner:
                 )
 
             now = _utcnow()
+            step_scheduled_for = scheduled_for or now
+            if (
+                trigger_type is TriggerType.SCHEDULED
+                and execution_step_repository.has_step_for_scheduled_slot(
+                    experiment_id, step_scheduled_for
+                )
+            ):
+                raise ExperimentStepAlreadyRunningAppError(
+                    "Experiment already has a step for the scheduled paper trading slot.",
+                    details={
+                        "experimentId": experiment_id,
+                        "scheduledFor": step_scheduled_for.isoformat(),
+                    },
+                )
+
             execution_step = execution_step_repository.add(
                 ExecutionStepModel(
                     experiment_id=experiment_id,
-                    scheduled_for=now,
+                    scheduled_for=step_scheduled_for,
                     started_at=now,
                     completed_at=None,
                     status=ExecutionStepStatus.RUNNING,
-                    trigger_type=TriggerType.MANUAL,
+                    trigger_type=trigger_type,
                     sequence_number=execution_step_repository.max_sequence_number(
                         experiment_id
                     )
@@ -530,6 +583,8 @@ class PaperTradingStepRunner:
         error_code: str,
         message: str,
         provider_details: dict | None = None,
+        fail_experiment: bool = True,
+        event_type: SystemEventType = SystemEventType.EXPERIMENT_FAILED,
     ) -> None:
         with self.session_factory() as session:
             now = _utcnow()
@@ -542,8 +597,9 @@ class PaperTradingStepRunner:
 
             experiment = ExperimentRepository(session).get_by_id(experiment_id)
             if experiment is not None:
-                experiment.status = ExperimentStatus.FAILED
-                experiment.updated_at = now
+                if fail_experiment:
+                    experiment.status = ExperimentStatus.FAILED
+                    experiment.updated_at = now
                 failure = PaperStepFailure(error_code=error_code, message=message)
                 SystemEventLogRepository(session).add(
                     self._failure_event(
@@ -552,8 +608,33 @@ class PaperTradingStepRunner:
                         failure=failure,
                         now=now,
                         provider_details=provider_details,
+                        event_type=event_type,
                     )
                 )
+                if (
+                    event_type is SystemEventType.ORDER_FAILED
+                    and execution_step_id is not None
+                ):
+                    BrokerSyncLogRepository(session).add(
+                        BrokerSyncLogModel(
+                            execution_step_id=execution_step_id,
+                            experiment_id=experiment_id,
+                            timestamp=now,
+                            broker_name=BrokerName.ALPACA,
+                            sync_status=BrokerSyncStatus.FAILED,
+                            broker_cash=None,
+                            local_cash=None,
+                            broker_positions_json=None,
+                            local_positions_json=None,
+                            mismatch_details_json={
+                                "syncType": "PAPER_ORDER_SUBMIT",
+                                "errorCode": error_code,
+                                "providerDetails": provider_details or {},
+                            },
+                            error_message=message,
+                            created_at=now,
+                        )
+                    )
             session.commit()
 
     def _failure_event(
@@ -564,6 +645,7 @@ class PaperTradingStepRunner:
         failure: PaperStepFailure,
         now: datetime,
         provider_details: dict | None = None,
+        event_type: SystemEventType = SystemEventType.EXPERIMENT_FAILED,
     ) -> SystemEventLogModel:
         broker_result = failure.broker_result
         details = {
@@ -582,8 +664,12 @@ class PaperTradingStepRunner:
             experiment_id=experiment_id,
             timestamp=now,
             level=EventLevel.ERROR,
-            event_type=SystemEventType.EXPERIMENT_FAILED,
-            message="Experiment failed.",
+            event_type=event_type,
+            message=(
+                "Experiment failed."
+                if event_type is SystemEventType.EXPERIMENT_FAILED
+                else failure.message
+            ),
             details_json=details,
             created_at=now,
         )

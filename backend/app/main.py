@@ -29,7 +29,7 @@ def _error_response(error_code: str, message: str, details: dict) -> dict:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     scheduler = None
-    if settings.scheduler_enabled:
+    if settings.scheduler_enabled or settings.paper_trading_scheduler_enabled:
         scheduler = create_scheduler(settings)
         scheduler.start()
         app.state.scheduler = scheduler

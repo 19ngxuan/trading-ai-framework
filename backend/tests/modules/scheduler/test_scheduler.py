@@ -12,6 +12,23 @@ def test_invalid_enabled_scheduler_interval_fails_config_validation() -> None:
         Settings(scheduler_enabled=True, scheduler_interval_seconds=0)
 
 
+def test_invalid_enabled_paper_scheduler_config_fails_validation() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            paper_trading_scheduler_enabled=True,
+            alpaca_paper_trading_enabled=True,
+            paper_trading_scheduler_interval_seconds=0,
+        )
+    with pytest.raises(ValidationError):
+        Settings(
+            paper_trading_scheduler_enabled=True,
+            alpaca_paper_trading_enabled=True,
+            paper_trading_daily_evaluation_time="bad",
+        )
+    with pytest.raises(ValidationError):
+        Settings(paper_trading_scheduler_enabled=True)
+
+
 def test_create_scheduler_registers_interval_job() -> None:
     settings = Settings(
         scheduler_enabled=True,
@@ -25,6 +42,23 @@ def test_create_scheduler_registers_interval_job() -> None:
     assert len(jobs) == 1
     assert jobs[0].id == "test_scheduler_job"
     assert str(jobs[0].trigger) == "interval[0:00:07]"
+
+
+def test_create_scheduler_registers_paper_jobs() -> None:
+    settings = Settings(
+        paper_trading_scheduler_enabled=True,
+        paper_trading_scheduler_interval_seconds=11,
+        paper_trading_scheduler_job_id="paper_job",
+        alpaca_paper_trading_enabled=True,
+        alpaca_api_key_id="key",
+        alpaca_api_secret_key="secret",
+    )
+
+    scheduler = create_scheduler(settings)
+
+    jobs = sorted(scheduler.get_jobs(), key=lambda item: item.id)
+    assert [job.id for job in jobs] == ["paper_job", "paper_job_broker_sync"]
+    assert {str(job.trigger) for job in jobs} == {"interval[0:00:11]"}
 
 
 def test_disabled_config_does_not_start_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:

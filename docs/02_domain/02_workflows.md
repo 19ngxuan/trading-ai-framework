@@ -240,14 +240,15 @@ Goal:
 
 Run a supported strategy using Alpaca Paper Trading instead of internal simulated
 execution. In the current implementation this is limited to manual
-`run-next-step` for `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`.
+`run-next-step` and optional scheduled execution for `PAPER_TRADING` +
+`BUY_AND_HOLD` + `DAILY` + `SPY`.
 
 Flow:
 
 1. Experiment is created with `mode = PAPER_TRADING`.
 2. User starts the experiment. `/start` changes lifecycle status only and must not submit an order.
 3. Backend validates that only paper-trading endpoints are configured.
-4. Manual `run-next-step` creates an `ExecutionStep`.
+4. Manual `run-next-step` or the paper-trading scheduler creates an `ExecutionStep`.
 5. Backend fetches market data.
 6. Backend stores `MarketDataSnapshot`.
 7. Backend runs Buy-and-Hold strategy.
@@ -261,13 +262,17 @@ Flow:
 15. If the immediate broker response reports filled quantity, backend stores `Trade`.
 16. Backend updates local portfolio only for filled quantity.
 17. Backend stores `PortfolioSnapshot` and `MetricSnapshot`.
+18. A separate broker-sync job polls submitted paper orders until terminal broker
+    status. Newly confirmed fill quantity creates additional `Trade` records and
+    updates the local portfolio by the fill delta only.
 
 Important rules:
 
 - Broker API must only be accessed through the Broker Module.
 - Paper trading must not use live-trading endpoints.
-- Broker reconciliation, account sync, position sync, scheduled broker sync, and order polling are deferred.
-- Scheduler-triggered paper trading is not implemented.
+- Paper scheduler execution is disabled by default and supports Buy-and-Hold daily SPY only.
+- Broker order-status polling is implemented for submitted paper orders.
+- Full broker reconciliation, account sync, position sync, outbox processing, and automatic order cancellation are deferred.
 - Agentic-AI and Moving Average paper trading are not implemented.
 
 ---

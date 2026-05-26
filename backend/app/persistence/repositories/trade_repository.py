@@ -29,3 +29,9 @@ class TradeRepository(BaseRepository[TradeModel]):
             .limit(1)
         )
         return self.session.scalar(statement)
+
+    def filled_quantity_by_order(self, order_id: int):
+        statement = select(func.coalesce(func.sum(self.model.quantity), 0)).where(
+            self.model.order_id == order_id
+        )
+        return self.session.scalar(statement)

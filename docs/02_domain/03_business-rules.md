@@ -433,6 +433,10 @@ If an order is rejected or failed, no trade should be created.
 
 The failure must be logged.
 
+Transient broker or market-data failures in scheduled paper trading fail the
+current `ExecutionStep` but keep the experiment `RUNNING` when no durable broker
+side effect is known. Configuration and safety failures remain experiment-fatal.
+
 ---
 
 ### BR-042: Order and Trade must remain distinguishable

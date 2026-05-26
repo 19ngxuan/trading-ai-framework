@@ -30,11 +30,14 @@ from app.modules.broker.broker_adapter import (
     BrokerPosition,
 )
 from app.modules.broker.errors import BrokerProviderError
+from app.modules.execution.broker_sync import PaperBrokerSyncService
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
+from app.modules.market_data.errors import MarketDataUnavailableError
 from app.modules.market_data.provider import DailyBar
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExecutionStepModel,
+    BrokerSyncLogModel,
     ExperimentModel,
     MarketDataSnapshotModel,
     MetricSnapshotModel,
@@ -50,14 +53,21 @@ from app.persistence.models import (
 
 
 class FakeMarketDataProvider:
-    def __init__(self, price: Decimal = Decimal("100.00")) -> None:
+    def __init__(
+        self,
+        price: Decimal = Decimal("100.00"),
+        error: Exception | None = None,
+    ) -> None:
         self.price = price
+        self.error = error
 
     def load_range(self, *args, **kwargs) -> list[DailyBar]:
         return [self.get_latest_bar()]
 
     def get_latest_bar(self, symbol: str = "SPY") -> DailyBar:
         assert symbol == "SPY"
+        if self.error is not None:
+            raise self.error
         return DailyBar(
             date=date(2026, 1, 2),
             open=self.price,
@@ -227,6 +237,18 @@ def _runner(database_url: str, broker: FakeBrokerAdapter) -> PaperTradingStepRun
     )
 
 
+def _runner_with_market_data(
+    database_url: str,
+    broker: FakeBrokerAdapter,
+    market_data_provider: FakeMarketDataProvider,
+) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=market_data_provider,
+        broker_adapter=broker,
+    )
+
+
 def test_filled_buy_creates_paper_order_trade_and_updates_portfolio(
     database_url: str,
 ) -> None:
@@ -270,6 +292,49 @@ def test_filled_buy_creates_paper_order_trade_and_updates_portfolio(
         assert _count(session, RiskCheckModel, experiment_id) == 1
         assert _count(session, PortfolioSnapshotModel, experiment_id) == 1
         assert _count(session, MetricSnapshotModel, experiment_id) == 1
+
+
+def test_scheduled_paper_step_uses_scheduled_trigger_and_slot(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    scheduled_for = datetime(2026, 1, 2, 20, 55, 0)
+    result = _runner(database_url, FakeBrokerAdapter()).run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=scheduled_for,
+    )
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    with session_factory() as session:
+        step = session.get(ExecutionStepModel, result.execution_step_id)
+        assert step is not None
+        assert step.trigger_type is TriggerType.SCHEDULED
+        assert step.scheduled_for == scheduled_for
+
+
+def test_duplicate_scheduled_paper_slot_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    scheduled_for = datetime(2026, 1, 2, 20, 55, 0)
+    runner = _runner(database_url, FakeBrokerAdapter())
+    runner.run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=scheduled_for,
+    )
+
+    with pytest.raises(ExperimentStepAlreadyRunningAppError):
+        runner.run_next_step(
+            experiment_id,
+            trigger_type=TriggerType.SCHEDULED,
+            scheduled_for=scheduled_for,
+        )
 
 
 def test_paper_buy_submitted_quantity_respects_position_sizing(
@@ -346,6 +411,137 @@ def test_submitted_unfilled_order_completes_without_trade(database_url: str) -> 
         assert _count(session, TradeModel, experiment_id) == 0
 
 
+def test_broker_sync_filled_submitted_order_creates_trade_and_updates_portfolio(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    submit_broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="accepted",
+            filled_quantity="0",
+            average_fill_price=None,
+        )
+    )
+    _runner(database_url, submit_broker).run_next_step(experiment_id)
+
+    sync_broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="100")
+    )
+    result = PaperBrokerSyncService(
+        session_factory=session_factory,
+        broker_adapter=sync_broker,
+    ).sync_open_orders()
+
+    assert len(result.synced) == 1
+    assert result.failed == []
+    with session_factory() as session:
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        trade = session.scalar(select(TradeModel).where(TradeModel.experiment_id == experiment_id))
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        sync_log = session.scalar(
+            select(BrokerSyncLogModel).where(
+                BrokerSyncLogModel.experiment_id == experiment_id
+            )
+        )
+        assert order is not None
+        assert order.status is OrderStatus.FILLED
+        assert trade is not None
+        assert trade.quantity == Decimal("100.00000000")
+        assert portfolio is not None
+        assert portfolio.cash == Decimal("0.0000")
+        assert portfolio.position_quantity == Decimal("100.00000000")
+        assert sync_log is not None
+        assert sync_log.sync_status.value == "SUCCESS"
+
+
+def test_broker_sync_partial_fill_only_creates_delta_trades(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    _runner(
+        database_url,
+        FakeBrokerAdapter(
+            result=_broker_result(
+                status="accepted",
+                filled_quantity="0",
+                average_fill_price=None,
+            )
+        ),
+    ).run_next_step(experiment_id)
+
+    sync_broker = FakeBrokerAdapter(
+        result=_broker_result(status="partially_filled", filled_quantity="25")
+    )
+    service = PaperBrokerSyncService(
+        session_factory=session_factory,
+        broker_adapter=sync_broker,
+    )
+    service.sync_open_orders()
+    service.sync_open_orders()
+
+    with session_factory() as session:
+        order = session.scalar(select(OrderModel).where(OrderModel.experiment_id == experiment_id))
+        trades = list(
+            session.scalars(
+                select(TradeModel).where(TradeModel.experiment_id == experiment_id)
+            )
+        )
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        assert order is not None
+        assert order.status is OrderStatus.SUBMITTED
+        assert len(trades) == 1
+        assert trades[0].quantity == Decimal("25.00000000")
+        assert portfolio is not None
+        assert portfolio.cash == Decimal("7500.0000")
+        assert portfolio.position_quantity == Decimal("25.00000000")
+
+
+def test_broker_sync_unknown_status_records_failure_without_failing_experiment(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    _runner(
+        database_url,
+        FakeBrokerAdapter(
+            result=_broker_result(
+                status="accepted",
+                filled_quantity="0",
+                average_fill_price=None,
+            )
+        ),
+    ).run_next_step(experiment_id)
+
+    result = PaperBrokerSyncService(
+        session_factory=session_factory,
+        broker_adapter=FakeBrokerAdapter(result=_broker_result(status="mystery")),
+    ).sync_open_orders()
+
+    assert result.synced == []
+    assert len(result.failed) == 1
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        sync_log = session.scalar(
+            select(BrokerSyncLogModel).where(
+                BrokerSyncLogModel.experiment_id == experiment_id
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.RUNNING
+        assert sync_log is not None
+        assert sync_log.sync_status.value == "FAILED"
+
+
 def test_partial_fill_maps_to_submitted_and_updates_for_filled_quantity(
     database_url: str,
 ) -> None:
@@ -411,7 +607,9 @@ def test_rejected_order_fails_step_and_experiment(database_url: str) -> None:
         assert event.details_json["provider"] == "alpaca"
 
 
-def test_broker_provider_error_fails_step_and_experiment(database_url: str) -> None:
+def test_broker_provider_error_fails_step_but_keeps_experiment_running(
+    database_url: str,
+) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
         experiment_id = _create_experiment(session)
@@ -432,17 +630,60 @@ def test_broker_provider_error_fails_step_and_experiment(database_url: str) -> N
         event = session.scalar(
             select(SystemEventLogModel).where(
                 SystemEventLogModel.experiment_id == experiment_id,
-                SystemEventLogModel.event_type == SystemEventType.EXPERIMENT_FAILED,
+                SystemEventLogModel.event_type == SystemEventType.ORDER_FAILED,
             )
         )
         assert experiment is not None
-        assert experiment.status is ExperimentStatus.FAILED
+        assert experiment.status is ExperimentStatus.RUNNING
         assert step is not None
         assert step.status is ExecutionStepStatus.FAILED
         assert event is not None
         assert event.details_json["errorCode"] == "BROKER_PROVIDER_ERROR"
         assert event.details_json["providerDetails"] == {"statusCode": 500}
         assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, BrokerSyncLogModel, experiment_id) == 1
+
+
+def test_market_data_error_fails_step_but_keeps_experiment_running(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session)
+
+    with pytest.raises(MarketDataUnavailableError):
+        _runner_with_market_data(
+            database_url,
+            FakeBrokerAdapter(),
+            FakeMarketDataProvider(
+                error=MarketDataUnavailableError(
+                    "No latest bar.",
+                    details={"symbol": "SPY"},
+                )
+            ),
+        ).run_next_step(experiment_id)
+
+    with session_factory() as session:
+        experiment = session.get(ExperimentModel, experiment_id)
+        step = session.scalar(
+            select(ExecutionStepModel).where(
+                ExecutionStepModel.experiment_id == experiment_id
+            )
+        )
+        event = session.scalar(
+            select(SystemEventLogModel).where(
+                SystemEventLogModel.experiment_id == experiment_id,
+                SystemEventLogModel.event_type == SystemEventType.MARKET_DATA_MISSING,
+            )
+        )
+        assert experiment is not None
+        assert experiment.status is ExperimentStatus.RUNNING
+        assert step is not None
+        assert step.status is ExecutionStepStatus.FAILED
+        assert event is not None
+        assert event.details_json["errorCode"] == "MARKET_DATA_MISSING"
+        assert _count(session, OrderModel, experiment_id) == 0
+        assert _count(session, TradeModel, experiment_id) == 0
 
 
 def test_risk_check_is_committed_before_broker_submission(database_url: str) -> None:

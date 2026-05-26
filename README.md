@@ -19,14 +19,14 @@ This repository currently contains the M0-M19 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
-- Optional Alpaca paper trading adapter for manually stepped `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments
+- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments
 - Deterministic single-agent and pipeline-agent `AGENTIC_AI` historical manual steps using fake providers only
 - Configurable position sizing for BUY quantities: `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
 The current implementation intentionally does not include real-money trading,
-broker account/position reconciliation, scheduled paper trading, Moving Average
-paper trading, Opening Range Breakout paper trading, scheduled Opening Range
+broker account/position reconciliation, Moving Average paper trading, Opening
+Range Breakout paper trading, scheduled Opening Range
 Breakout execution, Opening Range Breakout manual `run-next-step`, real LLM
 provider/network calls, live broker-backed scheduler execution,
 execution-step/order/trade/agent-log public detail APIs, or frontend trading
@@ -102,9 +102,23 @@ Scheduler settings are disabled by default:
 SCHEDULER_ENABLED=false
 SCHEDULER_INTERVAL_SECONDS=60
 SCHEDULER_JOB_ID=historical_step_scheduler
+PAPER_TRADING_SCHEDULER_ENABLED=false
+PAPER_TRADING_SCHEDULER_INTERVAL_SECONDS=60
+PAPER_TRADING_SCHEDULER_JOB_ID=paper_trading_scheduler
+PAPER_TRADING_DAILY_EVALUATION_TIME=15:55
 ```
 
-When enabled, the in-process scheduler advances each eligible running historical experiment by one step per tick. It does not run paper-trading experiments. Scheduler-enabled mode assumes a single backend instance. In multi-instance deployments, enable the scheduler on at most one backend instance; M7b does not implement leader election.
+When enabled, the in-process historical scheduler advances each eligible running
+historical Buy-and-Hold or Moving Average experiment by one step per tick.
+Paper trading uses a separate disabled-by-default scheduler. When
+`PAPER_TRADING_SCHEDULER_ENABLED=true` and Alpaca paper trading is enabled, the
+paper scheduler evaluates eligible running `PAPER_TRADING` + `BUY_AND_HOLD` +
+`DAILY` + `SPY` experiments at or after `PAPER_TRADING_DAILY_EVALUATION_TIME`
+in America/New_York. A separate broker-sync job continues polling submitted
+paper orders until terminal broker status, including for paused or stopped
+experiments. Scheduler-enabled mode assumes a single backend instance. In
+multi-instance deployments, enable scheduler jobs on at most one backend
+instance; M20 does not implement leader election.
 
 Market data uses the deterministic local CSV fixture by default:
 
@@ -129,7 +143,14 @@ system does not forward-fill or interpolate bars. Opening Range Breakout uses
 the same provider selection: local `spy_5min.csv` when `csv`, or Alpaca
 historical `5Min` SPY bars when `alpaca`.
 
-Paper trading is disabled by default and only accepts the Alpaca paper trading base URL. It is limited to manual `run-next-step` SPY Buy-and-Hold paper-trading experiments; real-money Alpaca trading URLs are rejected by configuration validation and by the broker adapter. Broker reconciliation, outbox processing, account sync, position sync, and order polling are not implemented.
+Paper trading is disabled by default and only accepts the Alpaca paper trading
+base URL. It is limited to SPY Buy-and-Hold daily paper-trading experiments.
+Manual `run-next-step` remains supported, and scheduled paper execution is
+available only when `PAPER_TRADING_SCHEDULER_ENABLED=true`. Real-money Alpaca
+trading URLs are rejected by configuration validation and by the broker adapter.
+M20 adds order-status polling for submitted paper orders. Full broker
+reconciliation, outbox processing, account sync, position sync, and automatic
+order cancellation are not implemented.
 
 Agentic AI execution is deterministic in the current implementation. `AGENTIC_AI`
 is supported only for manual historical `run-next-step` on `HISTORICAL_SIMULATION`
@@ -259,8 +280,8 @@ After migrations and local services are running:
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.
 - Opening Range Breakout runs through `/start` full-run only in M16; manual `run-next-step`, scheduler-triggered ORB, and paper-trading ORB are deferred.
-- Paper trading is manual `run-next-step` only for Buy-and-Hold SPY daily experiments.
-- Broker reconciliation, outbox processing, account sync, position sync, and order polling are deferred.
+- Paper trading is manual or scheduled only for Buy-and-Hold SPY daily experiments.
+- Broker order-status polling exists for submitted paper orders. Full broker reconciliation, outbox processing, account sync, position sync, and automatic cancellation are deferred.
 - Agentic AI uses deterministic fake providers only; real LLM providers are not implemented.
 - Agentic AI is historical manual-step only; no paper-trading or scheduled agent execution is implemented.
 - Compare UI loads selected experiment chart time series after the user runs a comparison.

@@ -1,6 +1,8 @@
+from datetime import datetime
+
 from sqlalchemy import func, select
 
-from app.domain.enums import ExecutionStepStatus
+from app.domain.enums import ExecutionStepStatus, TriggerType
 from app.persistence.models import ExecutionStepModel
 from app.persistence.repositories.base import BaseRepository
 
@@ -34,6 +36,20 @@ class ExecutionStepRepository(BaseRepository[ExecutionStepModel]):
             .where(
                 self.model.experiment_id == experiment_id,
                 self.model.status == ExecutionStepStatus.RUNNING,
+            )
+            .limit(1)
+        )
+        return self.session.scalar(statement) is not None
+
+    def has_step_for_scheduled_slot(
+        self, experiment_id: int, scheduled_for: datetime
+    ) -> bool:
+        statement = (
+            select(self.model.id)
+            .where(
+                self.model.experiment_id == experiment_id,
+                self.model.trigger_type == TriggerType.SCHEDULED,
+                self.model.scheduled_for == scheduled_for,
             )
             .limit(1)
         )

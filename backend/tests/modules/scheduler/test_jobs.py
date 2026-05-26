@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,7 +17,11 @@ from app.domain.enums import (
     TriggerType,
 )
 from app.modules.execution.step_runner import StepRunResult
-from app.modules.scheduler.jobs import trigger_due_experiments
+from app.modules.scheduler.jobs import (
+    sync_open_paper_broker_orders,
+    trigger_due_experiments,
+    trigger_due_paper_trading_experiments,
+)
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExecutionStepModel,
@@ -43,6 +48,28 @@ class FakeStepRunner:
             execution_step_id=experiment_id * 100,
             status=ExecutionStepStatus.COMPLETED,
             message="scheduled",
+        )
+
+
+class FakePaperStepRunner:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, TriggerType, datetime | None]] = []
+        self.failures: dict[int, Exception] = {}
+
+    def run_next_step(
+        self,
+        experiment_id: int,
+        trigger_type: TriggerType = TriggerType.MANUAL,
+        scheduled_for: datetime | None = None,
+    ) -> StepRunResult:
+        self.calls.append((experiment_id, trigger_type, scheduled_for))
+        if experiment_id in self.failures:
+            raise self.failures[experiment_id]
+        return StepRunResult(
+            experiment_id=experiment_id,
+            execution_step_id=experiment_id * 100,
+            status=ExecutionStepStatus.COMPLETED,
+            message="scheduled paper",
         )
 
 
@@ -272,3 +299,80 @@ def test_scheduler_job_no_remaining_bars_marks_experiment_completed(
             )
         )
         assert event is not None
+
+
+def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        paper_id = _create_experiment(session, mode=ExperimentMode.PAPER_TRADING)
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            status=ExperimentStatus.PAUSED,
+        )
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            status=ExperimentStatus.STOPPED,
+        )
+        _create_experiment(session, mode=ExperimentMode.HISTORICAL_SIMULATION)
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.MOVING_AVERAGE,
+        )
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            trading_frequency=TradingFrequency.WEEKLY,
+        )
+
+    fake_runner = FakePaperStepRunner()
+    result = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=fake_runner,
+        now=datetime(2026, 1, 2, 16, 5, tzinfo=ZoneInfo("America/New_York")),
+        daily_evaluation_time="15:55",
+    )
+
+    assert result.due_slot == datetime(2026, 1, 2, 20, 55)
+    assert fake_runner.calls == [
+        (paper_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55))
+    ]
+    assert [item.experiment_id for item in result.results] == [paper_id]
+    assert result.skipped == []
+    assert result.errors == []
+
+
+def test_paper_scheduler_job_skips_before_due_time(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        _create_experiment(session, mode=ExperimentMode.PAPER_TRADING)
+
+    fake_runner = FakePaperStepRunner()
+    result = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=fake_runner,
+        now=datetime(2026, 1, 2, 15, 0, tzinfo=ZoneInfo("America/New_York")),
+        daily_evaluation_time="15:55",
+    )
+
+    assert result.due_slot is None
+    assert fake_runner.calls == []
+
+
+def test_broker_sync_job_delegates_to_sync_service() -> None:
+    class FakeSyncService:
+        def __init__(self) -> None:
+            self.called = False
+
+        def sync_open_orders(self):
+            self.called = True
+            return "synced"
+
+    service = FakeSyncService()
+
+    assert sync_open_paper_broker_orders(sync_service=service) == "synced"
+    assert service.called is True

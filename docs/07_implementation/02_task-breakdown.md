@@ -33,6 +33,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M16 | `tasks/M16-opening-range-breakout.md` | Opening Range Breakout historical simulation |
 | M17 | `tasks/M17-alpaca-intraday-market-data.md` | Alpaca intraday market data for Opening Range Breakout |
 | M18 | `tasks/M18-trading-calendar-intraday-orb.md` | Trading calendar and early-close support for intraday ORB |
+| M20 | `tasks/M20-live-paper-trading.md` | Scheduled paper trading and broker order-status sync |
 
 ---
 

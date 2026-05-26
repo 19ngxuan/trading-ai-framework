@@ -1,15 +1,21 @@
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.errors import ExperimentStepAlreadyRunningAppError
 from app.domain.enums import TriggerType
+from app.modules.execution.broker_sync import BrokerSyncRunResult, PaperBrokerSyncService
+from app.modules.execution.paper_step_runner import PaperTradingStepRunner
 from app.modules.execution.step_runner import HistoricalStepRunner, StepRunResult
+from app.modules.market_data.trading_calendar import UsEquitiesTradingCalendar
 from app.persistence.database import create_session_factory
 from app.persistence.repositories import ExperimentRepository
 
 logger = logging.getLogger(__name__)
+NEW_YORK_TZ = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -31,6 +37,14 @@ class SchedulerTickResult:
     results: list[StepRunResult]
     skipped: list[ScheduledStepSkip]
     errors: list[ScheduledStepError]
+
+
+@dataclass(frozen=True)
+class PaperSchedulerTickResult:
+    results: list[StepRunResult]
+    skipped: list[ScheduledStepSkip]
+    errors: list[ScheduledStepError]
+    due_slot: datetime | None
 
 
 def trigger_due_experiments(
@@ -82,3 +96,110 @@ def trigger_due_experiments(
                 )
             )
     return SchedulerTickResult(results=results, skipped=skipped, errors=errors)
+
+
+def trigger_due_paper_trading_experiments(
+    *,
+    session_factory: sessionmaker[Session] | None = None,
+    step_runner: PaperTradingStepRunner | None = None,
+    now: datetime | None = None,
+    daily_evaluation_time: str = "15:55",
+) -> PaperSchedulerTickResult:
+    due_slot = _paper_daily_due_slot(
+        now=now or datetime.now(NEW_YORK_TZ),
+        daily_evaluation_time=daily_evaluation_time,
+    )
+    if due_slot is None:
+        return PaperSchedulerTickResult(
+            results=[],
+            skipped=[],
+            errors=[],
+            due_slot=None,
+        )
+
+    session_factory = session_factory or create_session_factory()
+    step_runner = step_runner or PaperTradingStepRunner(session_factory=session_factory)
+    with session_factory() as session:
+        experiment_ids = ExperimentRepository(
+            session
+        ).list_paper_scheduler_eligible_experiment_ids()
+
+    results: list[StepRunResult] = []
+    skipped: list[ScheduledStepSkip] = []
+    errors: list[ScheduledStepError] = []
+    for experiment_id in experiment_ids:
+        try:
+            results.append(
+                step_runner.run_next_step(
+                    experiment_id,
+                    trigger_type=TriggerType.SCHEDULED,
+                    scheduled_for=due_slot,
+                )
+            )
+        except ExperimentStepAlreadyRunningAppError as exc:
+            logger.info(
+                "Skipping scheduled paper step for experiment %s: %s",
+                experiment_id,
+                exc.message,
+            )
+            skipped.append(
+                ScheduledStepSkip(
+                    experiment_id=experiment_id,
+                    error_code=exc.error_code,
+                    message=exc.message,
+                )
+            )
+        except Exception as exc:
+            logger.exception(
+                "Scheduled paper step failed for experiment %s.",
+                experiment_id,
+            )
+            errors.append(
+                ScheduledStepError(
+                    experiment_id=experiment_id,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                )
+            )
+    return PaperSchedulerTickResult(
+        results=results,
+        skipped=skipped,
+        errors=errors,
+        due_slot=due_slot,
+    )
+
+
+def sync_open_paper_broker_orders(
+    *,
+    sync_service: PaperBrokerSyncService | None = None,
+) -> BrokerSyncRunResult:
+    sync_service = sync_service or PaperBrokerSyncService()
+    return sync_service.sync_open_orders()
+
+
+def _paper_daily_due_slot(
+    *, now: datetime, daily_evaluation_time: str
+) -> datetime | None:
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=NEW_YORK_TZ)
+    local_now = now.astimezone(NEW_YORK_TZ)
+    sessions = UsEquitiesTradingCalendar().sessions_between(
+        local_now.date(),
+        local_now.date(),
+    )
+    if not sessions:
+        return None
+    hour, minute = _parse_hh_mm(daily_evaluation_time)
+    due_local = datetime.combine(
+        local_now.date(),
+        time(hour=hour, minute=minute),
+        tzinfo=NEW_YORK_TZ,
+    )
+    if local_now < due_local:
+        return None
+    return due_local.astimezone(UTC).replace(tzinfo=None)
+
+
+def _parse_hh_mm(value: str) -> tuple[int, int]:
+    hour, minute = value.split(":")
+    return int(hour), int(minute)
