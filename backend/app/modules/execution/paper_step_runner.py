@@ -41,6 +41,9 @@ from app.modules.market_data.errors import (
 )
 from app.modules.market_data.provider import MarketDataProvider
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
+from app.modules.strategies.paper_trading_smoke_test import (
+    PaperTradingSmokeTestStrategy,
+)
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
     ExecutionStepModel,
@@ -95,7 +98,8 @@ class PaperTradingStepRunner:
             self.settings
         )
         self.broker_adapter = broker_adapter
-        self.strategy = BuyAndHoldStrategy()
+        self.buy_and_hold_strategy = BuyAndHoldStrategy()
+        self.smoke_test_strategy = PaperTradingSmokeTestStrategy()
         self.risk_validator = BuyAndHoldRiskValidator()
         self.metric_calculator = BasicMetricCalculator()
 
@@ -215,14 +219,10 @@ class PaperTradingStepRunner:
                         "status": experiment.status.value,
                     },
                 )
-            if (
-                experiment.mode is not ExperimentMode.PAPER_TRADING
-                or experiment.strategy_type is not StrategyType.BUY_AND_HOLD
-                or experiment.trading_frequency is not TradingFrequency.DAILY
-                or experiment.asset_symbol != "SPY"
-            ):
+            if not self._is_supported_experiment(experiment, trigger_type):
                 raise InvalidExperimentConfigurationAppError(
-                    "Paper trading supports only daily SPY Buy-and-Hold experiments.",
+                    "Paper trading supports only daily SPY Buy-and-Hold experiments "
+                    "or scheduled smoke-test SPY experiments when test mode is enabled.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,
@@ -281,6 +281,24 @@ class PaperTradingStepRunner:
             session.commit()
             return execution_step_id
 
+    def _is_supported_experiment(self, experiment, trigger_type: TriggerType) -> bool:
+        if experiment.mode is not ExperimentMode.PAPER_TRADING:
+            return False
+        if experiment.asset_symbol != "SPY":
+            return False
+        if (
+            experiment.strategy_type is StrategyType.BUY_AND_HOLD
+            and experiment.trading_frequency is TradingFrequency.DAILY
+        ):
+            return True
+        if experiment.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return False
+        return (
+            self.settings.paper_trading_test_mode_enabled
+            and trigger_type is TriggerType.SCHEDULED
+            and experiment.trading_frequency is TradingFrequency.TEST_1_MIN
+        )
+
     def _run_step_artifacts(
         self,
         experiment_id: int,
@@ -324,24 +342,24 @@ class PaperTradingStepRunner:
             )
             session.flush()
 
-            strategy_decision = self.strategy.decide(
-                symbol="SPY",
-                position_quantity=portfolio.position_quantity,
-            )
+            strategy_decision = self._decide(experiment.strategy_type, portfolio)
             trading_decision = TradingDecisionRepository(session).add(
                 TradingDecisionModel(
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
                     market_data_snapshot_id=market_data.id,
                     source_type=DecisionSourceType.STRATEGY,
-                    source_name=self.strategy.source_name,
+                    source_name=self._source_name(experiment.strategy_type),
                     action=strategy_decision.action,
                     symbol=strategy_decision.symbol,
                     suggested_quantity=None,
                     suggested_notional=None,
                     confidence=Decimal("1.0000"),
                     reason=strategy_decision.reason,
-                    raw_decision_json={"strategy": self.strategy.source_name},
+                    raw_decision_json=self._raw_decision_json(
+                        experiment.strategy_type,
+                        portfolio.position_quantity,
+                    ),
                     created_at=now,
                 )
             )
@@ -351,9 +369,13 @@ class PaperTradingStepRunner:
                 strategy_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
+                position_sizing_type=self._risk_sizing_type(
+                    experiment.strategy_type,
+                    strategy_config.position_sizing_type,
+                ),
+                position_sizing_value=self._risk_sizing_value(
+                    experiment.strategy_type,
+                    strategy_config.parameters_json,
                 ),
             )
             risk_check = RiskCheckRepository(session).add(
@@ -398,6 +420,48 @@ class PaperTradingStepRunner:
             execution_step.completed_at = now
             session.commit()
             return None
+
+    def _decide(self, strategy_type: StrategyType, portfolio: PortfolioModel):
+        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return self.smoke_test_strategy.decide(
+                symbol="SPY",
+                position_quantity=portfolio.position_quantity,
+            )
+        return self.buy_and_hold_strategy.decide(
+            symbol="SPY",
+            position_quantity=portfolio.position_quantity,
+        )
+
+    def _source_name(self, strategy_type: StrategyType) -> str:
+        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return self.smoke_test_strategy.source_name
+        return self.buy_and_hold_strategy.source_name
+
+    def _raw_decision_json(
+        self, strategy_type: StrategyType, position_quantity: Decimal | None
+    ) -> dict:
+        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return {
+                "strategy": self.smoke_test_strategy.source_name,
+                "diagnosticOnly": True,
+                "fixedBuyQuantity": 1,
+                "localPositionQuantity": float(position_quantity or Decimal("0")),
+            }
+        return {"strategy": self.buy_and_hold_strategy.source_name}
+
+    def _risk_sizing_type(
+        self, strategy_type: StrategyType, configured_sizing_type: str | None
+    ) -> str | None:
+        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return "FIXED_QUANTITY"
+        return configured_sizing_type
+
+    def _risk_sizing_value(
+        self, strategy_type: StrategyType, parameters_json: dict | None
+    ) -> Decimal | None:
+        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return Decimal("1")
+        return parse_position_sizing_value(parameters_json)
 
     def _run_broker_execution(
         self,

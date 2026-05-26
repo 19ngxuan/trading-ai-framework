@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     paper_trading_scheduler_interval_seconds: int = 60
     paper_trading_scheduler_job_id: str = "paper_trading_scheduler"
     paper_trading_daily_evaluation_time: str = "15:55"
+    paper_trading_test_mode_enabled: bool = False
     market_data_provider: str = "csv"
     alpaca_api_key_id: str | None = None
     alpaca_api_secret_key: str | None = None

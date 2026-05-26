@@ -10,7 +10,8 @@ export type StrategyType =
   | "BUY_AND_HOLD"
   | "MOVING_AVERAGE"
   | "AGENTIC_AI"
-  | "OPENING_RANGE_BREAKOUT";
+  | "OPENING_RANGE_BREAKOUT"
+  | "PAPER_TRADING_SMOKE_TEST";
 
 export type ExperimentStatus =
   | "CREATED"
@@ -24,7 +25,8 @@ export type TradingFrequency =
   | "DAILY"
   | "WEEKLY"
   | "MONTHLY"
-  | "INTRADAY_5_MIN";
+  | "INTRADAY_5_MIN"
+  | "TEST_1_MIN";
 export type FeeModelType = "NONE" | "FIXED" | "PERCENTAGE";
 export type AgentMode = "SINGLE_AGENT" | "PIPELINE";
 export type PositionSizingType =

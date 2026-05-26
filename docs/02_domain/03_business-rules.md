@@ -596,6 +596,25 @@ Every trade must be traceable to:
 
 ---
 
+### BR-059A: Paper smoke-test strategy is diagnostics-only
+
+`PAPER_TRADING_SMOKE_TEST` is disabled by default and may run only when
+`PAPER_TRADING_TEST_MODE_ENABLED=true`.
+
+It supports only:
+
+- `PAPER_TRADING`
+- `TEST_1_MIN`
+- `SPY`
+- scheduled execution during US regular market hours
+- fixed 1-share BUY when no local SPY position exists
+- SELL only to close the existing local SPY position
+
+It is not an investment strategy, must never short, and must still pass through
+TradingDecision -> RiskCheck -> Order/Trade.
+
+---
+
 ## 14. Out-of-Scope Rules
 
 ### BR-060: No User entity in V1

@@ -357,6 +357,11 @@ card. It explains that `start` is lifecycle-only, scheduled paper execution runs
 at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York, and broker sync
 may continue for submitted paper orders after pause or stop.
 
+When `PAPER_TRADING_TEST_MODE_ENABLED=true`, the options endpoint may expose
+`PAPER_TRADING_SMOKE_TEST` with `TEST_1_MIN`. The create form should show a
+clear warning that this diagnostics strategy intentionally creates alternating
+1-share Alpaca paper BUY/SELL orders for operational testing only.
+
 The `Orders`, `Trades`, and `Broker Sync` tabs are read-only and must render only
 data returned by the implemented endpoints. They must not include cancel, retry,
 force-run, or submit-order actions.

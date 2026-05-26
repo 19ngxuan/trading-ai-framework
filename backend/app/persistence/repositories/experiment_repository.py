@@ -84,3 +84,17 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
             .order_by(self.model.id.asc())
         )
         return list(self.session.scalars(statement))
+
+    def list_paper_smoke_test_scheduler_eligible_experiment_ids(self) -> list[int]:
+        statement = (
+            select(self.model.id)
+            .where(
+                self.model.status == ExperimentStatus.RUNNING,
+                self.model.mode == ExperimentMode.PAPER_TRADING,
+                self.model.trading_frequency == TradingFrequency.TEST_1_MIN,
+                self.model.strategy_type == StrategyType.PAPER_TRADING_SMOKE_TEST,
+                self.model.asset_symbol == "SPY",
+            )
+            .order_by(self.model.id.asc())
+        )
+        return list(self.session.scalars(statement))

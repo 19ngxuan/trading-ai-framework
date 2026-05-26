@@ -62,6 +62,9 @@ function strategyVersion(strategyType: StrategyType) {
   if (strategyType === "OPENING_RANGE_BREAKOUT") {
     return "opening-range-breakout-v1";
   }
+  if (strategyType === "PAPER_TRADING_SMOKE_TEST") {
+    return "paper-trading-smoke-test-v1";
+  }
   return "buy-and-hold-v1";
 }
 
@@ -238,9 +241,24 @@ export function CreateExperimentForm() {
                 tradingFrequency:
                   nextStrategy === "OPENING_RANGE_BREAKOUT"
                     ? "INTRADAY_5_MIN"
+                    : nextStrategy === "PAPER_TRADING_SMOKE_TEST"
+                      ? "TEST_1_MIN"
                     : current.tradingFrequency === "INTRADAY_5_MIN"
+                        || current.tradingFrequency === "TEST_1_MIN"
                       ? "DAILY"
                       : current.tradingFrequency,
+                mode:
+                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
+                    ? "PAPER_TRADING"
+                    : current.mode,
+                positionSizingType:
+                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
+                    ? "FIXED_QUANTITY"
+                    : current.positionSizingType,
+                positionSizingValue:
+                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
+                    ? "1"
+                    : current.positionSizingValue,
               }));
             }}
           >
@@ -251,6 +269,12 @@ export function CreateExperimentForm() {
             ))}
           </select>
         </label>
+        {state.strategyType === "PAPER_TRADING_SMOKE_TEST" && (
+          <div className="state-box full-span">
+            Smoke-test strategy creates alternating 1-share Alpaca paper BUY/SELL
+            orders for operational testing only. It is not an investment strategy.
+          </div>
+        )}
         <label>
           Asset
           <select
@@ -334,50 +358,60 @@ export function CreateExperimentForm() {
             />
           </label>
         )}
-        <label>
-          Position Sizing
-          <select
-            value={state.positionSizingType}
-            onChange={(event) => {
-              const nextType = event.target.value as PositionSizingType;
-              setState((current) => ({
-                ...current,
-                positionSizingType: nextType,
-                positionSizingValue:
-                  nextType === "ALL_IN" ? "" : current.positionSizingValue,
-              }));
-            }}
-          >
-            <option value="ALL_IN">ALL_IN</option>
-            <option value="FIXED_CASH">FIXED_CASH</option>
-            <option value="PERCENT_OF_PORTFOLIO">PERCENT_OF_PORTFOLIO</option>
-            <option value="FIXED_QUANTITY">FIXED_QUANTITY</option>
-          </select>
-        </label>
-        {state.positionSizingType !== "ALL_IN" && (
-          <label>
-            Position Sizing Value
-            <input
-              min={state.positionSizingType === "PERCENT_OF_PORTFOLIO" ? "0" : "1"}
-              max={
-                state.positionSizingType === "PERCENT_OF_PORTFOLIO"
-                  ? "1"
-                  : undefined
-              }
-              step={
-                state.positionSizingType === "FIXED_QUANTITY"
-                  ? "1"
-                  : state.positionSizingType === "PERCENT_OF_PORTFOLIO"
-                    ? "0.01"
-                    : "0.01"
-              }
-              type="number"
-              value={state.positionSizingValue}
-              onChange={(event) =>
-                update("positionSizingValue", event.target.value)
-              }
-            />
-          </label>
+        {state.strategyType !== "PAPER_TRADING_SMOKE_TEST" && (
+          <>
+            <label>
+              Position Sizing
+              <select
+                value={state.positionSizingType}
+                onChange={(event) => {
+                  const nextType = event.target.value as PositionSizingType;
+                  setState((current) => ({
+                    ...current,
+                    positionSizingType: nextType,
+                    positionSizingValue:
+                      nextType === "ALL_IN" ? "" : current.positionSizingValue,
+                  }));
+                }}
+              >
+                <option value="ALL_IN">ALL_IN</option>
+                <option value="FIXED_CASH">FIXED_CASH</option>
+                <option value="PERCENT_OF_PORTFOLIO">
+                  PERCENT_OF_PORTFOLIO
+                </option>
+                <option value="FIXED_QUANTITY">FIXED_QUANTITY</option>
+              </select>
+            </label>
+            {state.positionSizingType !== "ALL_IN" && (
+              <label>
+                Position Sizing Value
+                <input
+                  min={
+                    state.positionSizingType === "PERCENT_OF_PORTFOLIO"
+                      ? "0"
+                      : "1"
+                  }
+                  max={
+                    state.positionSizingType === "PERCENT_OF_PORTFOLIO"
+                      ? "1"
+                      : undefined
+                  }
+                  step={
+                    state.positionSizingType === "FIXED_QUANTITY"
+                      ? "1"
+                      : state.positionSizingType === "PERCENT_OF_PORTFOLIO"
+                        ? "0.01"
+                        : "0.01"
+                  }
+                  type="number"
+                  value={state.positionSizingValue}
+                  onChange={(event) =>
+                    update("positionSizingValue", event.target.value)
+                  }
+                />
+              </label>
+            )}
+          </>
         )}
         {state.strategyType === "AGENTIC_AI" && (
           <>

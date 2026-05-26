@@ -17,7 +17,7 @@ from app.domain.enums import (
     TradingFrequency,
 )
 from app.modules.market_data.trading_calendar import UsEquitiesTradingCalendar
-from app.modules.scheduler.jobs import _paper_daily_due_slot
+from app.modules.scheduler.jobs import _paper_daily_due_slot, _paper_smoke_test_due_slot
 from app.persistence.database import get_session
 from app.persistence.models import ExperimentModel
 from app.persistence.repositories import (
@@ -48,13 +48,19 @@ def get_experiment_paper_status(
     orders = OrderRepository(session)
     broker_sync_logs = BrokerSyncLogRepository(session)
     now = datetime.now(NEW_YORK_TZ)
-    current_due_slot = _paper_daily_due_slot(
-        now=now,
-        daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
+    is_smoke_test = experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST
+    current_due_slot = (
+        _paper_smoke_test_due_slot(now=now)
+        if is_smoke_test and settings.paper_trading_test_mode_enabled
+        else _paper_daily_due_slot(
+            now=now,
+            daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
+        )
     )
     next_evaluation_time = _next_evaluation_time(
         now=now,
         daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
+        smoke_test=is_smoke_test and settings.paper_trading_test_mode_enabled,
     )
     open_order_count = orders.count_open_submitted_by_experiment(experiment_id)
     last_sync = broker_sync_logs.latest_by_experiment(experiment_id)
@@ -102,10 +108,17 @@ def get_experiment_paper_status(
 
 
 def _supported_by_paper_scheduler(experiment: ExperimentModel) -> bool:
-    return (
+    if (
         experiment.mode is ExperimentMode.PAPER_TRADING
         and experiment.strategy_type is StrategyType.BUY_AND_HOLD
         and experiment.trading_frequency is TradingFrequency.DAILY
+        and experiment.asset_symbol == "SPY"
+    ):
+        return True
+    return (
+        experiment.mode is ExperimentMode.PAPER_TRADING
+        and experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST
+        and experiment.trading_frequency is TradingFrequency.TEST_1_MIN
         and experiment.asset_symbol == "SPY"
     )
 
@@ -122,10 +135,19 @@ def _status_reason(
 ) -> tuple[str, str]:
     if experiment.mode is not ExperimentMode.PAPER_TRADING:
         return "NOT_PAPER_TRADING", "This experiment is not a paper trading experiment."
+    if (
+        experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST
+        and not settings.paper_trading_test_mode_enabled
+    ):
+        return (
+            "PAPER_TRADING_TEST_MODE_DISABLED",
+            "Paper trading smoke-test mode is disabled, so no smoke-test steps will be scheduled.",
+        )
     if not supported:
         return (
             "UNSUPPORTED_PAPER_CONFIGURATION",
-            "The paper scheduler supports only PAPER_TRADING + BUY_AND_HOLD + DAILY + SPY.",
+            "The paper scheduler supports PAPER_TRADING + BUY_AND_HOLD + DAILY + SPY "
+            "and gated PAPER_TRADING_SMOKE_TEST + TEST_1_MIN + SPY.",
         )
     if not settings.paper_trading_scheduler_enabled:
         return (
@@ -148,6 +170,16 @@ def _status_reason(
             "There is at least one submitted paper order waiting for broker sync.",
         )
     if current_due_slot is None:
+        if experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            if _is_trading_day(local_date):
+                return (
+                    "WAITING_FOR_REGULAR_MARKET_HOURS",
+                    "The smoke-test strategy runs only during US regular market hours.",
+                )
+            return (
+                "NON_TRADING_DAY",
+                "Today is not a US equities trading day, so no smoke-test step is due.",
+            )
         if _is_trading_day(local_date):
             return (
                 "WAITING_FOR_DAILY_EVALUATION_TIME",
@@ -158,6 +190,11 @@ def _status_reason(
             "Today is not a US equities trading day, so no paper step is due.",
         )
     if already_executed:
+        if experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+            return (
+                "CURRENT_TEST_SLOT_ALREADY_EXECUTED",
+                "The current smoke-test minute slot has already been executed.",
+            )
         return (
             "CURRENT_DUE_SLOT_ALREADY_EXECUTED",
             "The current daily paper evaluation slot has already been executed.",
@@ -168,8 +205,30 @@ def _status_reason(
     )
 
 
-def _next_evaluation_time(*, now: datetime, daily_evaluation_time: str) -> datetime | None:
+def _next_evaluation_time(
+    *, now: datetime, daily_evaluation_time: str, smoke_test: bool
+) -> datetime | None:
     local_now = now.astimezone(NEW_YORK_TZ)
+    if smoke_test:
+        current_slot = _paper_smoke_test_due_slot(now=local_now)
+        if current_slot is not None:
+            return current_slot
+        calendar = UsEquitiesTradingCalendar()
+        for day_offset in range(0, 15):
+            candidate_date = local_now.date() + timedelta(days=day_offset)
+            sessions = calendar.sessions_between(candidate_date, candidate_date)
+            if not sessions:
+                continue
+            session = sessions[0]
+            candidate = datetime.combine(
+                candidate_date,
+                session.open_time,
+                tzinfo=NEW_YORK_TZ,
+            )
+            if candidate >= local_now:
+                return candidate.astimezone(UTC).replace(tzinfo=None)
+        return None
+
     hour, minute = _parse_hh_mm(daily_evaluation_time)
     calendar = UsEquitiesTradingCalendar()
     for day_offset in range(0, 15):

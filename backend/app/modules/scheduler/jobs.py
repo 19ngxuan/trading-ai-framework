@@ -104,12 +104,19 @@ def trigger_due_paper_trading_experiments(
     step_runner: PaperTradingStepRunner | None = None,
     now: datetime | None = None,
     daily_evaluation_time: str = "15:55",
+    paper_trading_test_mode_enabled: bool = False,
 ) -> PaperSchedulerTickResult:
-    due_slot = _paper_daily_due_slot(
+    daily_due_slot = _paper_daily_due_slot(
         now=now or datetime.now(NEW_YORK_TZ),
         daily_evaluation_time=daily_evaluation_time,
     )
-    if due_slot is None:
+    local_now = now or datetime.now(NEW_YORK_TZ)
+    smoke_test_due_slot = (
+        _paper_smoke_test_due_slot(now=local_now)
+        if paper_trading_test_mode_enabled
+        else None
+    )
+    if daily_due_slot is None and smoke_test_due_slot is None:
         return PaperSchedulerTickResult(
             results=[],
             skipped=[],
@@ -120,14 +127,25 @@ def trigger_due_paper_trading_experiments(
     session_factory = session_factory or create_session_factory()
     step_runner = step_runner or PaperTradingStepRunner(session_factory=session_factory)
     with session_factory() as session:
-        experiment_ids = ExperimentRepository(
-            session
-        ).list_paper_scheduler_eligible_experiment_ids()
+        repository = ExperimentRepository(session)
+        scheduled_experiments: list[tuple[int, datetime]] = []
+        if daily_due_slot is not None:
+            scheduled_experiments.extend(
+                (experiment_id, daily_due_slot)
+                for experiment_id in repository.list_paper_scheduler_eligible_experiment_ids()
+            )
+        if smoke_test_due_slot is not None:
+            scheduled_experiments.extend(
+                (experiment_id, smoke_test_due_slot)
+                for experiment_id in (
+                    repository.list_paper_smoke_test_scheduler_eligible_experiment_ids()
+                )
+            )
 
     results: list[StepRunResult] = []
     skipped: list[ScheduledStepSkip] = []
     errors: list[ScheduledStepError] = []
-    for experiment_id in experiment_ids:
+    for experiment_id, due_slot in scheduled_experiments:
         try:
             results.append(
                 step_runner.run_next_step(
@@ -165,7 +183,7 @@ def trigger_due_paper_trading_experiments(
         results=results,
         skipped=skipped,
         errors=errors,
-        due_slot=due_slot,
+        due_slot=daily_due_slot or smoke_test_due_slot,
     )
 
 
@@ -197,6 +215,27 @@ def _paper_daily_due_slot(
     )
     if local_now < due_local:
         return None
+    return due_local.astimezone(UTC).replace(tzinfo=None)
+
+
+def _paper_smoke_test_due_slot(*, now: datetime) -> datetime | None:
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=NEW_YORK_TZ)
+    local_now = now.astimezone(NEW_YORK_TZ)
+    sessions = UsEquitiesTradingCalendar().sessions_between(
+        local_now.date(),
+        local_now.date(),
+    )
+    if not sessions:
+        return None
+    session = sessions[0]
+    open_time = datetime.combine(local_now.date(), session.open_time, tzinfo=NEW_YORK_TZ)
+    close_time = datetime.combine(
+        local_now.date(), session.close_time, tzinfo=NEW_YORK_TZ
+    )
+    if local_now < open_time or local_now >= close_time:
+        return None
+    due_local = local_now.replace(second=0, microsecond=0)
     return due_local.astimezone(UTC).replace(tzinfo=None)
 
 

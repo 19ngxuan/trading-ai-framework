@@ -35,7 +35,10 @@ def create_scheduler(
             paper_job_func
             or (
                 lambda: trigger_due_paper_trading_experiments(
-                    daily_evaluation_time=settings.paper_trading_daily_evaluation_time
+                    daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
+                    paper_trading_test_mode_enabled=(
+                        settings.paper_trading_test_mode_enabled
+                    ),
                 )
             ),
             trigger="interval",

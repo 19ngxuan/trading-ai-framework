@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.domain.enums import (
     BrokerName,
     BrokerSyncStatus,
@@ -22,6 +24,7 @@ from app.domain.enums import (
     FinalAction,
 )
 from app.persistence.database import create_session_factory
+from app.main import create_app
 from app.persistence.models import (
     BrokerSyncLogModel,
     ExecutionStepModel,
@@ -36,18 +39,24 @@ from app.persistence.models import (
 )
 
 
-def _create_paper_experiment(session: Session, *, status: ExperimentStatus) -> int:
+def _create_paper_experiment(
+    session: Session,
+    *,
+    status: ExperimentStatus,
+    strategy_type: StrategyType = StrategyType.BUY_AND_HOLD,
+    trading_frequency: TradingFrequency = TradingFrequency.DAILY,
+) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
         name="Paper Ops",
         mode=ExperimentMode.PAPER_TRADING,
-        strategy_type=StrategyType.BUY_AND_HOLD,
+        strategy_type=strategy_type,
         asset_symbol="SPY",
         status=status,
         initial_capital=Decimal("10000.0000"),
         start_date=now.date(),
         end_date=now.date(),
-        trading_frequency=TradingFrequency.DAILY,
+        trading_frequency=trading_frequency,
         fee_model_type=FeeModelType.NONE,
         fee_value=Decimal("0"),
         created_at=now,
@@ -58,8 +67,12 @@ def _create_paper_experiment(session: Session, *, status: ExperimentStatus) -> i
     session.add(
         StrategyConfigModel(
             experiment_id=experiment.id,
-            strategy_type=StrategyType.BUY_AND_HOLD,
-            strategy_version="buy-and-hold-v1",
+            strategy_type=strategy_type,
+            strategy_version=(
+                "paper-trading-smoke-test-v1"
+                if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST
+                else "buy-and-hold-v1"
+            ),
             moving_average_window=None,
             position_sizing_type="ALL_IN",
             agent_mode=None,
@@ -225,18 +238,42 @@ def test_paper_operations_endpoints_return_persisted_audit_rows(
     assert sync_logs.json()["items"][0]["syncStatus"] == "SUCCESS"
 
 
-def test_paper_status_explains_disabled_scheduler(client, migrated_database: str) -> None:
+def test_paper_status_explains_disabled_scheduler(
+    monkeypatch, migrated_database: str
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_SCHEDULER_ENABLED", "false")
+    get_settings.cache_clear()
     session_factory = create_session_factory(migrated_database)
     with session_factory() as session:
         experiment_id = _create_paper_experiment(session, status=ExperimentStatus.RUNNING)
 
-    response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+    with TestClient(create_app()) as client:
+        response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
 
     assert response.status_code == 200
     body = response.json()
     assert body["supportedByPaperScheduler"] is True
     assert body["paperTradingSchedulerEnabled"] is False
     assert body["reasonCode"] == "PAPER_TRADING_SCHEDULER_DISABLED"
+    get_settings.cache_clear()
+
+
+def test_paper_status_explains_disabled_smoke_test_mode(
+    client, migrated_database: str
+) -> None:
+    session_factory = create_session_factory(migrated_database)
+    with session_factory() as session:
+        experiment_id = _create_paper_experiment(
+            session,
+            status=ExperimentStatus.RUNNING,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+
+    response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+
+    assert response.status_code == 200
+    assert response.json()["reasonCode"] == "PAPER_TRADING_TEST_MODE_DISABLED"
 
 
 def test_paper_operations_missing_experiment_returns_404(client) -> None:

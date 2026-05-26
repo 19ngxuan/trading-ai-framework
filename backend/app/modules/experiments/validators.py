@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.api.schemas.experiment_schemas import CreateExperimentRequest
+from app.core.config import get_settings
 from app.core.errors import ValidationAppError
 from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 from app.modules.execution.position_sizing import (
@@ -20,6 +21,7 @@ def _validate_risk_config(risk_config: dict[str, Any]) -> None:
 
 
 def validate_create_experiment_request(request: CreateExperimentRequest) -> None:
+    settings = get_settings()
     if request.asset_symbol != "SPY":
         raise ValidationAppError(
             "assetSymbol must be SPY in V1.",
@@ -44,7 +46,48 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             details={"field": "feeValue"},
         )
 
-    if request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+    if request.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+        if not settings.paper_trading_test_mode_enabled:
+            raise ValidationAppError(
+                "Paper trading smoke-test strategy is disabled.",
+                details={
+                    "field": "strategyType",
+                    "requiredConfig": "PAPER_TRADING_TEST_MODE_ENABLED=true",
+                },
+            )
+        if request.mode is not ExperimentMode.PAPER_TRADING:
+            raise ValidationAppError(
+                "Paper trading smoke-test supports PAPER_TRADING mode only.",
+                details={"field": "mode", "value": request.mode.value},
+            )
+        if request.trading_frequency is not TradingFrequency.TEST_1_MIN:
+            raise ValidationAppError(
+                "Paper trading smoke-test supports TEST_1_MIN frequency only.",
+                details={
+                    "field": "tradingFrequency",
+                    "value": request.trading_frequency.value,
+                },
+            )
+        if request.strategy_config.position_sizing_type not in {
+            None,
+            "FIXED_QUANTITY",
+        }:
+            raise ValidationAppError(
+                "Paper trading smoke-test uses fixed 1-share sizing only.",
+                details={
+                    "field": "strategyConfig.positionSizingType",
+                    "value": request.strategy_config.position_sizing_type,
+                },
+            )
+        if (
+            request.strategy_config.position_sizing_value is not None
+            and request.strategy_config.position_sizing_value != Decimal("1")
+        ):
+            raise ValidationAppError(
+                "Paper trading smoke-test positionSizingValue must be 1 when provided.",
+                details={"field": "strategyConfig.positionSizingValue"},
+            )
+    elif request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
         if request.mode is not ExperimentMode.HISTORICAL_SIMULATION:
             raise ValidationAppError(
                 "Opening Range Breakout supports HISTORICAL_SIMULATION mode only.",
@@ -61,6 +104,14 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
     elif request.trading_frequency is TradingFrequency.INTRADAY_5_MIN:
         raise ValidationAppError(
             "INTRADAY_5_MIN frequency is supported only for Opening Range Breakout.",
+            details={
+                "field": "tradingFrequency",
+                "strategyType": request.strategy_type.value,
+            },
+        )
+    elif request.trading_frequency is TradingFrequency.TEST_1_MIN:
+        raise ValidationAppError(
+            "TEST_1_MIN frequency is supported only for paper trading smoke-test.",
             details={
                 "field": "tradingFrequency",
                 "strategyType": request.strategy_type.value,

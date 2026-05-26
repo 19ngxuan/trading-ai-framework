@@ -9,6 +9,7 @@ from app.core.errors import (
     ExperimentStepAlreadyRunningAppError,
     InvalidExperimentConfigurationAppError,
 )
+from app.core.config import Settings
 from app.domain.enums import (
     BrokerName,
     ExecutionStepStatus,
@@ -132,13 +133,15 @@ def _broker_result(
     status: str,
     filled_quantity: str = "0",
     average_fill_price: str | None = "100.00",
+    side: OrderSide = OrderSide.BUY,
+    quantity: str = "100",
 ) -> BrokerOrderResult:
     return BrokerOrderResult(
         broker_order_id=f"alpaca-{status}",
         status=status,
         symbol="SPY",
-        side=OrderSide.BUY,
-        quantity=Decimal("100"),
+        side=side,
+        quantity=Decimal(quantity),
         filled_quantity=Decimal(filled_quantity),
         average_fill_price=(
             Decimal(average_fill_price) if average_fill_price is not None else None
@@ -234,6 +237,15 @@ def _runner(database_url: str, broker: FakeBrokerAdapter) -> PaperTradingStepRun
         session_factory=create_session_factory(database_url),
         market_data_provider=FakeMarketDataProvider(),
         broker_adapter=broker,
+    )
+
+
+def _smoke_runner(database_url: str, broker: FakeBrokerAdapter) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=FakeMarketDataProvider(),
+        broker_adapter=broker,
+        settings=Settings(paper_trading_test_mode_enabled=True),
     )
 
 
@@ -742,3 +754,136 @@ def test_unsupported_configuration_is_rejected(
 
     with pytest.raises(InvalidExperimentConfigurationAppError):
         _runner(database_url, FakeBrokerAdapter()).run_next_step(experiment_id)
+
+
+def test_smoke_test_manual_run_next_step_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+
+    with pytest.raises(InvalidExperimentConfigurationAppError):
+        _smoke_runner(database_url, FakeBrokerAdapter()).run_next_step(
+            experiment_id,
+            trigger_type=TriggerType.MANUAL,
+        )
+
+
+def test_smoke_test_scheduled_first_slot_buys_one_share(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="1", quantity="1")
+    )
+    result = _smoke_runner(database_url, broker).run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=datetime(2026, 1, 2, 15, 31),
+    )
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["quantity"] == Decimal("1")
+    assert broker.calls[0]["side"] is OrderSide.BUY
+
+    with session_factory() as session:
+        order = session.scalar(
+            select(OrderModel).where(OrderModel.experiment_id == experiment_id)
+        )
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        risk = session.scalar(
+            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
+        )
+        assert order is not None
+        assert order.quantity == Decimal("1.00000000")
+        assert decision is not None
+        assert decision.source_name == "PaperTradingSmokeTestStrategy"
+        assert decision.raw_decision_json["diagnosticOnly"] is True
+        assert risk is not None
+        assert risk.final_quantity == Decimal("1.00000000")
+
+
+def test_smoke_test_scheduled_next_slot_sells_existing_position(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+            cash=Decimal("9900.0000"),
+            position_quantity=Decimal("1"),
+        )
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="filled",
+            filled_quantity="1",
+            side=OrderSide.SELL,
+            quantity="1",
+        )
+    )
+    result = _smoke_runner(database_url, broker).run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=datetime(2026, 1, 2, 15, 32),
+    )
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["quantity"] == Decimal("1")
+    assert broker.calls[0]["side"] is OrderSide.SELL
+
+    with session_factory() as session:
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        assert portfolio is not None
+        assert portfolio.position_quantity == Decimal("0")
+        assert portfolio.position_symbol is None
+
+
+def test_smoke_test_duplicate_scheduled_slot_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    scheduled_for = datetime(2026, 1, 2, 15, 33)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+        session.add(
+            ExecutionStepModel(
+                experiment_id=experiment_id,
+                scheduled_for=scheduled_for,
+                started_at=scheduled_for,
+                completed_at=scheduled_for,
+                status=ExecutionStepStatus.COMPLETED,
+                trigger_type=TriggerType.SCHEDULED,
+                sequence_number=1,
+                error_message=None,
+                created_at=scheduled_for,
+            )
+        )
+        session.commit()
+
+    broker = FakeBrokerAdapter()
+    with pytest.raises(ExperimentStepAlreadyRunningAppError):
+        _smoke_runner(database_url, broker).run_next_step(
+            experiment_id,
+            trigger_type=TriggerType.SCHEDULED,
+            scheduled_for=scheduled_for,
+        )
+    assert broker.calls == []

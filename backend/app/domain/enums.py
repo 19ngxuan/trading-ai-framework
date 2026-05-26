@@ -12,6 +12,7 @@ class StrategyType(str, Enum):
     MOVING_AVERAGE = "MOVING_AVERAGE"
     AGENTIC_AI = "AGENTIC_AI"
     OPENING_RANGE_BREAKOUT = "OPENING_RANGE_BREAKOUT"
+    PAPER_TRADING_SMOKE_TEST = "PAPER_TRADING_SMOKE_TEST"
 
 
 class ExperimentStatus(str, Enum):
@@ -28,6 +29,7 @@ class TradingFrequency(str, Enum):
     WEEKLY = "WEEKLY"
     MONTHLY = "MONTHLY"
     INTRADAY_5_MIN = "INTRADAY_5_MIN"
+    TEST_1_MIN = "TEST_1_MIN"
 
 
 class FeeModelType(str, Enum):

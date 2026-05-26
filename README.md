@@ -106,6 +106,7 @@ PAPER_TRADING_SCHEDULER_ENABLED=false
 PAPER_TRADING_SCHEDULER_INTERVAL_SECONDS=60
 PAPER_TRADING_SCHEDULER_JOB_ID=paper_trading_scheduler
 PAPER_TRADING_DAILY_EVALUATION_TIME=15:55
+PAPER_TRADING_TEST_MODE_ENABLED=false
 ```
 
 When enabled, the in-process historical scheduler advances each eligible running
@@ -151,6 +152,15 @@ trading URLs are rejected by configuration validation and by the broker adapter.
 M20 adds order-status polling for submitted paper orders. Full broker
 reconciliation, outbox processing, account sync, position sync, and automatic
 order cancellation are not implemented.
+
+M22 adds a disabled-by-default paper-trading smoke-test strategy for local
+operations testing. When `PAPER_TRADING_TEST_MODE_ENABLED=true`, create options
+may expose `PAPER_TRADING_SMOKE_TEST` + `TEST_1_MIN` for `PAPER_TRADING` + `SPY`
+only. It runs from the paper scheduler during US regular market hours and
+alternates fixed 1-share Alpaca paper BUY/SELL orders through the normal
+TradingDecision -> RiskCheck -> Order/Trade path. Manual `run-next-step` is
+rejected for this strategy. This is a diagnostics feature, not an investment
+strategy.
 
 M21 adds read-only paper trading operations visibility. Experiment detail pages
 can show paper scheduler status, persisted orders, trades, and broker sync logs.

@@ -448,6 +448,9 @@ Triggers one manual execution step. In the current implementation this supports:
 - `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 
+`PAPER_TRADING_SMOKE_TEST` is scheduled-only in M22. Manual `run-next-step` is
+rejected for smoke-test experiments.
+
 Opening Range Breakout is not supported by manual `run-next-step` in M16.
 `/start` remains lifecycle-only for paper-trading and Agentic-AI experiments. It
 never submits broker orders and does not run full historical agent execution.
@@ -652,7 +655,16 @@ not call Alpaca.
 
 Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
 `WAITING_FOR_DAILY_EVALUATION_TIME`, `OPEN_ORDER_PENDING_SYNC`,
-`EXPERIMENT_NOT_RUNNING`, and `READY_FOR_NEXT_SCHEDULED_EVALUATION`.
+`EXPERIMENT_NOT_RUNNING`, `PAPER_TRADING_TEST_MODE_DISABLED`,
+`WAITING_FOR_REGULAR_MARKET_HOURS`, `CURRENT_TEST_SLOT_ALREADY_EXECUTED`, and
+`READY_FOR_NEXT_SCHEDULED_EVALUATION`.
+
+M22 adds a disabled-by-default diagnostics strategy,
+`PAPER_TRADING_SMOKE_TEST`. It is available in `/options` only when
+`PAPER_TRADING_TEST_MODE_ENABLED=true`. It supports `PAPER_TRADING` +
+`TEST_1_MIN` + `SPY` only, runs only from the paper scheduler during US regular
+market hours, and creates alternating fixed 1-share paper BUY/SELL orders after
+the normal RiskCheck path. It is not an investment strategy.
 
 ---
 

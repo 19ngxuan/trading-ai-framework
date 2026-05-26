@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
+from app.main import create_app
 from app.domain.enums import ExperimentStatus, SystemEventType
 from app.persistence.database import get_database_url
 from app.persistence.models import (
@@ -88,6 +90,25 @@ def _create_opening_range_breakout_payload() -> dict:
         "strategyVersion": "opening-range-breakout-v1",
         "movingAverageWindow": None,
         "positionSizingType": "ALL_IN",
+        "agentMode": None,
+        "modelName": None,
+        "confidenceThreshold": None,
+        "parametersJson": {"riskConfig": {"fallbackAction": "HOLD"}},
+    }
+    return payload
+
+
+def _create_paper_smoke_test_payload() -> dict:
+    payload = _create_request_payload()
+    payload["name"] = "M22 Paper Smoke Test"
+    payload["mode"] = "PAPER_TRADING"
+    payload["strategyType"] = "PAPER_TRADING_SMOKE_TEST"
+    payload["tradingFrequency"] = "TEST_1_MIN"
+    payload["strategyConfig"] = {
+        "strategyVersion": "paper-trading-smoke-test-v1",
+        "movingAverageWindow": None,
+        "positionSizingType": "FIXED_QUANTITY",
+        "positionSizingValue": 1,
         "agentMode": None,
         "modelName": None,
         "confidenceThreshold": None,
@@ -203,6 +224,54 @@ def test_create_experiment_rejects_unsupported_orb_configuration(client) -> None
 
     assert response.status_code == 422
     assert response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
+def test_create_experiment_rejects_smoke_test_when_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "false")
+    get_settings.cache_clear()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/v1/experiments", json=_create_paper_smoke_test_payload()
+        )
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+    get_settings.cache_clear()
+
+
+def test_create_experiment_accepts_smoke_test_when_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "true")
+    get_settings.cache_clear()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/v1/experiments",
+            json=_create_paper_smoke_test_payload(),
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["experiment"]["mode"] == "PAPER_TRADING"
+    assert body["experiment"]["strategyType"] == "PAPER_TRADING_SMOKE_TEST"
+    assert body["experiment"]["tradingFrequency"] == "TEST_1_MIN"
+    get_settings.cache_clear()
+
+
+def test_create_experiment_rejects_unsupported_smoke_test_configuration(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "true")
+    get_settings.cache_clear()
+    payload = _create_paper_smoke_test_payload()
+    payload["tradingFrequency"] = "DAILY"
+
+    with TestClient(create_app()) as client:
+        response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+    get_settings.cache_clear()
 
 
 def test_list_and_detail_experiments(client) -> None:

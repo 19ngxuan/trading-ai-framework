@@ -34,6 +34,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M17 | `tasks/M17-alpaca-intraday-market-data.md` | Alpaca intraday market data for Opening Range Breakout |
 | M18 | `tasks/M18-trading-calendar-intraday-orb.md` | Trading calendar and early-close support for intraday ORB |
 | M20 | `tasks/M20-live-paper-trading.md` | Scheduled paper trading and broker order-status sync |
+| M22 | `tasks/M22-paper-trading-smoke-test.md` | Diagnostics-only paper trading smoke-test strategy |
 
 ---
 
@@ -58,6 +59,8 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 17. M16 Opening Range Breakout
 18. M17 Alpaca Intraday Market Data for ORB
 19. M18 Trading Calendar + Early-Close Support
+20. M20 Live Paper Trading Scheduler + Broker Sync
+21. M22 Paper Trading Smoke-Test Strategy
 
 ---
 

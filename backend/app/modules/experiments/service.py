@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTasks
 
+from app.core.config import get_settings
 from app.api.schemas.experiment_schemas import (
     CreateExperimentRequest,
     ExperimentActionResponse,
@@ -406,12 +407,26 @@ class ExperimentService:
         return response
 
     def get_options(self) -> OptionsResponse:
+        settings = get_settings()
+        strategies = list(StrategyType)
+        trading_frequencies = list(TradingFrequency)
+        if not settings.paper_trading_test_mode_enabled:
+            strategies = [
+                strategy
+                for strategy in strategies
+                if strategy is not StrategyType.PAPER_TRADING_SMOKE_TEST
+            ]
+            trading_frequencies = [
+                frequency
+                for frequency in trading_frequencies
+                if frequency is not TradingFrequency.TEST_1_MIN
+            ]
         return OptionsResponse(
             assets=["SPY"],
             modes=list(ExperimentMode),
-            strategies=list(StrategyType),
+            strategies=strategies,
             experimentStatuses=list(ExperimentStatus),
-            tradingFrequencies=list(TradingFrequency),
+            tradingFrequencies=trading_frequencies,
             feeModelTypes=list(FeeModelType),
             agentModes=list(AgentMode),
             orderStatuses=list(OrderStatus),

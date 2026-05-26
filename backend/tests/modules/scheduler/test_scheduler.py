@@ -46,6 +46,7 @@ def test_create_scheduler_registers_interval_job() -> None:
 
 def test_create_scheduler_registers_paper_jobs() -> None:
     settings = Settings(
+        scheduler_enabled=False,
         paper_trading_scheduler_enabled=True,
         paper_trading_scheduler_interval_seconds=11,
         paper_trading_scheduler_job_id="paper_job",

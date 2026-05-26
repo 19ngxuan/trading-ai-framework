@@ -346,6 +346,68 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
     assert result.errors == []
 
 
+def test_paper_scheduler_selects_smoke_test_only_when_enabled_and_market_open(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        smoke_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+
+    disabled_runner = FakePaperStepRunner()
+    disabled = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=disabled_runner,
+        now=datetime(2026, 1, 2, 10, 5, 30, tzinfo=ZoneInfo("America/New_York")),
+        paper_trading_test_mode_enabled=False,
+    )
+
+    assert disabled_runner.calls == []
+    assert disabled.results == []
+
+    enabled_runner = FakePaperStepRunner()
+    enabled = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=enabled_runner,
+        now=datetime(2026, 1, 2, 10, 5, 30, tzinfo=ZoneInfo("America/New_York")),
+        paper_trading_test_mode_enabled=True,
+    )
+
+    assert enabled.due_slot == datetime(2026, 1, 2, 15, 5)
+    assert enabled_runner.calls == [
+        (smoke_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 15, 5))
+    ]
+    assert [item.experiment_id for item in enabled.results] == [smoke_id]
+
+
+def test_paper_scheduler_skips_smoke_test_outside_regular_market_hours(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.PAPER_TRADING_SMOKE_TEST,
+            trading_frequency=TradingFrequency.TEST_1_MIN,
+        )
+
+    fake_runner = FakePaperStepRunner()
+    result = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=fake_runner,
+        now=datetime(2026, 1, 2, 8, 30, tzinfo=ZoneInfo("America/New_York")),
+        paper_trading_test_mode_enabled=True,
+    )
+
+    assert result.due_slot is None
+    assert fake_runner.calls == []
+
+
 def test_paper_scheduler_job_skips_before_due_time(database_url: str) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:

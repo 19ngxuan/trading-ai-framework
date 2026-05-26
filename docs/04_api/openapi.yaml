@@ -449,13 +449,20 @@ components:
       enum: [HISTORICAL_SIMULATION, LIVE_SIMULATION, PAPER_TRADING]
     StrategyType:
       type: string
-      enum: [BUY_AND_HOLD, MOVING_AVERAGE, AGENTIC_AI, OPENING_RANGE_BREAKOUT]
+      enum:
+        [
+          BUY_AND_HOLD,
+          MOVING_AVERAGE,
+          AGENTIC_AI,
+          OPENING_RANGE_BREAKOUT,
+          PAPER_TRADING_SMOKE_TEST
+        ]
     ExperimentStatus:
       type: string
       enum: [CREATED, RUNNING, PAUSED, STOPPED, COMPLETED, FAILED]
     TradingFrequency:
       type: string
-      enum: [DAILY, WEEKLY, MONTHLY, INTRADAY_5_MIN]
+      enum: [DAILY, WEEKLY, MONTHLY, INTRADAY_5_MIN, TEST_1_MIN]
     FeeModelType:
       type: string
       enum: [NONE, FIXED, PERCENTAGE]
