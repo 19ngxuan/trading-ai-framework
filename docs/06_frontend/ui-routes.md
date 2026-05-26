@@ -310,6 +310,10 @@ GET /api/v1/experiments/{experimentId}
 GET /api/v1/experiments/{experimentId}/portfolio-snapshots
 GET /api/v1/experiments/{experimentId}/metrics
 GET /api/v1/experiments/{experimentId}/events
+GET /api/v1/experiments/{experimentId}/orders
+GET /api/v1/experiments/{experimentId}/trades
+GET /api/v1/experiments/{experimentId}/broker-sync-logs
+GET /api/v1/experiments/{experimentId}/paper-status
 ```
 
 Charts use local interactive chart components for portfolio value, returns, and
@@ -348,14 +352,25 @@ The `Events` tab must show errors and warnings clearly.
 
 The `Config` tab must show immutable configuration used by the experiment.
 
+For paper trading experiments, the detail page shows a Paper Trading Status
+card. It explains that `start` is lifecycle-only, scheduled paper execution runs
+at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York, and broker sync
+may continue for submitted paper orders after pause or stop.
+
+The `Orders`, `Trades`, and `Broker Sync` tabs are read-only and must render only
+data returned by the implemented endpoints. They must not include cancel, retry,
+force-run, or submit-order actions.
+
 ---
 
 ## 9. Deferred Public Detail Routes
 
 The backend persists execution steps, market snapshots, trading decisions,
-risk checks, orders, trades, portfolio snapshots, metric snapshots, and agent
-decision logs. Public list/detail endpoints and frontend pages for execution
-steps, orders, trades, and agent logs are not implemented in the current UI.
+risk checks, orders, trades, broker sync logs, portfolio snapshots, metric
+snapshots, and agent decision logs. Public read-only tabs for orders, trades,
+and broker sync logs are implemented on the experiment detail page. Public
+list/detail endpoints and frontend pages for execution steps and agent logs are
+not implemented in the current UI.
 
 The frontend must not render disabled or fake tabs for endpoints that do not
 exist.

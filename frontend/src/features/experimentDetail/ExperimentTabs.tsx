@@ -1,17 +1,31 @@
 import { useState } from "react";
 
 import type { ExperimentDetail } from "../../types/experiment";
+import type { BrokerSyncLog } from "../../types/brokerSync";
 import type { SystemEvent } from "../../types/event";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
+import type { Order } from "../../types/order";
+import type { Trade } from "../../types/trade";
 
 type ExperimentTabsProps = {
   detail: ExperimentDetail;
   metrics: MetricSnapshot[];
   portfolioSnapshots: PortfolioSnapshot[];
   events: SystemEvent[];
+  orders: Order[];
+  trades: Trade[];
+  brokerSyncLogs: BrokerSyncLog[];
 };
 
-type Tab = "overview" | "metrics" | "portfolio" | "events" | "config";
+type Tab =
+  | "overview"
+  | "metrics"
+  | "portfolio"
+  | "orders"
+  | "trades"
+  | "brokerSync"
+  | "events"
+  | "config";
 
 function formatValue(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
@@ -24,6 +38,9 @@ export function ExperimentTabs({
   metrics,
   portfolioSnapshots,
   events,
+  orders,
+  trades,
+  brokerSyncLogs,
 }: ExperimentTabsProps) {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -53,6 +70,24 @@ export function ExperimentTabs({
           onClick={() => setTab("config")}
         >
           Config
+        </button>
+        <button
+          className={tab === "orders" ? "tab-active" : undefined}
+          onClick={() => setTab("orders")}
+        >
+          Orders
+        </button>
+        <button
+          className={tab === "trades" ? "tab-active" : undefined}
+          onClick={() => setTab("trades")}
+        >
+          Trades
+        </button>
+        <button
+          className={tab === "brokerSync" ? "tab-active" : undefined}
+          onClick={() => setTab("brokerSync")}
+        >
+          Broker Sync
         </button>
         <button
           className={tab === "events" ? "tab-active" : undefined}
@@ -179,6 +214,113 @@ export function ExperimentTabs({
             <dd>{detail.experiment.feeValue}</dd>
           </div>
         </dl>
+      )}
+
+      {tab === "orders" && (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Mode</th>
+                <th>Broker</th>
+                <th>Side</th>
+                <th>Quantity</th>
+                <th>Type</th>
+                <th>Broker Order</th>
+                <th>Fill Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id}>
+                  <td>{order.createdAt}</td>
+                  <td>{order.status}</td>
+                  <td>{order.mode}</td>
+                  <td>{order.brokerName ?? "-"}</td>
+                  <td>{order.side}</td>
+                  <td>{formatValue(order.quantity)}</td>
+                  <td>{order.orderType}</td>
+                  <td>{order.brokerOrderId ?? "-"}</td>
+                  <td>{formatValue(order.averageFillPrice)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {orders.length === 0 && <p className="muted">No orders available.</p>}
+        </div>
+      )}
+
+      {tab === "trades" && (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Order Value</th>
+                <th>Portfolio After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((trade) => (
+                <tr key={trade.id}>
+                  <td>{trade.timestamp}</td>
+                  <td>{trade.symbol}</td>
+                  <td>{trade.side}</td>
+                  <td>{formatValue(trade.quantity)}</td>
+                  <td>{formatValue(trade.price)}</td>
+                  <td>{formatValue(trade.orderValue)}</td>
+                  <td>{formatValue(trade.portfolioValueAfterTrade)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {trades.length === 0 && <p className="muted">No trades available.</p>}
+        </div>
+      )}
+
+      {tab === "brokerSync" && (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Status</th>
+                <th>Broker</th>
+                <th>Local Cash</th>
+                <th>Message</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {brokerSyncLogs.map((log) => (
+                <tr
+                  key={log.id}
+                  className={log.syncStatus === "FAILED" ? "event-row-error" : ""}
+                >
+                  <td>{log.timestamp}</td>
+                  <td>{log.syncStatus}</td>
+                  <td>{log.brokerName}</td>
+                  <td>{formatValue(log.localCash)}</td>
+                  <td>{log.errorMessage ?? "-"}</td>
+                  <td>
+                    {log.mismatchDetailsJson
+                      ? JSON.stringify(log.mismatchDetailsJson)
+                      : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {brokerSyncLogs.length === 0 && (
+            <p className="muted">No broker sync logs available.</p>
+          )}
+        </div>
       )}
 
       {tab === "events" && (

@@ -54,3 +54,12 @@ class ExecutionStepRepository(BaseRepository[ExecutionStepModel]):
             .limit(1)
         )
         return self.session.scalar(statement) is not None
+
+    def latest_by_experiment(self, experiment_id: int) -> ExecutionStepModel | None:
+        statement = (
+            select(self.model)
+            .where(self.model.experiment_id == experiment_id)
+            .order_by(self.model.created_at.desc(), self.model.id.desc())
+            .limit(1)
+        )
+        return self.session.scalar(statement)

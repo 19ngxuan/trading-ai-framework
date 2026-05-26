@@ -226,6 +226,88 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/orders:
+    get:
+      summary: List experiment orders
+      operationId: listExperimentOrders
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrderResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/trades:
+    get:
+      summary: List experiment trades
+      operationId: listExperimentTrades
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment trades
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTradeResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/broker-sync-logs:
+    get:
+      summary: List experiment broker sync logs
+      operationId: listExperimentBrokerSyncLogs
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment broker sync logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBrokerSyncLogResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/paper-status:
+    get:
+      summary: Get paper trading operational status
+      operationId: getExperimentPaperStatus
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Paper trading operational status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperStatusResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /experiments/compare:
     post:
       summary: Compare experiments using persisted metrics
@@ -334,7 +416,7 @@ components:
         type: integer
         default: 50
         minimum: 1
-        maximum: 1000
+        maximum: 500
     TimeSeriesLimit:
       name: limit
       in: query
@@ -850,6 +932,9 @@ components:
         experimentId:
           type: integer
           format: int64
+        riskCheckId:
+          type: integer
+          format: int64
         mode:
           $ref: '#/components/schemas/OrderMode'
         brokerName:
@@ -883,6 +968,9 @@ components:
         errorMessage:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
     Trade:
       type: object
       properties:
@@ -923,6 +1011,9 @@ components:
           type: number
           format: double
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
     TradeSummary:
       type: object
       properties:
@@ -1146,6 +1237,89 @@ components:
         errorMessage:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    PaperExecutionStepSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ExecutionStepStatus'
+        triggerType:
+          $ref: '#/components/schemas/TriggerType'
+        sequenceNumber:
+          type: integer
+        scheduledFor:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    PaperStatusResponse:
+      type: object
+      properties:
+        experimentId:
+          type: integer
+          format: int64
+        experimentStatus:
+          $ref: '#/components/schemas/ExperimentStatus'
+        mode:
+          $ref: '#/components/schemas/ExperimentMode'
+        strategyType:
+          $ref: '#/components/schemas/StrategyType'
+        tradingFrequency:
+          $ref: '#/components/schemas/TradingFrequency'
+        assetSymbol:
+          type: string
+        supportedByPaperScheduler:
+          type: boolean
+        paperTradingSchedulerEnabled:
+          type: boolean
+        alpacaPaperTradingEnabled:
+          type: boolean
+        dailyEvaluationTime:
+          type: string
+        timezone:
+          type: string
+        currentDueSlot:
+          type: string
+          format: date-time
+          nullable: true
+        nextEligibleEvaluationTime:
+          type: string
+          format: date-time
+          nullable: true
+        alreadyExecutedCurrentDueSlot:
+          type: boolean
+        openSubmittedOrdersCount:
+          type: integer
+        lastBrokerSyncTimestamp:
+          type: string
+          format: date-time
+          nullable: true
+        lastPaperExecutionStep:
+          allOf:
+            - $ref: '#/components/schemas/PaperExecutionStepSummary'
+          nullable: true
+        reasonCode:
+          type: string
+        message:
+          type: string
     ExecutionStepDetailResponse:
       type: object
       properties:

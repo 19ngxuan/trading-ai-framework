@@ -21,6 +21,18 @@ class TradeRepository(BaseRepository[TradeModel]):
         )
         return list(self.session.scalars(statement))
 
+    def list_by_experiment_paginated(
+        self, experiment_id: int, limit: int, offset: int
+    ) -> list[TradeModel]:
+        statement = (
+            select(self.model)
+            .where(self.model.experiment_id == experiment_id)
+            .order_by(self.model.timestamp.desc(), self.model.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(self.session.scalars(statement))
+
     def latest_by_experiment(self, experiment_id: int) -> TradeModel | None:
         statement = (
             select(self.model)

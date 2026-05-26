@@ -10,9 +10,13 @@ import {
   stopExperiment,
   type ListExperimentsParams,
 } from "../../api/experimentsApi";
+import { listExperimentBrokerSyncLogs } from "../../api/brokerSyncApi";
 import { listExperimentEvents } from "../../api/eventsApi";
 import { getMetrics, getPortfolioSnapshots } from "../../api/metricsApi";
+import { listExperimentOrders } from "../../api/ordersApi";
 import { getOptions } from "../../api/optionsApi";
+import { getExperimentPaperStatus } from "../../api/paperStatusApi";
+import { listExperimentTrades } from "../../api/tradesApi";
 import type {
   CreateExperimentPayload,
   ExperimentActionResponse,
@@ -28,6 +32,11 @@ export const experimentKeys = {
   portfolioSnapshots: (id: number) =>
     [...experimentKeys.all, "portfolio-snapshots", id] as const,
   events: (id: number) => [...experimentKeys.all, "events", id] as const,
+  orders: (id: number) => [...experimentKeys.all, "orders", id] as const,
+  trades: (id: number) => [...experimentKeys.all, "trades", id] as const,
+  brokerSyncLogs: (id: number) =>
+    [...experimentKeys.all, "broker-sync-logs", id] as const,
+  paperStatus: (id: number) => [...experimentKeys.all, "paper-status", id] as const,
   options: ["options"] as const,
 };
 
@@ -76,6 +85,49 @@ export function useExperimentEvents(id: number, status?: ExperimentStatus) {
   });
 }
 
+export function useExperimentOrders(id: number, status?: ExperimentStatus) {
+  return useQuery({
+    queryKey: experimentKeys.orders(id),
+    queryFn: () => listExperimentOrders(id, { limit: 50, offset: 0 }),
+    enabled: Number.isFinite(id),
+    refetchInterval: status === "RUNNING" || status === "PAUSED" ? 5_000 : false,
+  });
+}
+
+export function useExperimentTrades(id: number, status?: ExperimentStatus) {
+  return useQuery({
+    queryKey: experimentKeys.trades(id),
+    queryFn: () => listExperimentTrades(id, { limit: 50, offset: 0 }),
+    enabled: Number.isFinite(id),
+    refetchInterval: status === "RUNNING" || status === "PAUSED" ? 5_000 : false,
+  });
+}
+
+export function useExperimentBrokerSyncLogs(
+  id: number,
+  status?: ExperimentStatus,
+) {
+  return useQuery({
+    queryKey: experimentKeys.brokerSyncLogs(id),
+    queryFn: () => listExperimentBrokerSyncLogs(id, { limit: 50, offset: 0 }),
+    enabled: Number.isFinite(id),
+    refetchInterval: status === "RUNNING" || status === "PAUSED" ? 5_000 : false,
+  });
+}
+
+export function useExperimentPaperStatus(
+  id: number,
+  mode?: string,
+  status?: ExperimentStatus,
+) {
+  return useQuery({
+    queryKey: experimentKeys.paperStatus(id),
+    queryFn: () => getExperimentPaperStatus(id),
+    enabled: Number.isFinite(id) && mode === "PAPER_TRADING",
+    refetchInterval: status === "RUNNING" || status === "PAUSED" ? 5_000 : false,
+  });
+}
+
 export function useOptions() {
   return useQuery({
     queryKey: experimentKeys.options,
@@ -98,6 +150,12 @@ function useActionMutation(
         queryKey: experimentKeys.portfolioSnapshots(id),
       });
       void queryClient.invalidateQueries({ queryKey: experimentKeys.events(id) });
+      void queryClient.invalidateQueries({ queryKey: experimentKeys.orders(id) });
+      void queryClient.invalidateQueries({ queryKey: experimentKeys.trades(id) });
+      void queryClient.invalidateQueries({
+        queryKey: experimentKeys.brokerSyncLogs(id),
+      });
+      void queryClient.invalidateQueries({ queryKey: experimentKeys.paperStatus(id) });
     },
   });
 }

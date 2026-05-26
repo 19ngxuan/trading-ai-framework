@@ -6,10 +6,15 @@ import { LoadingState } from "../components/ui/LoadingState";
 import { ExperimentHeader } from "../features/experimentDetail/ExperimentHeader";
 import { ExperimentKpiRow } from "../features/experimentDetail/ExperimentKpiRow";
 import { ExperimentTabs } from "../features/experimentDetail/ExperimentTabs";
+import { PaperTradingStatusCard } from "../features/experimentDetail/PaperTradingStatusCard";
 import { PerformanceChartPanel } from "../features/experimentDetail/PerformanceChartPanel";
 import {
   useExperiment,
+  useExperimentBrokerSyncLogs,
   useExperimentEvents,
+  useExperimentOrders,
+  useExperimentPaperStatus,
+  useExperimentTrades,
   useMetrics,
   usePortfolioSnapshots,
 } from "../features/experiments/hooks";
@@ -41,6 +46,14 @@ export function ExperimentDetailPage() {
   const metricsQuery = useMetrics(experimentId, status);
   const portfolioSnapshotsQuery = usePortfolioSnapshots(experimentId, status);
   const eventsQuery = useExperimentEvents(experimentId, status);
+  const paperStatusQuery = useExperimentPaperStatus(
+    experimentId,
+    detailQuery.data?.experiment.mode,
+    status,
+  );
+  const ordersQuery = useExperimentOrders(experimentId, status);
+  const tradesQuery = useExperimentTrades(experimentId, status);
+  const brokerSyncLogsQuery = useExperimentBrokerSyncLogs(experimentId, status);
   const metrics = useMemo<MetricSnapshot[]>(
     () => sortByTimestamp(metricsQuery.data?.items ?? []),
     [metricsQuery.data?.items],
@@ -83,10 +96,18 @@ export function ExperimentDetailPage() {
           error={
             metricsQuery.error ??
             portfolioSnapshotsQuery.error ??
-            eventsQuery.error
+            eventsQuery.error ??
+            paperStatusQuery.error ??
+            ordersQuery.error ??
+            tradesQuery.error ??
+            brokerSyncLogsQuery.error
           }
         />
       )}
+      <PaperTradingStatusCard
+        status={paperStatusQuery.data}
+        isLoading={paperStatusQuery.isLoading}
+      />
       <PerformanceChartPanel
         metrics={metrics}
         portfolioSnapshots={portfolioSnapshots}
@@ -96,6 +117,9 @@ export function ExperimentDetailPage() {
         metrics={metrics}
         portfolioSnapshots={portfolioSnapshots}
         events={eventsQuery.data?.items ?? []}
+        orders={ordersQuery.data?.items ?? []}
+        trades={tradesQuery.data?.items ?? []}
+        brokerSyncLogs={brokerSyncLogsQuery.data?.items ?? []}
       />
     </div>
   );

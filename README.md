@@ -152,6 +152,11 @@ M20 adds order-status polling for submitted paper orders. Full broker
 reconciliation, outbox processing, account sync, position sync, and automatic
 order cancellation are not implemented.
 
+M21 adds read-only paper trading operations visibility. Experiment detail pages
+can show paper scheduler status, persisted orders, trades, and broker sync logs.
+These views are audit/inspection surfaces only; they do not submit, cancel,
+retry, or sync broker orders on demand.
+
 Agentic AI execution is deterministic in the current implementation. `AGENTIC_AI`
 is supported only for manual historical `run-next-step` on `HISTORICAL_SIMULATION`
 + `DAILY` + `SPY` experiments. The single-agent and pipeline-agent paths use fake
@@ -285,4 +290,6 @@ After migrations and local services are running:
 - Agentic AI uses deterministic fake providers only; real LLM providers are not implemented.
 - Agentic AI is historical manual-step only; no paper-trading or scheduled agent execution is implemented.
 - Compare UI loads selected experiment chart time series after the user runs a comparison.
-- Public execution-step, order, trade, broker-sync, and agent-log list/detail APIs are deferred.
+- Public execution-step and agent-log list/detail APIs are deferred. Orders,
+  trades, broker sync logs, and paper status are available as read-only
+  experiment-scoped operations endpoints.

@@ -614,22 +614,56 @@ return `404 EXPERIMENT_NOT_FOUND`.
 }
 ```
 
-M12 exposes `SystemEventLog` only. It does not expose public endpoints for
-agent logs, orders, trades, broker sync logs, or execution step details.
+M12 exposes `SystemEventLog` only. M21 adds read-only experiment-scoped
+operations endpoints for persisted orders, trades, broker sync logs, and paper
+trading status. These endpoints do not submit broker orders, poll Alpaca, or
+change experiment state.
 
 ---
 
-## 10. Not Yet Implemented As Public APIs
+## 10. Paper Trading Operations APIs
+
+The following endpoints are read-only audit endpoints:
+
+```http
+GET /api/v1/experiments/{experiment_id}/orders
+GET /api/v1/experiments/{experiment_id}/trades
+GET /api/v1/experiments/{experiment_id}/broker-sync-logs
+GET /api/v1/experiments/{experiment_id}/paper-status
+```
+
+Orders, trades, and broker sync logs are paginated with `limit` and `offset` and
+are sorted newest first. Missing experiments return the normalized
+`EXPERIMENT_NOT_FOUND` response. The endpoints read persisted rows only and do
+not call Alpaca.
+
+`paper-status` explains the operational state of a paper trading experiment:
+
+- whether the paper scheduler is enabled
+- whether Alpaca paper trading is enabled
+- whether the configuration is supported by the M20 paper scheduler
+- the configured daily evaluation time in `America/New_York`
+- current or next eligible evaluation time if calculable
+- whether the current due slot was already executed
+- open submitted order count
+- last broker sync timestamp
+- the last execution step summary
+- a reason code explaining why no new order may happen yet
+
+Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
+`WAITING_FOR_DAILY_EVALUATION_TIME`, `OPEN_ORDER_PENDING_SYNC`,
+`EXPERIMENT_NOT_RUNNING`, and `READY_FOR_NEXT_SCHEDULED_EVALUATION`.
+
+---
+
+## 11. Not Yet Implemented As Public APIs
 
 The current implementation persists execution steps, orders, trades, agent log
-tables, and broker sync tables where applicable, but it does not expose public
-list/detail endpoints for:
+tables, and broker sync tables where applicable. Public list/detail endpoints
+are still not implemented for:
 
 - execution steps
-- orders
-- trades
 - agent logs
-- broker sync logs
 
 These endpoints are intentionally deferred and must not be assumed available by frontend or API clients until implemented and documented.
 
@@ -639,7 +673,7 @@ endpoint is implemented.
 
 ---
 
-## 11. Options API
+## 12. Options API
 
 ```http
 GET /api/v1/options

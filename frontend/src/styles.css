@@ -98,6 +98,30 @@ a {
   color: #405069;
 }
 
+.panel-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.paper-status-panel .muted {
+  margin: 6px 0 0;
+}
+
+.status-pill {
+  max-width: 280px;
+  border-radius: 999px;
+  background: #eef3f8;
+  color: #405069;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 8px 10px;
+  text-align: right;
+}
+
 .status-list {
   margin: 20px 0 0;
 }
@@ -406,6 +430,10 @@ select {
   font-weight: 600;
 }
 
+.compact-detail-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .chart-shell {
   position: relative;
   margin-top: 12px;
@@ -604,6 +632,7 @@ select {
   .kpi-grid,
   .form-grid,
   .detail-list,
+  .compact-detail-list,
   .filter-row,
   .events-layout {
     grid-template-columns: 1fr;
