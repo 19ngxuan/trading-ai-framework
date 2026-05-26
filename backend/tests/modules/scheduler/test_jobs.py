@@ -17,6 +17,7 @@ from app.domain.enums import (
     TriggerType,
 )
 from app.modules.execution.step_runner import StepRunResult
+from app.modules.market_data.errors import MarketDataUnavailableError
 from app.modules.scheduler.jobs import (
     sync_open_paper_broker_orders,
     trigger_due_experiments,
@@ -71,6 +72,14 @@ class FakePaperStepRunner:
             status=ExecutionStepStatus.COMPLETED,
             message="scheduled paper",
         )
+
+
+class MissingIntradayProvider:
+    def load_range(self, *args, **kwargs):
+        return []
+
+    def load_session_until(self, *args, **kwargs):
+        raise MarketDataUnavailableError("Completed bar is unavailable.")
 
 
 def _create_experiment(
@@ -318,7 +327,7 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             status=ExperimentStatus.STOPPED,
         )
         _create_experiment(session, mode=ExperimentMode.HISTORICAL_SIMULATION)
-        _create_experiment(
+        moving_average_id = _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.MOVING_AVERAGE,
@@ -339,11 +348,49 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
 
     assert result.due_slot == datetime(2026, 1, 2, 20, 55)
     assert fake_runner.calls == [
-        (paper_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55))
+        (paper_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
+        (moving_average_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
     ]
-    assert [item.experiment_id for item in result.results] == [paper_id]
+    assert [item.experiment_id for item in result.results] == [
+        paper_id,
+        moving_average_id,
+    ]
     assert result.skipped == []
     assert result.errors == []
+
+
+def test_paper_scheduler_skips_orb_when_completed_bar_is_unavailable(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        orb_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
+            trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+
+    fake_runner = FakePaperStepRunner()
+    result = trigger_due_paper_trading_experiments(
+        session_factory=session_factory,
+        step_runner=fake_runner,
+        intraday_provider=MissingIntradayProvider(),
+        now=datetime(2026, 1, 2, 10, 5, tzinfo=ZoneInfo("America/New_York")),
+    )
+
+    assert result.due_slot == datetime(2026, 1, 2, 10, 0)
+    assert fake_runner.calls == []
+    assert [item.experiment_id for item in result.skipped] == [orb_id]
+    assert result.skipped[0].error_code == "PAPER_ORB_COMPLETED_BAR_UNAVAILABLE"
+    with session_factory() as session:
+        assert not list(
+            session.scalars(
+                select(ExecutionStepModel).where(
+                    ExecutionStepModel.experiment_id == orb_id
+                )
+            )
+        )
 
 
 def test_paper_scheduler_selects_smoke_test_only_when_enabled_and_market_open(

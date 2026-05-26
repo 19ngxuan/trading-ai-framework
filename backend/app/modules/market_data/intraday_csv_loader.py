@@ -13,6 +13,7 @@ from app.modules.market_data.intraday_provider import (
     IntradayBar,
 )
 from app.modules.market_data.intraday_validation import validate_intraday_bars
+from app.modules.market_data.intraday_validation import validate_intraday_bars_until
 from app.modules.market_data.trading_calendar import (
     TradingCalendar,
     UsEquitiesTradingCalendar,
@@ -56,6 +57,42 @@ class SpyIntradayCsvLoader:
         return validate_intraday_bars(
             bars=candidate_bars,
             sessions=sessions,
+            symbol=symbol,
+            provider="csv_intraday",
+        )
+
+    def load_session_until(
+        self,
+        session_date: date,
+        through_timestamp: datetime,
+        symbol: str = "SPY",
+        frequency: TradingFrequency = TradingFrequency.INTRADAY_5_MIN,
+    ) -> list[IntradayBar]:
+        if symbol != "SPY":
+            raise MarketDataProviderError("Only SPY intraday CSV data is supported.")
+        if frequency is not TradingFrequency.INTRADAY_5_MIN:
+            raise MarketDataProviderError("Only INTRADAY_5_MIN CSV data is supported.")
+        sessions = self.trading_calendar.sessions_between(session_date, session_date)
+        if not sessions:
+            return []
+        rows = [
+            bar
+            for bar in self._read_rows()
+            if bar.session_date == session_date and bar.timestamp <= through_timestamp
+        ]
+        if not rows:
+            raise MarketDataUnavailableError(
+                "No intraday SPY fixture bars are available through requested bar.",
+                details={
+                    "symbol": symbol,
+                    "sessionDate": session_date.isoformat(),
+                    "throughTimestamp": through_timestamp.isoformat(),
+                },
+            )
+        return validate_intraday_bars_until(
+            bars=rows,
+            session=sessions[0],
+            through_timestamp=through_timestamp,
             symbol=symbol,
             provider="csv_intraday",
         )

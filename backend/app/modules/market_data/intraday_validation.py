@@ -63,6 +63,53 @@ def validate_intraday_bars(
     return sorted(filtered, key=lambda bar: bar.timestamp)
 
 
+def validate_intraday_bars_until(
+    *,
+    bars: list[IntradayBar],
+    session: TradingSession,
+    through_timestamp: datetime,
+    symbol: str,
+    provider: str,
+) -> list[IntradayBar]:
+    expected_timestamps = {
+        timestamp
+        for timestamp in session.expected_bar_start_times
+        if timestamp <= through_timestamp
+    }
+    if not expected_timestamps:
+        return []
+
+    filtered = [bar for bar in bars if bar.timestamp in expected_timestamps]
+    counts = Counter(bar.timestamp for bar in filtered)
+    duplicate = next((timestamp for timestamp, count in counts.items() if count > 1), None)
+    if duplicate is not None:
+        raise MarketDataProviderError(
+            f"{provider} returned duplicate intraday bars.",
+            details={
+                "provider": provider,
+                "symbol": symbol,
+                "timestamp": duplicate.isoformat(),
+            },
+        )
+
+    actual_timestamps = set(counts)
+    missing = sorted(expected_timestamps - actual_timestamps)
+    if missing:
+        raise MarketDataUnavailableError(
+            f"{provider} intraday session is incomplete through requested bar.",
+            details=_session_details(
+                provider=provider,
+                symbol=symbol,
+                session=session,
+                actual_bars=len(actual_timestamps),
+                missing=missing,
+            )
+            | {"throughTimestamp": through_timestamp.isoformat()},
+        )
+
+    return sorted(filtered, key=lambda bar: bar.timestamp)
+
+
 def _session_details(
     *,
     provider: str,

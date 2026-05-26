@@ -58,3 +58,13 @@ class ExperimentStepAlreadyRunningAppError(AppError):
             status_code=409,
             details=details or {},
         )
+
+
+class PaperStepNotDueAppError(AppError):
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(
+            error_code="PAPER_STEP_NOT_DUE",
+            message=message,
+            status_code=409,
+            details=details or {},
+        )

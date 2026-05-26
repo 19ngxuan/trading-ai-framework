@@ -447,9 +447,10 @@ Triggers one manual execution step. In the current implementation this supports:
 - `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
 - `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
+- `MOVING_AVERAGE` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 
-`PAPER_TRADING_SMOKE_TEST` is scheduled-only in M22. Manual `run-next-step` is
-rejected for smoke-test experiments.
+`PAPER_TRADING_SMOKE_TEST` and paper-trading Opening Range Breakout are
+scheduled-only. Manual `run-next-step` is rejected for those experiments.
 
 Opening Range Breakout is not supported by manual `run-next-step` in M16.
 `/start` remains lifecycle-only for paper-trading and Agentic-AI experiments. It
@@ -644,7 +645,7 @@ not call Alpaca.
 
 - whether the paper scheduler is enabled
 - whether Alpaca paper trading is enabled
-- whether the configuration is supported by the M20 paper scheduler
+- whether the configuration is supported by the paper scheduler
 - the configured daily evaluation time in `America/New_York`
 - current or next eligible evaluation time if calculable
 - whether the current due slot was already executed
@@ -652,12 +653,21 @@ not call Alpaca.
 - last broker sync timestamp
 - the last execution step summary
 - a reason code explaining why no new order may happen yet
+- optional strategy-specific operational metadata, such as ORB due bar timestamps
 
 Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
 `WAITING_FOR_DAILY_EVALUATION_TIME`, `OPEN_ORDER_PENDING_SYNC`,
 `EXPERIMENT_NOT_RUNNING`, `PAPER_TRADING_TEST_MODE_DISABLED`,
 `WAITING_FOR_REGULAR_MARKET_HOURS`, `CURRENT_TEST_SLOT_ALREADY_EXECUTED`, and
-`READY_FOR_NEXT_SCHEDULED_EVALUATION`.
+`READY_FOR_NEXT_SCHEDULED_EVALUATION`. ORB paper trading may also report
+`WAITING_FOR_COMPLETED_INTRADAY_BAR` or
+`CURRENT_INTRADAY_SLOT_ALREADY_EXECUTED`.
+
+M23 supports scheduled paper trading for `MOVING_AVERAGE` + `DAILY` + `SPY` and
+`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average manual
+`run-next-step` is supported for debugging. ORB paper trading is scheduled-only
+and skips before step creation if the expected completed 5-minute bar is
+unavailable.
 
 M22 adds a disabled-by-default diagnostics strategy,
 `PAPER_TRADING_SMOKE_TEST`. It is available in `/options` only when

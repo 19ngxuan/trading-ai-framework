@@ -78,7 +78,23 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
                 self.model.status == ExperimentStatus.RUNNING,
                 self.model.mode == ExperimentMode.PAPER_TRADING,
                 self.model.trading_frequency == TradingFrequency.DAILY,
-                self.model.strategy_type == StrategyType.BUY_AND_HOLD,
+                self.model.strategy_type.in_(
+                    [StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE]
+                ),
+                self.model.asset_symbol == "SPY",
+            )
+            .order_by(self.model.id.asc())
+        )
+        return list(self.session.scalars(statement))
+
+    def list_paper_orb_scheduler_eligible_experiment_ids(self) -> list[int]:
+        statement = (
+            select(self.model.id)
+            .where(
+                self.model.status == ExperimentStatus.RUNNING,
+                self.model.mode == ExperimentMode.PAPER_TRADING,
+                self.model.trading_frequency == TradingFrequency.INTRADAY_5_MIN,
+                self.model.strategy_type == StrategyType.OPENING_RANGE_BREAKOUT,
                 self.model.asset_symbol == "SPY",
             )
             .order_by(self.model.id.asc())

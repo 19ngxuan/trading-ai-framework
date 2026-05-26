@@ -238,10 +238,10 @@ Manual and scheduled execution must not use different business logic.
 
 Goal:
 
-Run a supported strategy using Alpaca Paper Trading instead of internal simulated
-execution. In the current implementation this is limited to manual
-`run-next-step` and optional scheduled execution for `PAPER_TRADING` +
-`BUY_AND_HOLD` + `DAILY` + `SPY`.
+Run a supported rule-based strategy using Alpaca Paper Trading instead of
+internal simulated execution. The current implementation supports SPY
+Buy-and-Hold daily paper trading, SPY Moving Average daily paper trading, and
+scheduled SPY Opening Range Breakout five-minute paper trading.
 
 Flow:
 
@@ -251,7 +251,7 @@ Flow:
 4. Manual `run-next-step` or the paper-trading scheduler creates an `ExecutionStep`.
 5. Backend fetches market data.
 6. Backend stores `MarketDataSnapshot`.
-7. Backend runs Buy-and-Hold strategy.
+7. Backend runs the supported rule-based strategy.
 8. Backend stores `TradingDecision`.
 9. Backend runs Risk Engine.
 10. Backend stores `RiskCheck`.
@@ -270,10 +270,16 @@ Important rules:
 
 - Broker API must only be accessed through the Broker Module.
 - Paper trading must not use live-trading endpoints.
-- Paper scheduler execution is disabled by default and supports Buy-and-Hold daily SPY only.
+- Paper scheduler execution is disabled by default and supports Buy-and-Hold
+  daily SPY, Moving Average daily SPY, Opening Range Breakout intraday SPY, and
+  gated smoke-test SPY experiments.
+- Manual paper `run-next-step` supports Buy-and-Hold and Moving Average
+  debugging. Opening Range Breakout paper trading is scheduled-only in M23.
+- ORB paper scheduling evaluates completed regular-session 5-minute bars only.
+  Missing expected completed bars are skipped before step creation.
 - Broker order-status polling is implemented for submitted paper orders.
 - Full broker reconciliation, account sync, position sync, outbox processing, and automatic order cancellation are deferred.
-- Agentic-AI and Moving Average paper trading are not implemented.
+- Agentic-AI paper trading is not implemented.
 
 ---
 

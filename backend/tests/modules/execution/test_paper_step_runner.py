@@ -34,6 +34,7 @@ from app.modules.broker.errors import BrokerProviderError
 from app.modules.execution.broker_sync import PaperBrokerSyncService
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
 from app.modules.market_data.errors import MarketDataUnavailableError
+from app.modules.market_data.intraday_provider import IntradayBar
 from app.modules.market_data.provider import DailyBar
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
@@ -57,18 +58,24 @@ class FakeMarketDataProvider:
     def __init__(
         self,
         price: Decimal = Decimal("100.00"),
+        range_bars: list[DailyBar] | None = None,
         error: Exception | None = None,
     ) -> None:
         self.price = price
+        self.range_bars = range_bars
         self.error = error
 
     def load_range(self, *args, **kwargs) -> list[DailyBar]:
+        if self.range_bars is not None:
+            return self.range_bars
         return [self.get_latest_bar()]
 
     def get_latest_bar(self, symbol: str = "SPY") -> DailyBar:
         assert symbol == "SPY"
         if self.error is not None:
             raise self.error
+        if self.range_bars is not None:
+            return self.range_bars[-1]
         return DailyBar(
             date=date(2026, 1, 2),
             open=self.price,
@@ -79,6 +86,21 @@ class FakeMarketDataProvider:
             volume=Decimal("1000"),
             raw={"provider": "fake", "symbol": symbol},
         )
+
+
+class FakeIntradayProvider:
+    def __init__(self, bars: list[IntradayBar]) -> None:
+        self.bars = bars
+
+    def load_range(self, *args, **kwargs) -> list[IntradayBar]:
+        return self.bars
+
+    def load_session_until(self, session_date, through_timestamp, *args, **kwargs):
+        return [
+            bar
+            for bar in self.bars
+            if bar.session_date == session_date and bar.timestamp <= through_timestamp
+        ]
 
 
 class FakeBrokerAdapter:
@@ -166,6 +188,7 @@ def _create_experiment(
     position_quantity: Decimal = Decimal("0"),
     position_sizing_type: str = "ALL_IN",
     position_sizing_value: Decimal | None = None,
+    moving_average_window: int | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -190,7 +213,7 @@ def _create_experiment(
             experiment_id=experiment.id,
             strategy_type=strategy_type,
             strategy_version="buy-and-hold-v1",
-            moving_average_window=None,
+            moving_average_window=moving_average_window,
             position_sizing_type=position_sizing_type,
             agent_mode=None,
             model_name=None,
@@ -258,6 +281,49 @@ def _runner_with_market_data(
         session_factory=create_session_factory(database_url),
         market_data_provider=market_data_provider,
         broker_adapter=broker,
+    )
+
+
+def _runner_with_providers(
+    database_url: str,
+    broker: FakeBrokerAdapter,
+    market_data_provider: FakeMarketDataProvider,
+    intraday_provider: FakeIntradayProvider,
+) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=market_data_provider,
+        intraday_provider=intraday_provider,
+        broker_adapter=broker,
+    )
+
+
+def _daily_bar(day: int, close: str) -> DailyBar:
+    value = Decimal(close)
+    return DailyBar(
+        date=date(2026, 1, day),
+        open=value,
+        high=value,
+        low=value,
+        close=value,
+        adjusted_close=value,
+        volume=Decimal("1000"),
+        raw={"provider": "fake", "date": f"2026-01-{day:02d}"},
+    )
+
+
+def _intraday_bar(hour: int, minute: int, close: str) -> IntradayBar:
+    value = Decimal(close)
+    timestamp = datetime(2026, 1, 2, hour, minute, 0)
+    return IntradayBar(
+        timestamp=timestamp,
+        session_date=date(2026, 1, 2),
+        open=value,
+        high=value,
+        low=value,
+        close=value,
+        volume=Decimal("1000"),
+        raw={"provider": "fake_intraday", "timestamp": timestamp.isoformat()},
     )
 
 
@@ -740,7 +806,7 @@ def test_existing_running_step_is_rejected(database_url: str) -> None:
     "overrides",
     [
         {"mode": ExperimentMode.HISTORICAL_SIMULATION},
-        {"strategy_type": StrategyType.MOVING_AVERAGE},
+        {"strategy_type": StrategyType.AGENTIC_AI},
         {"trading_frequency": TradingFrequency.WEEKLY},
         {"asset_symbol": "QQQ"},
     ],
@@ -887,3 +953,156 @@ def test_smoke_test_duplicate_scheduled_slot_is_rejected(database_url: str) -> N
             scheduled_for=scheduled_for,
         )
     assert broker.calls == []
+
+
+def test_moving_average_manual_paper_step_can_buy_for_debugging(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.MOVING_AVERAGE,
+            moving_average_window=3,
+        )
+
+    bars = [_daily_bar(1, "100"), _daily_bar(2, "101"), _daily_bar(3, "110")]
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="90", quantity="90")
+    )
+    runner = _runner_with_market_data(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("110"), range_bars=bars),
+    )
+
+    result = runner.run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["side"] is OrderSide.BUY
+    with session_factory() as session:
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        snapshot = session.scalar(
+            select(MarketDataSnapshotModel).where(
+                MarketDataSnapshotModel.experiment_id == experiment_id
+            )
+        )
+        assert decision is not None
+        assert decision.source_name == "MovingAverageStrategy"
+        assert decision.raw_decision_json["movingAverageWindow"] == 3
+        assert snapshot is not None
+        assert snapshot.moving_average == Decimal("103.6667")
+
+
+def test_moving_average_insufficient_lookback_holds_without_broker_call(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.MOVING_AVERAGE,
+            moving_average_window=3,
+        )
+
+    broker = FakeBrokerAdapter()
+    runner = _runner_with_market_data(
+        database_url,
+        broker,
+        FakeMarketDataProvider(
+            price=Decimal("110"),
+            range_bars=[_daily_bar(2, "101"), _daily_bar(3, "110")],
+        ),
+    )
+
+    result = runner.run_next_step(experiment_id, trigger_type=TriggerType.SCHEDULED)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls == []
+    with session_factory() as session:
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        assert decision is not None
+        assert decision.action.value == "HOLD"
+        assert (
+            decision.raw_decision_json["reasonCode"]
+            == "INSUFFICIENT_MOVING_AVERAGE_LOOKBACK"
+        )
+
+
+def test_scheduled_orb_paper_breakout_buys_after_risk_check(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
+            trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+
+    bars = [
+        _intraday_bar(9, 30, "100"),
+        _intraday_bar(9, 35, "100"),
+        _intraday_bar(9, 40, "100"),
+        _intraday_bar(9, 45, "100"),
+        _intraday_bar(9, 50, "100"),
+        _intraday_bar(9, 55, "100"),
+        _intraday_bar(10, 0, "110"),
+    ]
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="90", quantity="90")
+    )
+    result = _runner_with_providers(
+        database_url,
+        broker,
+        FakeMarketDataProvider(),
+        FakeIntradayProvider(bars),
+    ).run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=datetime(2026, 1, 2, 10, 0),
+    )
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["side"] is OrderSide.BUY
+    with session_factory() as session:
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        risk = session.scalar(
+            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
+        )
+        assert decision is not None
+        assert decision.source_name == "OpeningRangeBreakoutStrategy"
+        assert decision.raw_decision_json["openingRangeComplete"] is True
+        assert decision.raw_decision_json["breakoutDirection"] == "UP"
+        assert risk is not None
+        assert risk.trading_decision_id == decision.id
+
+
+def test_orb_paper_manual_run_next_step_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
+            trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+
+    with pytest.raises(InvalidExperimentConfigurationAppError):
+        _runner_with_providers(
+            database_url,
+            FakeBrokerAdapter(),
+            FakeMarketDataProvider(),
+            FakeIntradayProvider([]),
+        ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)

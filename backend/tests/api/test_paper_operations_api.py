@@ -259,8 +259,10 @@ def test_paper_status_explains_disabled_scheduler(
 
 
 def test_paper_status_explains_disabled_smoke_test_mode(
-    client, migrated_database: str
+    monkeypatch, migrated_database: str
 ) -> None:
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "false")
+    get_settings.cache_clear()
     session_factory = create_session_factory(migrated_database)
     with session_factory() as session:
         experiment_id = _create_paper_experiment(
@@ -270,10 +272,40 @@ def test_paper_status_explains_disabled_smoke_test_mode(
             trading_frequency=TradingFrequency.TEST_1_MIN,
         )
 
-    response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+    with TestClient(create_app()) as client:
+        response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
 
     assert response.status_code == 200
     assert response.json()["reasonCode"] == "PAPER_TRADING_TEST_MODE_DISABLED"
+    get_settings.cache_clear()
+
+
+def test_paper_status_supports_orb_and_exposes_operational_metadata(
+    monkeypatch, migrated_database: str
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_PAPER_TRADING_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_API_KEY_ID", "test-key")
+    monkeypatch.setenv("ALPACA_API_SECRET_KEY", "test-secret")
+    get_settings.cache_clear()
+    session_factory = create_session_factory(migrated_database)
+    with session_factory() as session:
+        experiment_id = _create_paper_experiment(
+            session,
+            status=ExperimentStatus.RUNNING,
+            strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
+            trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+
+    with TestClient(create_app()) as client:
+        response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["supportedByPaperScheduler"] is True
+    assert body["operationalMetadata"]["strategy"] == "OPENING_RANGE_BREAKOUT"
+    assert "nextDueBarTimestamp" in body["operationalMetadata"]
+    get_settings.cache_clear()
 
 
 def test_paper_operations_missing_experiment_returns_404(client) -> None:

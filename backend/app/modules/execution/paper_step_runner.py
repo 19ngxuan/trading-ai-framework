@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import text
@@ -23,6 +23,7 @@ from app.domain.enums import (
     FinalAction,
     StrategyType,
     SystemEventType,
+    TradeAction,
     TradingFrequency,
     TriggerType,
 )
@@ -35,12 +36,27 @@ from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import BuyAndHoldRiskValidator, RiskResult
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.factory import create_market_data_provider
+from app.modules.market_data.factory import create_intraday_market_data_provider
+from app.modules.market_data.intraday_provider import (
+    OPENING_RANGE_END,
+    IntradayBar,
+    IntradayMarketDataProvider,
+)
 from app.modules.market_data.errors import (
     MarketDataProviderError,
     MarketDataUnavailableError,
 )
 from app.modules.market_data.provider import MarketDataProvider
+from app.modules.market_data.trading_calendar import UsEquitiesTradingCalendar
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
+from app.modules.strategies.moving_average import (
+    DEFAULT_MOVING_AVERAGE_WINDOW,
+    MovingAverageStrategy,
+)
+from app.modules.strategies.opening_range_breakout import (
+    OpeningRangeBreakoutState,
+    OpeningRangeBreakoutStrategy,
+)
 from app.modules.strategies.paper_trading_smoke_test import (
     PaperTradingSmokeTestStrategy,
 )
@@ -89,6 +105,7 @@ class PaperTradingStepRunner:
         self,
         session_factory: sessionmaker[Session] | None = None,
         market_data_provider: MarketDataProvider | None = None,
+        intraday_provider: IntradayMarketDataProvider | None = None,
         broker_adapter: BrokerAdapter | None = None,
         settings: Settings | None = None,
     ) -> None:
@@ -97,8 +114,13 @@ class PaperTradingStepRunner:
         self.market_data_provider = market_data_provider or create_market_data_provider(
             self.settings
         )
+        self.intraday_provider = intraday_provider or create_intraday_market_data_provider(
+            self.settings
+        )
         self.broker_adapter = broker_adapter
         self.buy_and_hold_strategy = BuyAndHoldStrategy()
+        self.moving_average_strategy = MovingAverageStrategy()
+        self.orb_strategy = OpeningRangeBreakoutStrategy()
         self.smoke_test_strategy = PaperTradingSmokeTestStrategy()
         self.risk_validator = BuyAndHoldRiskValidator()
         self.metric_calculator = BasicMetricCalculator()
@@ -221,8 +243,9 @@ class PaperTradingStepRunner:
                 )
             if not self._is_supported_experiment(experiment, trigger_type):
                 raise InvalidExperimentConfigurationAppError(
-                    "Paper trading supports only daily SPY Buy-and-Hold experiments "
-                    "or scheduled smoke-test SPY experiments when test mode is enabled.",
+                    "Paper trading supports only SPY Buy-and-Hold daily, Moving "
+                    "Average daily, scheduled Opening Range Breakout intraday, or "
+                    "scheduled smoke-test experiments when test mode is enabled.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,
@@ -291,6 +314,16 @@ class PaperTradingStepRunner:
             and experiment.trading_frequency is TradingFrequency.DAILY
         ):
             return True
+        if (
+            experiment.strategy_type is StrategyType.MOVING_AVERAGE
+            and experiment.trading_frequency is TradingFrequency.DAILY
+        ):
+            return True
+        if (
+            experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
+            and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
+        ):
+            return trigger_type is TriggerType.SCHEDULED
         if experiment.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST:
             return False
         return (
@@ -300,6 +333,29 @@ class PaperTradingStepRunner:
         )
 
     def _run_step_artifacts(
+        self,
+        experiment_id: int,
+        execution_step_id: int,
+        broker_adapter: BrokerAdapter,
+    ) -> PaperStepFailure | None:
+        with self.session_factory() as session:
+            experiment = ExperimentRepository(session).get_by_id(experiment_id)
+            if experiment is None:
+                raise RuntimeError(f"Experiment {experiment_id} is missing state.")
+            strategy_type = experiment.strategy_type
+        if strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+            return self._run_orb_step_artifacts(
+                experiment_id,
+                execution_step_id,
+                broker_adapter,
+            )
+        return self._run_daily_step_artifacts(
+            experiment_id,
+            execution_step_id,
+            broker_adapter,
+        )
+
+    def _run_daily_step_artifacts(
         self,
         experiment_id: int,
         execution_step_id: int,
@@ -322,6 +378,7 @@ class PaperTradingStepRunner:
             ):
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
 
+            moving_average = self._moving_average_for_step(experiment, strategy_config, bar)
             market_data = MarketDataSnapshotRepository(session).add(
                 MarketDataSnapshotModel(
                     execution_step_id=execution_step_id,
@@ -334,7 +391,7 @@ class PaperTradingStepRunner:
                     low=bar.low,
                     close=bar.adjusted_close,
                     volume=bar.volume,
-                    moving_average=None,
+                    moving_average=moving_average,
                     rsi=None,
                     raw_data_json=bar.raw,
                     created_at=now,
@@ -342,7 +399,16 @@ class PaperTradingStepRunner:
             )
             session.flush()
 
-            strategy_decision = self._decide(experiment.strategy_type, portfolio)
+            strategy_decision = self._decide(
+                experiment.strategy_type,
+                portfolio,
+                price=bar.adjusted_close,
+                moving_average=moving_average,
+                moving_average_window=(
+                    strategy_config.moving_average_window
+                    or DEFAULT_MOVING_AVERAGE_WINDOW
+                ),
+            )
             trading_decision = TradingDecisionRepository(session).add(
                 TradingDecisionModel(
                     execution_step_id=execution_step_id,
@@ -359,6 +425,11 @@ class PaperTradingStepRunner:
                     raw_decision_json=self._raw_decision_json(
                         experiment.strategy_type,
                         portfolio.position_quantity,
+                        moving_average=moving_average,
+                        moving_average_window=(
+                            strategy_config.moving_average_window
+                            or DEFAULT_MOVING_AVERAGE_WINDOW
+                        ),
                     ),
                     created_at=now,
                 )
@@ -421,11 +492,160 @@ class PaperTradingStepRunner:
             session.commit()
             return None
 
-    def _decide(self, strategy_type: StrategyType, portfolio: PortfolioModel):
+    def _run_orb_step_artifacts(
+        self,
+        experiment_id: int,
+        execution_step_id: int,
+        broker_adapter: BrokerAdapter,
+    ) -> PaperStepFailure | None:
+        with self.session_factory() as session:
+            execution_step = ExecutionStepRepository(session).get(execution_step_id)
+            if execution_step is None or execution_step.scheduled_for is None:
+                raise RuntimeError("Scheduled ORB paper step is missing its slot.")
+            scheduled_for = execution_step.scheduled_for
+        bars = self.intraday_provider.load_session_until(
+            scheduled_for.date(),
+            scheduled_for,
+            symbol="SPY",
+            frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+        bar = bars[-1]
+        state = self._orb_state(bars, bar, experiment_id)
+
+        with self.session_factory() as session:
+            now = _utcnow()
+            experiment = ExperimentRepository(session).get_by_id(experiment_id)
+            portfolio = PortfolioRepository(session).get_by_experiment_id(experiment_id)
+            strategy_config = StrategyConfigRepository(session).get_by_experiment_id(
+                experiment_id
+            )
+            execution_step = ExecutionStepRepository(session).get(execution_step_id)
+            if (
+                experiment is None
+                or portfolio is None
+                or strategy_config is None
+                or execution_step is None
+            ):
+                raise RuntimeError(f"Experiment {experiment_id} is missing state.")
+
+            market_data = MarketDataSnapshotRepository(session).add(
+                MarketDataSnapshotModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    timestamp=bar.timestamp,
+                    symbol="SPY",
+                    price=bar.close,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                    volume=bar.volume,
+                    moving_average=None,
+                    rsi=None,
+                    raw_data_json=bar.raw,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            strategy_decision = self.orb_strategy.decide(
+                symbol="SPY",
+                close=bar.close,
+                position_quantity=portfolio.position_quantity,
+                state=state,
+            )
+            trading_decision = TradingDecisionRepository(session).add(
+                TradingDecisionModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    market_data_snapshot_id=market_data.id,
+                    source_type=DecisionSourceType.STRATEGY,
+                    source_name=self.orb_strategy.source_name,
+                    action=strategy_decision.action,
+                    symbol=strategy_decision.symbol,
+                    suggested_quantity=None,
+                    suggested_notional=None,
+                    confidence=Decimal("1.0000"),
+                    reason=strategy_decision.reason,
+                    raw_decision_json=strategy_decision.raw_decision_json,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            risk_result = self.risk_validator.evaluate(
+                strategy_decision,
+                portfolio,
+                bar.close,
+                position_sizing_type=strategy_config.position_sizing_type,
+                position_sizing_value=parse_position_sizing_value(
+                    strategy_config.parameters_json
+                ),
+            )
+            risk_check = RiskCheckRepository(session).add(
+                RiskCheckModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    trading_decision_id=trading_decision.id,
+                    approved=risk_result.approved,
+                    final_action=risk_result.final_action,
+                    final_quantity=risk_result.final_quantity,
+                    final_notional=risk_result.final_notional,
+                    rejection_reason=risk_result.rejection_reason,
+                    rules_triggered_json=risk_result.rules_triggered_json,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            if self._requires_broker_submission(risk_result):
+                risk_check_id = risk_check.id
+                session.commit()
+                return self._run_broker_execution(
+                    experiment_id=experiment_id,
+                    execution_step_id=execution_step_id,
+                    broker_adapter=broker_adapter,
+                    risk_result=risk_result,
+                    risk_check_id=risk_check_id,
+                    price=bar.close,
+                )
+
+            self._persist_snapshot_and_metrics(
+                session=session,
+                experiment_id=experiment_id,
+                execution_step_id=execution_step_id,
+                experiment=experiment,
+                portfolio=portfolio,
+                price=bar.close,
+                timestamp=bar.timestamp,
+                trade=None,
+            )
+            execution_step.status = ExecutionStepStatus.COMPLETED
+            execution_step.completed_at = now
+            session.commit()
+            return None
+
+    def _decide(
+        self,
+        strategy_type: StrategyType,
+        portfolio: PortfolioModel,
+        *,
+        price: Decimal,
+        moving_average: Decimal | None,
+        moving_average_window: int,
+    ):
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
             return self.smoke_test_strategy.decide(
                 symbol="SPY",
                 position_quantity=portfolio.position_quantity,
+            )
+        if strategy_type is StrategyType.MOVING_AVERAGE:
+            return self.moving_average_strategy.decide(
+                symbol="SPY",
+                price=price,
+                moving_average=moving_average,
+                position_quantity=portfolio.position_quantity,
+                window=moving_average_window,
             )
         return self.buy_and_hold_strategy.decide(
             symbol="SPY",
@@ -435,10 +655,19 @@ class PaperTradingStepRunner:
     def _source_name(self, strategy_type: StrategyType) -> str:
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
             return self.smoke_test_strategy.source_name
+        if strategy_type is StrategyType.MOVING_AVERAGE:
+            return self.moving_average_strategy.source_name
+        if strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+            return self.orb_strategy.source_name
         return self.buy_and_hold_strategy.source_name
 
     def _raw_decision_json(
-        self, strategy_type: StrategyType, position_quantity: Decimal | None
+        self,
+        strategy_type: StrategyType,
+        position_quantity: Decimal | None,
+        *,
+        moving_average: Decimal | None = None,
+        moving_average_window: int | None = None,
     ) -> dict:
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
             return {
@@ -447,7 +676,91 @@ class PaperTradingStepRunner:
                 "fixedBuyQuantity": 1,
                 "localPositionQuantity": float(position_quantity or Decimal("0")),
             }
+        if strategy_type is StrategyType.MOVING_AVERAGE:
+            return {
+                "strategy": self.moving_average_strategy.source_name,
+                "movingAverage": float(moving_average)
+                if moving_average is not None
+                else None,
+                "movingAverageWindow": moving_average_window,
+                "reasonCode": (
+                    None
+                    if moving_average is not None
+                    else "INSUFFICIENT_MOVING_AVERAGE_LOOKBACK"
+                ),
+            }
         return {"strategy": self.buy_and_hold_strategy.source_name}
+
+    def _moving_average_for_step(
+        self,
+        experiment,
+        strategy_config,
+        latest_bar,
+    ) -> Decimal | None:
+        if experiment.strategy_type is not StrategyType.MOVING_AVERAGE:
+            return None
+        window = strategy_config.moving_average_window or DEFAULT_MOVING_AVERAGE_WINDOW
+        lookback_start = latest_bar.date - timedelta(days=(window * 2 + 10))
+        bars = self.market_data_provider.load_range(
+            lookback_start,
+            latest_bar.date,
+            symbol="SPY",
+            frequency=TradingFrequency.DAILY,
+        )
+        eligible = sorted(
+            [bar for bar in bars if bar.date <= latest_bar.date],
+            key=lambda item: item.date,
+        )
+        if len(eligible) < window:
+            return None
+        total = sum((bar.adjusted_close for bar in eligible[-window:]), Decimal("0"))
+        return (total / Decimal(window)).quantize(Decimal("0.0001"))
+
+    def _orb_state(
+        self,
+        bars: list[IntradayBar],
+        bar: IntradayBar,
+        experiment_id: int,
+    ) -> OpeningRangeBreakoutState:
+        opening_range_bars = [
+            item for item in bars if item.timestamp.time() <= OPENING_RANGE_END
+        ]
+        opening_range_complete = bar.timestamp.time() > OPENING_RANGE_END
+        sessions = UsEquitiesTradingCalendar().sessions_between(
+            bar.session_date,
+            bar.session_date,
+        )
+        final_bar = bool(
+            sessions and bar.timestamp == sessions[0].expected_bar_start_times[-1]
+        )
+        return OpeningRangeBreakoutState(
+            session_date=bar.session_date,
+            opening_range_high=(
+                max(item.high for item in opening_range_bars)
+                if opening_range_complete and opening_range_bars
+                else None
+            ),
+            opening_range_low=(
+                min(item.low for item in opening_range_bars)
+                if opening_range_complete and opening_range_bars
+                else None
+            ),
+            opening_range_complete=opening_range_complete,
+            final_bar=final_bar,
+            round_trip_completed=self._orb_round_trip_completed(
+                experiment_id,
+                bar.session_date,
+            ),
+        )
+
+    def _orb_round_trip_completed(self, experiment_id: int, session_date) -> bool:
+        with self.session_factory() as session:
+            trades = TradeRepository(session).list_by_experiment(experiment_id)
+            return any(
+                trade.side.value == TradeAction.SELL.value
+                and trade.timestamp.date() == session_date
+                for trade in trades
+            )
 
     def _risk_sizing_type(
         self, strategy_type: StrategyType, configured_sizing_type: str | None

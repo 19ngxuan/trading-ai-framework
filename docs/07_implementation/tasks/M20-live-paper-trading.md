@@ -1,7 +1,9 @@
 # M20 Live Paper Trading Scheduler And Broker Sync
 
-M20 adds backend-only scheduled Alpaca paper trading for
-`PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`.
+M20 added backend-only scheduled Alpaca paper trading for
+`PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`. M23 extends the same
+scheduler path to Moving Average daily SPY and scheduled Opening Range Breakout
+5-minute SPY paper trading.
 
 Scope:
 
@@ -15,8 +17,6 @@ Scope:
 
 Out of scope:
 
-- Moving Average paper trading
-- Opening Range Breakout paper trading
 - Agentic-AI paper trading
 - account/position reconciliation
 - outbox processing

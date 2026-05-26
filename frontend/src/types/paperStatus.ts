@@ -40,4 +40,5 @@ export type PaperStatus = {
   lastPaperExecutionStep: PaperExecutionStepSummary | null;
   reasonCode: string;
   message: string;
+  operationalMetadata?: Record<string, unknown> | null;
 };

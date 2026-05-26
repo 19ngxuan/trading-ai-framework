@@ -19,7 +19,7 @@ This repository currently contains the M0-M19 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
-- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments
+- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments, manual/scheduled `MOVING_AVERAGE` daily SPY paper experiments, and scheduled `OPENING_RANGE_BREAKOUT` 5-minute SPY paper experiments
 - Deterministic single-agent and pipeline-agent `AGENTIC_AI` historical manual steps using fake providers only
 - Configurable position sizing for BUY quantities: `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
@@ -113,9 +113,11 @@ When enabled, the in-process historical scheduler advances each eligible running
 historical Buy-and-Hold or Moving Average experiment by one step per tick.
 Paper trading uses a separate disabled-by-default scheduler. When
 `PAPER_TRADING_SCHEDULER_ENABLED=true` and Alpaca paper trading is enabled, the
-paper scheduler evaluates eligible running `PAPER_TRADING` + `BUY_AND_HOLD` +
-`DAILY` + `SPY` experiments at or after `PAPER_TRADING_DAILY_EVALUATION_TIME`
-in America/New_York. A separate broker-sync job continues polling submitted
+paper scheduler evaluates eligible running daily `BUY_AND_HOLD` and
+`MOVING_AVERAGE` SPY paper experiments at or after
+`PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York. It also evaluates
+scheduled `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY` paper experiments
+on completed regular-session 5-minute bars. A separate broker-sync job continues polling submitted
 paper orders until terminal broker status, including for paused or stopped
 experiments. Scheduler-enabled mode assumes a single backend instance. In
 multi-instance deployments, enable scheduler jobs on at most one backend
@@ -145,11 +147,15 @@ the same provider selection: local `spy_5min.csv` when `csv`, or Alpaca
 historical `5Min` SPY bars when `alpaca`.
 
 Paper trading is disabled by default and only accepts the Alpaca paper trading
-base URL. It is limited to SPY Buy-and-Hold daily paper-trading experiments.
-Manual `run-next-step` remains supported, and scheduled paper execution is
-available only when `PAPER_TRADING_SCHEDULER_ENABLED=true`. Real-money Alpaca
-trading URLs are rejected by configuration validation and by the broker adapter.
-M20 adds order-status polling for submitted paper orders. Full broker
+base URL. It supports SPY Buy-and-Hold daily paper trading, SPY Moving Average
+daily paper trading, and scheduled SPY Opening Range Breakout 5-minute paper
+trading. Manual `run-next-step` remains supported for Buy-and-Hold and Moving
+Average paper debugging. Opening Range Breakout paper trading is scheduled-only
+in M23 and skips before step creation if the expected completed 5-minute bar is
+not available. Scheduled paper execution is available only when
+`PAPER_TRADING_SCHEDULER_ENABLED=true`. Real-money Alpaca trading URLs are
+rejected by configuration validation and by the broker adapter. M20 adds
+order-status polling for submitted paper orders. Full broker
 reconciliation, outbox processing, account sync, position sync, and automatic
 order cancellation are not implemented.
 

@@ -278,6 +278,10 @@ starts. A 13:00 early-close session requires 09:30 through 12:55 bar starts.
 Weekends and full market holidays require no bars. Missing expected session bars
 are fatal; there is no forward-fill or interpolation.
 
+For paper trading, Opening Range Breakout is scheduled-only. It evaluates only
+completed regular-session 5-minute bars, skips before step creation when the
+expected completed bar is unavailable, and does not backfill missed slots.
+
 ---
 
 ## 7. Agentic-AI Rules
@@ -436,6 +440,8 @@ The failure must be logged.
 Transient broker or market-data failures in scheduled paper trading fail the
 current `ExecutionStep` but keep the experiment `RUNNING` when no durable broker
 side effect is known. Configuration and safety failures remain experiment-fatal.
+For ORB paper trading, an unavailable expected completed bar is treated as a
+scheduler skip before step creation rather than a failed execution step.
 
 ---
 

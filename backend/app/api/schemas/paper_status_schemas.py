@@ -54,3 +54,4 @@ class PaperStatusResponse(CamelModel):
     )
     reason_code: str = Field(alias="reasonCode")
     message: str
+    operational_metadata: dict | None = Field(default=None, alias="operationalMetadata")

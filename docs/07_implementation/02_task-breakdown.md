@@ -35,6 +35,8 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M18 | `tasks/M18-trading-calendar-intraday-orb.md` | Trading calendar and early-close support for intraday ORB |
 | M20 | `tasks/M20-live-paper-trading.md` | Scheduled paper trading and broker order-status sync |
 | M22 | `tasks/M22-paper-trading-smoke-test.md` | Diagnostics-only paper trading smoke-test strategy |
+| M23 Spike | `tasks/M23-alpaca-xetra-paper-trading-spike.md` | Spike to verify Alpaca Xetra/European ETF paper-trading feasibility |
+| M23 | `tasks/M23-rule-based-paper-trading.md` | Scheduled paper trading for rule-based Moving Average and Opening Range Breakout |
 
 ---
 
@@ -61,6 +63,8 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 19. M18 Trading Calendar + Early-Close Support
 20. M20 Live Paper Trading Scheduler + Broker Sync
 21. M22 Paper Trading Smoke-Test Strategy
+22. M23 Alpaca Xetra Paper Trading Spike
+23. M23 Rule-Based Paper Trading
 
 ---
 

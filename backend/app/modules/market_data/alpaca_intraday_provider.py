@@ -16,6 +16,7 @@ from app.modules.market_data.intraday_provider import (
     IntradayBar,
 )
 from app.modules.market_data.intraday_validation import validate_intraday_bars
+from app.modules.market_data.intraday_validation import validate_intraday_bars_until
 from app.modules.market_data.trading_calendar import (
     TradingCalendar,
     UsEquitiesTradingCalendar,
@@ -101,6 +102,60 @@ class AlpacaIntradayMarketDataProvider:
             )
 
         return validated_bars
+
+    def load_session_until(
+        self,
+        session_date: date,
+        through_timestamp: datetime,
+        symbol: str = SUPPORTED_SYMBOL,
+        frequency: TradingFrequency = TradingFrequency.INTRADAY_5_MIN,
+    ) -> list[IntradayBar]:
+        self._validate_request(symbol, frequency)
+        sessions = self.trading_calendar.sessions_between(session_date, session_date)
+        if not sessions:
+            return []
+
+        bars_payload = self._load_all_pages(symbol, session_date, session_date)
+        if not bars_payload:
+            raise MarketDataUnavailableError(
+                "Alpaca returned no intraday bars through requested bar.",
+                details={
+                    "symbol": symbol,
+                    "sessionDate": session_date.isoformat(),
+                    "throughTimestamp": through_timestamp.isoformat(),
+                },
+            )
+        metadata = {
+            "endpoint": f"/v2/stocks/{symbol}/bars",
+            "feed": self.feed,
+            "adjustment": self.adjustment,
+            "timeframe": "5Min",
+        }
+        bars = [
+            self._map_bar(item, symbol=symbol, provider_metadata=metadata)
+            for item in bars_payload
+        ]
+        candidate_bars = [
+            bar
+            for bar in bars
+            if bar.session_date == session_date and bar.timestamp <= through_timestamp
+        ]
+        if not candidate_bars:
+            raise MarketDataUnavailableError(
+                "Alpaca returned no regular-session intraday bars through requested bar.",
+                details={
+                    "symbol": symbol,
+                    "sessionDate": session_date.isoformat(),
+                    "throughTimestamp": through_timestamp.isoformat(),
+                },
+            )
+        return validate_intraday_bars_until(
+            bars=candidate_bars,
+            session=sessions[0],
+            through_timestamp=through_timestamp,
+            symbol=symbol,
+            provider="alpaca_intraday",
+        )
 
     def _load_all_pages(
         self,

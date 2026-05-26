@@ -39,6 +39,15 @@ class IntradayMarketDataProvider(Protocol):
     ) -> list[IntradayBar]:
         ...
 
+    def load_session_until(
+        self,
+        session_date: date,
+        through_timestamp: datetime,
+        symbol: str = "SPY",
+        frequency: TradingFrequency = TradingFrequency.INTRADAY_5_MIN,
+    ) -> list[IntradayBar]:
+        ...
+
 
 def expected_session_timestamps(session_date: date) -> list[datetime]:
     current = datetime.combine(session_date, REGULAR_SESSION_START)

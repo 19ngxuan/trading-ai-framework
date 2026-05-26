@@ -362,13 +362,17 @@ class ExperimentService:
             )
         if experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
             if (
-                experiment.mode is not ExperimentMode.HISTORICAL_SIMULATION
+                experiment.mode
+                not in {
+                    ExperimentMode.HISTORICAL_SIMULATION,
+                    ExperimentMode.PAPER_TRADING,
+                }
                 or experiment.trading_frequency is not TradingFrequency.INTRADAY_5_MIN
                 or experiment.asset_symbol != "SPY"
             ):
                 raise InvalidExperimentConfigurationAppError(
-                    "Opening Range Breakout supports HISTORICAL_SIMULATION, "
-                    "INTRADAY_5_MIN, SPY only.",
+                    "Opening Range Breakout supports HISTORICAL_SIMULATION or "
+                    "PAPER_TRADING, INTRADAY_5_MIN, SPY only.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,

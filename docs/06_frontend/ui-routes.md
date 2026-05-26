@@ -354,8 +354,11 @@ The `Config` tab must show immutable configuration used by the experiment.
 
 For paper trading experiments, the detail page shows a Paper Trading Status
 card. It explains that `start` is lifecycle-only, scheduled paper execution runs
-at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York, and broker sync
-may continue for submitted paper orders after pause or stop.
+at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York for daily
+rule-based strategies, and broker sync may continue for submitted paper orders
+after pause or stop. Opening Range Breakout paper trading is scheduled on
+completed 5-minute regular-session bars and may expose due-bar timestamps as
+operational metadata.
 
 When `PAPER_TRADING_TEST_MODE_ENABLED=true`, the options endpoint may expose
 `PAPER_TRADING_SMOKE_TEST` with `TEST_1_MIN`. The create form should show a

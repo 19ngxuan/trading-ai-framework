@@ -88,9 +88,12 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 details={"field": "strategyConfig.positionSizingValue"},
             )
     elif request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
-        if request.mode is not ExperimentMode.HISTORICAL_SIMULATION:
+        if request.mode not in {
+            ExperimentMode.HISTORICAL_SIMULATION,
+            ExperimentMode.PAPER_TRADING,
+        }:
             raise ValidationAppError(
-                "Opening Range Breakout supports HISTORICAL_SIMULATION mode only.",
+                "Opening Range Breakout supports HISTORICAL_SIMULATION or PAPER_TRADING mode only.",
                 details={"field": "mode", "value": request.mode.value},
             )
         if request.trading_frequency is not TradingFrequency.INTRADAY_5_MIN:
@@ -117,6 +120,27 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 "strategyType": request.strategy_type.value,
             },
         )
+
+    if request.mode is ExperimentMode.PAPER_TRADING:
+        supported_paper_configs = {
+            (StrategyType.BUY_AND_HOLD, TradingFrequency.DAILY),
+            (StrategyType.MOVING_AVERAGE, TradingFrequency.DAILY),
+            (StrategyType.OPENING_RANGE_BREAKOUT, TradingFrequency.INTRADAY_5_MIN),
+        }
+        if request.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST and (
+            request.strategy_type,
+            request.trading_frequency,
+        ) not in supported_paper_configs:
+            raise ValidationAppError(
+                "Paper trading supports only rule-based SPY strategies: "
+                "BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, or "
+                "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN.",
+                details={
+                    "field": "strategyType",
+                    "strategyType": request.strategy_type.value,
+                    "tradingFrequency": request.trading_frequency.value,
+                },
+            )
 
     if request.strategy_config.moving_average_window is not None:
         if request.strategy_config.moving_average_window <= 0:
