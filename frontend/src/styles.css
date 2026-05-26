@@ -426,6 +426,21 @@ select {
   width: 100%;
 }
 
+.interactive-chart-shell {
+  position: relative;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.interactive-chart {
+  min-height: 320px;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .chart-axis {
   stroke: #66758c;
   stroke-width: 1.5;

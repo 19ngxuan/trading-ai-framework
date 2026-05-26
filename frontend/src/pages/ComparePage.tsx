@@ -10,10 +10,22 @@ import { ComparisonChartPanel } from "../features/comparison/ComparisonChartPane
 import { ComparisonKpiTable } from "../features/comparison/ComparisonKpiTable";
 import { ExperimentCompareSelector } from "../features/comparison/ExperimentCompareSelector";
 import { useExperiments } from "../features/experiments/hooks";
+import type { PortfolioSnapshot } from "../types/metrics";
+
+function sortSnapshots(items: PortfolioSnapshot[]) {
+  return items
+    .slice()
+    .sort(
+      (left, right) =>
+        Date.parse(left.timestamp) - Date.parse(right.timestamp) ||
+        left.timestamp.localeCompare(right.timestamp),
+    );
+}
 
 export function ComparePage() {
   const experimentsQuery = useExperiments({ limit: 100, offset: 0 }, true);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [comparedIds, setComparedIds] = useState<number[]>([]);
   const [benchmarkId, setBenchmarkId] = useState<number | "">("");
 
   const compareMutation = useMutation({
@@ -22,13 +34,16 @@ export function ComparePage() {
         experimentIds: selectedIds,
         benchmarkExperimentId: benchmarkId === "" ? null : benchmarkId,
       }),
+    onSuccess: () => {
+      setComparedIds(selectedIds.slice());
+    },
   });
 
   const snapshotQueries = useQueries({
-    queries: selectedIds.map((id) => ({
+    queries: comparedIds.map((id) => ({
       queryKey: ["compare", "portfolio-snapshots", id],
-      queryFn: () => getPortfolioSnapshots(id, { limit: 500, offset: 0 }),
-      enabled: selectedIds.length >= 2,
+      queryFn: () => getPortfolioSnapshots(id, { limit: 10000, offset: 0 }),
+      enabled: comparedIds.length >= 2 && compareMutation.isSuccess,
     })),
   });
 
@@ -37,10 +52,10 @@ export function ComparePage() {
     () => new Map(experiments.map((experiment) => [experiment.id, experiment.name])),
     [experiments],
   );
-  const chartSeries = selectedIds.map((id, index) => ({
+  const chartSeries = comparedIds.map((id, index) => ({
     experimentId: id,
     name: selectedExperimentNames.get(id) ?? `Experiment ${id}`,
-    snapshots: snapshotQueries[index]?.data?.items ?? [],
+    snapshots: sortSnapshots(snapshotQueries[index]?.data?.items ?? []),
   }));
 
   return (

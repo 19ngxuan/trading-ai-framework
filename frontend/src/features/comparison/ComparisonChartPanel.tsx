@@ -1,4 +1,4 @@
-import { SvgLineChart } from "../../components/charts/SvgLineChart";
+import { InteractiveLineChart } from "../../components/charts/InteractiveLineChart";
 import type { PortfolioSnapshot } from "../../types/metrics";
 
 type Series = {
@@ -20,7 +20,7 @@ export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
       points: item.snapshots
         .filter((snapshot) => snapshot.totalPortfolioValue !== null)
         .map((snapshot) => ({
-          label: snapshot.timestamp,
+          timestamp: snapshot.timestamp,
           value: snapshot.totalPortfolioValue ?? 0,
         })),
     }))
@@ -30,14 +30,12 @@ export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
     return (
       <section className="panel wide-panel">
         <h2>Equity Curves</h2>
-        <SvgLineChart
+        <InteractiveLineChart
           className="compare-chart"
           emptyMessage="No portfolio snapshots available."
           height={560}
           series={[]}
-          valueFormat="currency"
-          xAxisLabel="Date"
-          yAxisLabel="Portfolio Value"
+          valueType="currency"
         />
       </section>
     );
@@ -51,7 +49,7 @@ export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
           <h2>Equity Curves</h2>
         </div>
       </div>
-      <SvgLineChart
+      <InteractiveLineChart
         className="compare-chart"
         emptyMessage="No portfolio snapshots available."
         height={560}
@@ -61,9 +59,8 @@ export function ComparisonChartPanel({ series }: ComparisonChartPanelProps) {
           color: colors[index % colors.length],
           points: item.points,
         }))}
-        valueFormat="currency"
-        xAxisLabel="Date"
-        yAxisLabel="Portfolio Value"
+        showLegend={false}
+        valueType="currency"
       />
       <div className="legend-row">
         {drawableSeries.map((item, index) => (

@@ -16,6 +16,7 @@ from app.persistence.repositories import (
 from app.persistence.database import get_session
 
 router = APIRouter(prefix="/experiments", tags=["metrics"])
+TIME_SERIES_MAX_LIMIT = 10000
 
 
 def _ensure_experiment_exists(session: Session, experiment_id: int) -> None:
@@ -32,7 +33,7 @@ def _ensure_experiment_exists(session: Session, experiment_id: int) -> None:
 )
 def list_metric_snapshots(
     experiment_id: int,
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=TIME_SERIES_MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ) -> PaginatedMetricSnapshotResponse:
@@ -54,7 +55,7 @@ def list_metric_snapshots(
 )
 def list_portfolio_snapshots(
     experiment_id: int,
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=TIME_SERIES_MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ) -> PaginatedPortfolioSnapshotResponse:

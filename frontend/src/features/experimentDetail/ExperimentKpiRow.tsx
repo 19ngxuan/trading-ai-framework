@@ -2,6 +2,7 @@ import type { ExperimentDetail } from "../../types/experiment";
 
 type ExperimentKpiRowProps = {
   detail: ExperimentDetail;
+  portfolioValue?: number | null;
 };
 
 function money(value: number | null | undefined) {
@@ -18,15 +19,17 @@ function percent(value: number | null | undefined) {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-export function ExperimentKpiRow({ detail }: ExperimentKpiRowProps) {
+export function ExperimentKpiRow({ detail, portfolioValue }: ExperimentKpiRowProps) {
   const metrics = detail.latestMetrics;
   const portfolio = detail.portfolio;
+  const displayedPortfolioValue =
+    portfolioValue ?? portfolio.currentPortfolioValue;
 
   return (
     <div className="kpi-grid">
       <div className="kpi-card">
         <span>Portfolio Value</span>
-        <strong>{money(portfolio.currentPortfolioValue)}</strong>
+        <strong>{money(displayedPortfolioValue)}</strong>
       </div>
       <div className="kpi-card">
         <span>Total Return</span>

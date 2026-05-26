@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
 import { ErrorState } from "../components/ui/ErrorState";
@@ -12,6 +13,25 @@ import {
   useMetrics,
   usePortfolioSnapshots,
 } from "../features/experiments/hooks";
+import type { MetricSnapshot, PortfolioSnapshot } from "../types/metrics";
+
+function sortByTimestamp<T extends { timestamp: string }>(items: T[]) {
+  return items
+    .slice()
+    .sort(
+      (left, right) =>
+        Date.parse(left.timestamp) - Date.parse(right.timestamp) ||
+        left.timestamp.localeCompare(right.timestamp),
+    );
+}
+
+function latestPortfolioValue(snapshots: PortfolioSnapshot[]) {
+  const latest = snapshots
+    .slice()
+    .reverse()
+    .find((snapshot) => snapshot.totalPortfolioValue !== null);
+  return latest?.totalPortfolioValue ?? null;
+}
 
 export function ExperimentDetailPage() {
   const params = useParams();
@@ -21,6 +41,15 @@ export function ExperimentDetailPage() {
   const metricsQuery = useMetrics(experimentId, status);
   const portfolioSnapshotsQuery = usePortfolioSnapshots(experimentId, status);
   const eventsQuery = useExperimentEvents(experimentId, status);
+  const metrics = useMemo<MetricSnapshot[]>(
+    () => sortByTimestamp(metricsQuery.data?.items ?? []),
+    [metricsQuery.data?.items],
+  );
+  const portfolioSnapshots = useMemo<PortfolioSnapshot[]>(
+    () => sortByTimestamp(portfolioSnapshotsQuery.data?.items ?? []),
+    [portfolioSnapshotsQuery.data?.items],
+  );
+  const displayedPortfolioValue = latestPortfolioValue(portfolioSnapshots);
 
   if (!Number.isFinite(experimentId)) {
     return <ErrorState error={new Error("Invalid experiment id.")} />;
@@ -38,15 +67,15 @@ export function ExperimentDetailPage() {
     return <ErrorState error={new Error("Experiment was not found.")} />;
   }
 
-  const metrics = metricsQuery.data?.items ?? [];
-  const portfolioSnapshots = portfolioSnapshotsQuery.data?.items ?? [];
-
   return (
     <div className="page-stack">
       <section className="panel wide-panel">
         <ExperimentHeader detail={detailQuery.data} />
       </section>
-      <ExperimentKpiRow detail={detailQuery.data} />
+      <ExperimentKpiRow
+        detail={detailQuery.data}
+        portfolioValue={displayedPortfolioValue}
+      />
       {(metricsQuery.isError ||
         portfolioSnapshotsQuery.isError ||
         eventsQuery.isError) && (

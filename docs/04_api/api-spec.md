@@ -485,6 +485,9 @@ GET /api/v1/experiments/{experiment_id}/metrics
 
 Used for metric timelines and charts.
 
+Pagination follows the standard `limit`/`offset` shape. Chart clients may
+request up to `limit=10000`; limits above `10000` return `422 VALIDATION_ERROR`.
+
 ---
 
 ## 7.2 List Portfolio Snapshots
@@ -494,6 +497,9 @@ GET /api/v1/experiments/{experiment_id}/portfolio-snapshots
 ```
 
 Used for equity curves and portfolio-value charts.
+
+Pagination follows the standard `limit`/`offset` shape. Chart clients may
+request up to `limit=10000`; limits above `10000` return `422 VALIDATION_ERROR`.
 
 ---
 

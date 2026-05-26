@@ -2,7 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
 
-This repository currently contains the M0-M16 backend/frontend foundation:
+This repository currently contains the M0-M19 backend/frontend foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -15,7 +15,7 @@ This repository currently contains the M0-M16 backend/frontend foundation:
 - Metrics and portfolio snapshot APIs
 - Frontend dashboard, experiment creation, and experiment detail views
 - Frontend compare and events views
-- Local SVG performance and comparison charts with visible axes and responsive proportional sizing
+- Interactive portfolio, return, and comparison charts with zoom, pan, crosshair, and responsive sizing
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
@@ -263,5 +263,5 @@ After migrations and local services are running:
 - Broker reconciliation, outbox processing, account sync, position sync, and order polling are deferred.
 - Agentic AI uses deterministic fake providers only; real LLM providers are not implemented.
 - Agentic AI is historical manual-step only; no paper-trading or scheduled agent execution is implemented.
-- Compare UI may issue multiple frontend requests for chart time series.
+- Compare UI loads selected experiment chart time series after the user runs a comparison.
 - Public execution-step, order, trade, broker-sync, and agent-log list/detail APIs are deferred.

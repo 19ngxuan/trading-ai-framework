@@ -746,10 +746,12 @@ components/
 Components:
 
 ```text
+InteractiveLineChart
 EquityCurveChart
 ReturnChart
 ComparisonChart
 DrawdownChart
+SvgLineChart
 ```
 
 Rules:
@@ -758,6 +760,10 @@ Rules:
 - Charts do not fetch data directly.
 - Charts do not calculate authoritative metrics.
 - Backend-provided metrics remain the source of truth.
+- Portfolio, return, and comparison equity charts use the interactive chart
+  component for zoom, pan, crosshair, and responsive time-axis behavior.
+- `SvgLineChart` remains available for simple lightweight charts that do not
+  need interactive trading-style analysis.
 
 ## 14.2 `components/status/`
 

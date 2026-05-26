@@ -1,4 +1,4 @@
-import { SvgLineChart } from "../../components/charts/SvgLineChart";
+import { InteractiveLineChart } from "../../components/charts/InteractiveLineChart";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
 
 type PerformanceChartPanelProps = {
@@ -13,13 +13,13 @@ export function PerformanceChartPanel({
   const portfolioPoints = portfolioSnapshots
     .filter((snapshot) => snapshot.totalPortfolioValue !== null)
     .map((snapshot) => ({
-      label: snapshot.timestamp,
+      timestamp: snapshot.timestamp,
       value: snapshot.totalPortfolioValue ?? 0,
     }));
   const returnPoints = metrics
     .filter((snapshot) => snapshot.totalReturn !== null)
     .map((snapshot) => ({
-      label: snapshot.timestamp,
+      timestamp: snapshot.timestamp,
       value: snapshot.totalReturn ?? 0,
     }));
 
@@ -31,7 +31,7 @@ export function PerformanceChartPanel({
           <h3>Portfolio Value</h3>
         </div>
       </div>
-      <SvgLineChart
+      <InteractiveLineChart
         emptyMessage="No snapshot data available."
         series={[
           {
@@ -42,14 +42,12 @@ export function PerformanceChartPanel({
           },
         ]}
         height={480}
-        valueFormat="currency"
-        xAxisLabel="Date"
-        yAxisLabel="Portfolio Value"
+        valueType="currency"
       />
       <div className="section-header compact-header">
         <h3>Return</h3>
       </div>
-      <SvgLineChart
+      <InteractiveLineChart
         emptyMessage="No metric data available."
         series={[
           {
@@ -60,9 +58,7 @@ export function PerformanceChartPanel({
           },
         ]}
         height={440}
-        valueFormat="percent"
-        xAxisLabel="Date"
-        yAxisLabel="Return"
+        valueType="percent"
       />
     </section>
   );

@@ -190,7 +190,7 @@ paths:
       operationId: listMetrics
       parameters:
         - $ref: '#/components/parameters/ExperimentId'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/TimeSeriesLimit'
         - $ref: '#/components/parameters/Offset'
       responses:
         '200':
@@ -211,7 +211,7 @@ paths:
       operationId: listPortfolioSnapshots
       parameters:
         - $ref: '#/components/parameters/ExperimentId'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/TimeSeriesLimit'
         - $ref: '#/components/parameters/Offset'
       responses:
         '200':
@@ -335,6 +335,15 @@ components:
         default: 50
         minimum: 1
         maximum: 1000
+    TimeSeriesLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 10000
     Offset:
       name: offset
       in: query

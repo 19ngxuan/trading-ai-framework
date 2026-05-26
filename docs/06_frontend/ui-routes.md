@@ -312,9 +312,12 @@ GET /api/v1/experiments/{experimentId}/metrics
 GET /api/v1/experiments/{experimentId}/events
 ```
 
-Charts use local lightweight SVG components. They derive coordinates, axes,
-ticks, and labels from backend-provided metrics and snapshots only; they do not
-calculate authoritative metrics.
+Charts use local interactive chart components for portfolio value, returns, and
+comparison equity curves. They render backend-provided metrics and snapshots
+only; they do not calculate authoritative metrics. When portfolio snapshots
+exist, the detail Portfolio Value KPI should use the latest loaded
+`PortfolioSnapshot.totalPortfolioValue` so the KPI matches the latest chart
+point.
 
 ## 8.4 Polling
 
@@ -387,6 +390,9 @@ Optional for charts:
 GET /api/v1/experiments/{experimentId}/portfolio-snapshots
 GET /api/v1/experiments/{experimentId}/metrics
 ```
+
+Portfolio snapshot requests for comparison charts should be loaded after the
+user runs a comparison, not on every selection change.
 
 ## 10.4 User Actions
 

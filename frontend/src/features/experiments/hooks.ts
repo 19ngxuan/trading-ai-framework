@@ -52,7 +52,7 @@ export function useExperiment(id: number) {
 export function useMetrics(id: number, status?: ExperimentStatus) {
   return useQuery({
     queryKey: experimentKeys.metrics(id),
-    queryFn: () => getMetrics(id, { limit: 500, offset: 0 }),
+    queryFn: () => getMetrics(id, { limit: 10000, offset: 0 }),
     enabled: Number.isFinite(id),
     refetchInterval: status === "RUNNING" ? 5_000 : false,
   });
@@ -61,7 +61,7 @@ export function useMetrics(id: number, status?: ExperimentStatus) {
 export function usePortfolioSnapshots(id: number, status?: ExperimentStatus) {
   return useQuery({
     queryKey: experimentKeys.portfolioSnapshots(id),
-    queryFn: () => getPortfolioSnapshots(id, { limit: 500, offset: 0 }),
+    queryFn: () => getPortfolioSnapshots(id, { limit: 10000, offset: 0 }),
     enabled: Number.isFinite(id),
     refetchInterval: status === "RUNNING" ? 5_000 : false,
   });

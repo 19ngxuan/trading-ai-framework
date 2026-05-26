@@ -102,6 +102,43 @@ def test_portfolio_snapshot_endpoint_returns_ascending_paginated_time_series(
     assert body["items"][1]["currentPrice"] == 474.0
 
 
+def test_snapshot_endpoints_accept_large_chart_limit(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_buy_and_hold_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+    client.post(f"/api/v1/experiments/{experiment_id}/start")
+
+    metrics_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/metrics?limit=10000&offset=0"
+    )
+    portfolio_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/portfolio-snapshots?limit=10000&offset=0"
+    )
+
+    assert metrics_response.status_code == 200
+    assert metrics_response.json()["limit"] == 10000
+    assert len(metrics_response.json()["items"]) == 4
+    assert portfolio_response.status_code == 200
+    assert portfolio_response.json()["limit"] == 10000
+    assert len(portfolio_response.json()["items"]) == 4
+
+
+def test_snapshot_endpoints_reject_limits_above_chart_max(client) -> None:
+    create_response = client.post("/api/v1/experiments", json=_buy_and_hold_payload())
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    metrics_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/metrics?limit=10001&offset=0"
+    )
+    portfolio_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/portfolio-snapshots?limit=10001&offset=0"
+    )
+
+    assert metrics_response.status_code == 422
+    assert metrics_response.json()["errorCode"] == "VALIDATION_ERROR"
+    assert portfolio_response.status_code == 422
+    assert portfolio_response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
 def test_snapshot_endpoints_return_404_for_missing_experiment(client) -> None:
     metrics_response = client.get("/api/v1/experiments/9999/metrics")
     portfolio_response = client.get("/api/v1/experiments/9999/portfolio-snapshots")
