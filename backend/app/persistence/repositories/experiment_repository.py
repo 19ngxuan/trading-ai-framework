@@ -1,12 +1,14 @@
 from sqlalchemy import func, select
 
 from app.domain.enums import (
+    AgentMode,
     ExperimentMode,
     ExperimentStatus,
     StrategyType,
     TradingFrequency,
 )
 from app.persistence.models import ExperimentModel
+from app.persistence.models import StrategyConfigModel
 from app.persistence.repositories.base import BaseRepository
 
 
@@ -74,12 +76,28 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
     def list_paper_scheduler_eligible_experiment_ids(self) -> list[int]:
         statement = (
             select(self.model.id)
+            .join(
+                StrategyConfigModel,
+                StrategyConfigModel.experiment_id == self.model.id,
+            )
             .where(
                 self.model.status == ExperimentStatus.RUNNING,
                 self.model.mode == ExperimentMode.PAPER_TRADING,
                 self.model.trading_frequency == TradingFrequency.DAILY,
-                self.model.strategy_type.in_(
-                    [StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE]
+                (
+                    self.model.strategy_type.in_(
+                        [StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE]
+                    )
+                    | (
+                        (self.model.strategy_type == StrategyType.AGENTIC_AI)
+                        & (
+                            (StrategyConfigModel.agent_mode.is_(None))
+                            | (
+                                StrategyConfigModel.agent_mode
+                                == AgentMode.SINGLE_AGENT
+                            )
+                        )
+                    )
                 ),
                 self.model.asset_symbol == "SPY",
             )

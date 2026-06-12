@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     alpaca_paper_trading_enabled: bool = False
     alpaca_trading_base_url: str = "https://paper-api.alpaca.markets"
     alpaca_order_timeout_seconds: int = 10
+    scadsai_llm_enabled: bool = False
+    scadsai_api_key: str | None = None
+    scadsai_base_url: str = "https://llm.scads.ai/v1"
+    scadsai_request_timeout_seconds: int = 30
+    scadsai_allowed_models: str = "meta-llama/Llama-3.3-70B-Instruct"
+    scadsai_default_model: str = "meta-llama/Llama-3.3-70B-Instruct"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -76,6 +82,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required when ALPACA_PAPER_TRADING_ENABLED=true."
             )
+        if self.scadsai_request_timeout_seconds <= 0:
+            raise ValueError("SCADSAI_REQUEST_TIMEOUT_SECONDS must be greater than 0.")
+        if not self.scadsai_base_url.startswith("https://"):
+            raise ValueError("SCADSAI_BASE_URL must use HTTPS.")
+        if self.scadsai_llm_enabled and not self.scadsai_api_key:
+            raise ValueError(
+                "SCADSAI_API_KEY is required when SCADSAI_LLM_ENABLED=true."
+            )
+        if self.scadsai_default_model not in self.scadsai_allowed_model_list:
+            raise ValueError(
+                "SCADSAI_DEFAULT_MODEL must be included in SCADSAI_ALLOWED_MODELS."
+            )
         return self
 
     @property
@@ -84,6 +102,14 @@ class Settings(BaseSettings):
             origin.strip()
             for origin in self.backend_cors_origins.split(",")
             if origin.strip()
+        ]
+
+    @property
+    def scadsai_allowed_model_list(self) -> list[str]:
+        return [
+            model.strip()
+            for model in self.scadsai_allowed_models.split(",")
+            if model.strip()
         ]
 
 

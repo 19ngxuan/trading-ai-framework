@@ -249,6 +249,33 @@ def test_create_experiment_rejects_agentic_ai_paper_trading(client) -> None:
 
     response = client.post("/api/v1/experiments", json=payload)
 
+    assert response.status_code == 201
+    body = response.json()
+    assert body["experiment"]["mode"] == "PAPER_TRADING"
+    assert body["experiment"]["strategyType"] == "AGENTIC_AI"
+
+
+def test_create_experiment_rejects_agentic_ai_pipeline_paper_trading(client) -> None:
+    payload = _create_request_payload()
+    payload["mode"] = "PAPER_TRADING"
+    payload["strategyType"] = "AGENTIC_AI"
+    payload["strategyConfig"]["agentMode"] = "PIPELINE"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
+def test_create_experiment_rejects_disallowed_scads_model(client) -> None:
+    payload = _create_request_payload()
+    payload["mode"] = "PAPER_TRADING"
+    payload["strategyType"] = "AGENTIC_AI"
+    payload["strategyConfig"]["agentMode"] = "SINGLE_AGENT"
+    payload["strategyConfig"]["modelName"] = "not-allowed"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
     assert response.status_code == 422
     assert response.json()["errorCode"] == "VALIDATION_ERROR"
 

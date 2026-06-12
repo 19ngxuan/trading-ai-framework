@@ -5,6 +5,7 @@ from app.api.schemas.experiment_schemas import CreateExperimentRequest
 from app.core.config import get_settings
 from app.core.errors import ValidationAppError
 from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
+from app.domain.enums import AgentMode
 from app.modules.execution.position_sizing import (
     PositionSizingConfigurationError,
     validate_position_sizing_config,
@@ -126,6 +127,7 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             (StrategyType.BUY_AND_HOLD, TradingFrequency.DAILY),
             (StrategyType.MOVING_AVERAGE, TradingFrequency.DAILY),
             (StrategyType.OPENING_RANGE_BREAKOUT, TradingFrequency.INTRADAY_5_MIN),
+            (StrategyType.AGENTIC_AI, TradingFrequency.DAILY),
         }
         if request.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST and (
             request.strategy_type,
@@ -141,6 +143,26 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                     "tradingFrequency": request.trading_frequency.value,
                 },
             )
+        if request.strategy_type is StrategyType.AGENTIC_AI:
+            agent_mode = request.strategy_config.agent_mode or AgentMode.SINGLE_AGENT
+            if agent_mode is not AgentMode.SINGLE_AGENT:
+                raise ValidationAppError(
+                    "Agentic AI paper trading supports SINGLE_AGENT mode only.",
+                    details={
+                        "field": "strategyConfig.agentMode",
+                        "value": agent_mode.value,
+                    },
+                )
+            model_name = request.strategy_config.model_name or settings.scadsai_default_model
+            if model_name not in settings.scadsai_allowed_model_list:
+                raise ValidationAppError(
+                    "Selected ScaDS.AI model is not allowed.",
+                    details={
+                        "field": "strategyConfig.modelName",
+                        "value": model_name,
+                        "allowedModels": settings.scadsai_allowed_model_list,
+                    },
+                )
 
     if request.strategy_config.moving_average_window is not None:
         if request.strategy_config.moving_average_window <= 0:

@@ -94,6 +94,17 @@ function validate(state: FormState): string | null {
       return "Confidence threshold must be between 0 and 1.";
     }
   }
+  if (state.strategyType === "AGENTIC_AI" && state.mode === "PAPER_TRADING") {
+    if (state.agentMode && state.agentMode !== "SINGLE_AGENT") {
+      return "Paper trading Agentic AI supports SINGLE_AGENT mode only.";
+    }
+    if (!state.modelName.trim()) {
+      return "Paper trading Agentic AI requires a model selection.";
+    }
+    if (state.tradingFrequency !== "DAILY") {
+      return "Paper trading Agentic AI supports DAILY frequency only.";
+    }
+  }
   if (state.positionSizingType !== "ALL_IN") {
     const sizingValue = Number(state.positionSizingValue);
     if (!Number.isFinite(sizingValue)) {
@@ -215,9 +226,28 @@ export function CreateExperimentForm() {
           Mode
           <select
             value={state.mode}
-            onChange={(event) =>
-              update("mode", event.target.value as ExperimentMode)
-            }
+            onChange={(event) => {
+              const nextMode = event.target.value as ExperimentMode;
+              setState((current) => ({
+                ...current,
+                mode: nextMode,
+                agentMode:
+                  nextMode === "PAPER_TRADING"
+                    && current.strategyType === "AGENTIC_AI"
+                    ? "SINGLE_AGENT"
+                    : current.agentMode,
+                modelName:
+                  nextMode === "PAPER_TRADING"
+                    && current.strategyType === "AGENTIC_AI"
+                    ? optionsQuery.data.scadsaiDefaultModel
+                    : current.modelName,
+                tradingFrequency:
+                  nextMode === "PAPER_TRADING"
+                    && current.strategyType === "AGENTIC_AI"
+                    ? "DAILY"
+                    : current.tradingFrequency,
+              }));
+            }}
           >
             {optionsQuery.data.modes.map((mode) => (
               <option key={mode} value={mode}>
@@ -251,6 +281,14 @@ export function CreateExperimentForm() {
                   nextStrategy === "PAPER_TRADING_SMOKE_TEST"
                     ? "PAPER_TRADING"
                     : current.mode,
+                agentMode:
+                  nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
+                    ? "SINGLE_AGENT"
+                    : current.agentMode,
+                modelName:
+                  nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
+                    ? optionsQuery.data.scadsaiDefaultModel
+                    : current.modelName,
                 positionSizingType:
                   nextStrategy === "PAPER_TRADING_SMOKE_TEST"
                     ? "FIXED_QUANTITY"
@@ -424,20 +462,40 @@ export function CreateExperimentForm() {
                 }
               >
                 <option value="">None</option>
-                {optionsQuery.data.agentModes.map((mode) => (
+                {optionsQuery.data.agentModes
+                  .filter((mode) =>
+                    state.mode === "PAPER_TRADING" ? mode === "SINGLE_AGENT" : true,
+                  )
+                  .map((mode) => (
                   <option key={mode} value={mode}>
                     {mode}
                   </option>
-                ))}
+                  ))}
               </select>
             </label>
-            <label>
-              Model Name
-              <input
-                value={state.modelName}
-                onChange={(event) => update("modelName", event.target.value)}
-              />
-            </label>
+            {state.mode === "PAPER_TRADING" ? (
+              <label>
+                ScaDS.AI Model
+                <select
+                  value={state.modelName || optionsQuery.data.scadsaiDefaultModel}
+                  onChange={(event) => update("modelName", event.target.value)}
+                >
+                  {optionsQuery.data.scadsaiAllowedModels.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label>
+                Model Name
+                <input
+                  value={state.modelName}
+                  onChange={(event) => update("modelName", event.target.value)}
+                />
+              </label>
+            )}
             <label>
               Confidence Threshold
               <input

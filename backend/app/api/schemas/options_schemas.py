@@ -21,3 +21,6 @@ class OptionsResponse(CamelModel):
     fee_model_types: list[FeeModelType] = Field(alias="feeModelTypes")
     agent_modes: list[AgentMode] = Field(alias="agentModes")
     order_statuses: list[OrderStatus] = Field(alias="orderStatuses")
+    scadsai_llm_enabled: bool = Field(alias="scadsaiLlmEnabled")
+    scadsai_allowed_models: list[str] = Field(alias="scadsaiAllowedModels")
+    scadsai_default_model: str = Field(alias="scadsaiDefaultModel")

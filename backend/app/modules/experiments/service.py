@@ -434,6 +434,9 @@ class ExperimentService:
             feeModelTypes=list(FeeModelType),
             agentModes=list(AgentMode),
             orderStatuses=list(OrderStatus),
+            scadsaiLlmEnabled=settings.scadsai_llm_enabled,
+            scadsaiAllowedModels=settings.scadsai_allowed_model_list,
+            scadsaiDefaultModel=settings.scadsai_default_model,
         )
 
 

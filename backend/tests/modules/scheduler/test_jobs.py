@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ExperimentStepAlreadyRunningAppError
 from app.domain.enums import (
+    AgentMode,
     ExecutionStepStatus,
     ExperimentMode,
     ExperimentStatus,
@@ -91,6 +92,7 @@ def _create_experiment(
     trading_frequency: TradingFrequency = TradingFrequency.DAILY,
     start_date: date = date(2024, 1, 2),
     end_date: date = date(2024, 1, 5),
+    agent_mode: AgentMode | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -123,7 +125,7 @@ def _create_experiment(
             if strategy_type is StrategyType.MOVING_AVERAGE
             else None,
             position_sizing_type="ALL_IN",
-            agent_mode=None,
+            agent_mode=agent_mode,
             model_name=None,
             confidence_threshold=None,
             parameters_json={"riskConfig": {"fallbackAction": "HOLD"}},
@@ -332,6 +334,18 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.MOVING_AVERAGE,
         )
+        agentic_ai_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.SINGLE_AGENT,
+        )
+        _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.PIPELINE,
+        )
         _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
@@ -350,10 +364,12 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
     assert fake_runner.calls == [
         (paper_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
         (moving_average_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
+        (agentic_ai_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
     ]
     assert [item.experiment_id for item in result.results] == [
         paper_id,
         moving_average_id,
+        agentic_ai_id,
     ]
     assert result.skipped == []
     assert result.errors == []

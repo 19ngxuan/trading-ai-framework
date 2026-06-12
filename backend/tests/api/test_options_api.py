@@ -6,6 +6,13 @@ from app.main import create_app
 
 def test_options_endpoint_returns_documented_enums(monkeypatch) -> None:
     monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "false")
+    monkeypatch.setenv("SCADSAI_LLM_ENABLED", "false")
+    monkeypatch.setenv(
+        "SCADSAI_ALLOWED_MODELS", "meta-llama/Llama-3.3-70B-Instruct"
+    )
+    monkeypatch.setenv(
+        "SCADSAI_DEFAULT_MODEL", "meta-llama/Llama-3.3-70B-Instruct"
+    )
     get_settings.cache_clear()
 
     with TestClient(create_app()) as client:
@@ -25,6 +32,9 @@ def test_options_endpoint_returns_documented_enums(monkeypatch) -> None:
     assert "NONE" in body["feeModelTypes"]
     assert "SINGLE_AGENT" in body["agentModes"]
     assert "FILLED" in body["orderStatuses"]
+    assert body["scadsaiLlmEnabled"] is False
+    assert body["scadsaiDefaultModel"] == "meta-llama/Llama-3.3-70B-Instruct"
+    assert "meta-llama/Llama-3.3-70B-Instruct" in body["scadsaiAllowedModels"]
     get_settings.cache_clear()
 
 

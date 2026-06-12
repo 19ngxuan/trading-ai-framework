@@ -11,7 +11,9 @@ from app.core.errors import (
 )
 from app.core.config import Settings
 from app.domain.enums import (
+    AgentMode,
     BrokerName,
+    DecisionSourceType,
     ExecutionStepStatus,
     ExperimentMode,
     ExperimentStatus,
@@ -22,6 +24,7 @@ from app.domain.enums import (
     OrderType,
     StrategyType,
     SystemEventType,
+    TradeAction,
     TradingFrequency,
     TriggerType,
 )
@@ -31,13 +34,17 @@ from app.modules.broker.broker_adapter import (
     BrokerPosition,
 )
 from app.modules.broker.errors import BrokerProviderError
+from app.modules.agents.fake_provider import FakeAgentProvider
+from app.modules.agents.single_agent import SingleAgent
 from app.modules.execution.broker_sync import PaperBrokerSyncService
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
+from app.modules.strategies.agentic_ai_strategy import AgenticAIStrategy
 from app.modules.market_data.errors import MarketDataUnavailableError
 from app.modules.market_data.intraday_provider import IntradayBar
 from app.modules.market_data.provider import DailyBar
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
+    AgentDecisionLogModel,
     ExecutionStepModel,
     BrokerSyncLogModel,
     ExperimentModel,
@@ -189,6 +196,10 @@ def _create_experiment(
     position_sizing_type: str = "ALL_IN",
     position_sizing_value: Decimal | None = None,
     moving_average_window: int | None = None,
+    agent_mode=None,
+    model_name: str | None = None,
+    confidence_threshold: Decimal | None = None,
+    parameters_json: dict | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -215,10 +226,10 @@ def _create_experiment(
             strategy_version="buy-and-hold-v1",
             moving_average_window=moving_average_window,
             position_sizing_type=position_sizing_type,
-            agent_mode=None,
-            model_name=None,
-            confidence_threshold=None,
-            parameters_json={
+            agent_mode=agent_mode,
+            model_name=model_name,
+            confidence_threshold=confidence_threshold,
+            parameters_json=parameters_json or {
                 "riskConfig": {"fallbackAction": "HOLD"},
                 **(
                     {"positionSizingValue": float(position_sizing_value)}
@@ -295,6 +306,21 @@ def _runner_with_providers(
         market_data_provider=market_data_provider,
         intraday_provider=intraday_provider,
         broker_adapter=broker,
+    )
+
+
+def _agent_runner(
+    database_url: str,
+    broker: FakeBrokerAdapter,
+    market_data_provider: FakeMarketDataProvider,
+) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=market_data_provider,
+        broker_adapter=broker,
+        agent_strategy=AgenticAIStrategy(
+            agent=SingleAgent(provider=FakeAgentProvider())
+        ),
     )
 
 
@@ -1105,4 +1131,116 @@ def test_orb_paper_manual_run_next_step_is_rejected(database_url: str) -> None:
             FakeBrokerAdapter(),
             FakeMarketDataProvider(),
             FakeIntradayProvider([]),
+        ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
+
+
+def test_agentic_ai_paper_single_agent_buy_creates_agent_log_and_order(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.SINGLE_AGENT,
+            model_name="meta-llama/Llama-3.3-70B-Instruct",
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Paper agent test BUY.",
+                    }
+                },
+            },
+        )
+
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="100", quantity="100")
+    )
+    result = _agent_runner(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("100")),
+    ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["side"] is OrderSide.BUY
+    with session_factory() as session:
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        agent_log_count = _count(session, AgentDecisionLogModel, experiment_id)
+        risk = session.scalar(
+            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
+        )
+        assert decision is not None
+        assert decision.source_type is DecisionSourceType.AGENT
+        assert decision.action is TradeAction.BUY
+        assert agent_log_count == 1
+        assert risk is not None
+        assert risk.trading_decision_id == decision.id
+
+
+def test_agentic_ai_paper_low_confidence_holds_without_broker_call(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.SINGLE_AGENT,
+            model_name="meta-llama/Llama-3.3-70B-Instruct",
+            confidence_threshold=Decimal("0.8000"),
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.2,
+                        "rationale": "Low confidence BUY.",
+                    }
+                },
+            },
+        )
+
+    broker = FakeBrokerAdapter()
+    result = _agent_runner(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("100")),
+    ).run_next_step(experiment_id, trigger_type=TriggerType.SCHEDULED)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls == []
+    with session_factory() as session:
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        assert decision is not None
+        assert decision.action is TradeAction.HOLD
+        assert decision.raw_decision_json["fallbackReason"] == "CONFIDENCE_BELOW_THRESHOLD"
+
+
+def test_agentic_ai_pipeline_paper_is_rejected(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.PIPELINE,
+            model_name="meta-llama/Llama-3.3-70B-Instruct",
+        )
+
+    with pytest.raises(InvalidExperimentConfigurationAppError):
+        _agent_runner(
+            database_url,
+            FakeBrokerAdapter(),
+            FakeMarketDataProvider(price=Decimal("100")),
         ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)

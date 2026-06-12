@@ -129,6 +129,9 @@ export type OptionsResponse = {
   feeModelTypes: FeeModelType[];
   agentModes: AgentMode[];
   orderStatuses: OrderStatus[];
+  scadsaiLlmEnabled: boolean;
+  scadsaiAllowedModels: string[];
+  scadsaiDefaultModel: string;
 };
 
 export type StrategyConfigInput = {

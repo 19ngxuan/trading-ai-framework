@@ -11,6 +11,7 @@ from app.api.schemas.paper_status_schemas import (
 from app.core.config import Settings, get_settings
 from app.core.errors import NotFoundAppError
 from app.domain.enums import (
+    AgentMode,
     ExperimentMode,
     ExperimentStatus,
     StrategyType,
@@ -29,6 +30,7 @@ from app.persistence.repositories import (
     ExecutionStepRepository,
     ExperimentRepository,
     OrderRepository,
+    StrategyConfigRepository,
 )
 
 router = APIRouter(prefix="/experiments", tags=["paper-status"])
@@ -49,6 +51,9 @@ def get_experiment_paper_status(
         )
 
     execution_steps = ExecutionStepRepository(session)
+    strategy_config = StrategyConfigRepository(session).get_by_experiment_id(
+        experiment_id
+    )
     orders = OrderRepository(session)
     broker_sync_logs = BrokerSyncLogRepository(session)
     now = datetime.now(NEW_YORK_TZ)
@@ -77,7 +82,7 @@ def get_experiment_paper_status(
         current_due_slot is not None
         and execution_steps.has_step_for_scheduled_slot(experiment_id, current_due_slot)
     )
-    supported = _supported_by_paper_scheduler(experiment)
+    supported = _supported_by_paper_scheduler(experiment, strategy_config)
     reason_code, message = _status_reason(
         experiment=experiment,
         supported=supported,
@@ -120,15 +125,25 @@ def get_experiment_paper_status(
     )
 
 
-def _supported_by_paper_scheduler(experiment: ExperimentModel) -> bool:
+def _supported_by_paper_scheduler(experiment: ExperimentModel, strategy_config) -> bool:
     if (
         experiment.mode is ExperimentMode.PAPER_TRADING
-        and experiment.strategy_type
-        in {StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE}
+        and experiment.strategy_type in {StrategyType.BUY_AND_HOLD, StrategyType.MOVING_AVERAGE}
         and experiment.trading_frequency is TradingFrequency.DAILY
         and experiment.asset_symbol == "SPY"
     ):
         return True
+    if (
+        experiment.mode is ExperimentMode.PAPER_TRADING
+        and experiment.strategy_type is StrategyType.AGENTIC_AI
+        and experiment.trading_frequency is TradingFrequency.DAILY
+        and experiment.asset_symbol == "SPY"
+    ):
+        return (
+            strategy_config is not None
+            and (strategy_config.agent_mode or AgentMode.SINGLE_AGENT)
+            is AgentMode.SINGLE_AGENT
+        )
     if (
         experiment.mode is ExperimentMode.PAPER_TRADING
         and experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
@@ -168,8 +183,8 @@ def _status_reason(
         return (
             "UNSUPPORTED_PAPER_CONFIGURATION",
             "The paper scheduler supports BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
-            "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN, and gated smoke-test SPY "
-            "paper-trading experiments.",
+            "AGENTIC_AI SINGLE_AGENT DAILY, OPENING_RANGE_BREAKOUT INTRADAY_5_MIN, "
+            "and gated smoke-test SPY paper-trading experiments.",
         )
     if not settings.paper_trading_scheduler_enabled:
         return (

@@ -13,6 +13,7 @@ from app.core.errors import (
     NotFoundAppError,
 )
 from app.domain.enums import (
+    AgentMode,
     DecisionSourceType,
     BrokerName,
     BrokerSyncStatus,
@@ -27,6 +28,10 @@ from app.domain.enums import (
     TradingFrequency,
     TriggerType,
 )
+from app.modules.agents.errors import AgentProviderConfigurationError
+from app.modules.agents.provider_factory import create_scads_agent_provider
+from app.modules.agents.single_agent import SingleAgent
+from app.modules.agents.types import AgentContext
 from app.modules.broker.broker_adapter import BrokerAdapter, BrokerOrderResult
 from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderError
 from app.modules.broker.factory import create_broker_adapter
@@ -49,6 +54,7 @@ from app.modules.market_data.errors import (
 from app.modules.market_data.provider import MarketDataProvider
 from app.modules.market_data.trading_calendar import UsEquitiesTradingCalendar
 from app.modules.strategies.buy_and_hold import BuyAndHoldStrategy
+from app.modules.strategies.agentic_ai_strategy import AgenticAIStrategy
 from app.modules.strategies.moving_average import (
     DEFAULT_MOVING_AVERAGE_WINDOW,
     MovingAverageStrategy,
@@ -62,6 +68,7 @@ from app.modules.strategies.paper_trading_smoke_test import (
 )
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
+    AgentDecisionLogModel,
     ExecutionStepModel,
     BrokerSyncLogModel,
     MarketDataSnapshotModel,
@@ -74,6 +81,7 @@ from app.persistence.models import (
     TradingDecisionModel,
 )
 from app.persistence.repositories import (
+    AgentDecisionLogRepository,
     ExecutionStepRepository,
     BrokerSyncLogRepository,
     ExperimentRepository,
@@ -107,6 +115,7 @@ class PaperTradingStepRunner:
         market_data_provider: MarketDataProvider | None = None,
         intraday_provider: IntradayMarketDataProvider | None = None,
         broker_adapter: BrokerAdapter | None = None,
+        agent_strategy: AgenticAIStrategy | None = None,
         settings: Settings | None = None,
     ) -> None:
         self.session_factory = session_factory or create_session_factory()
@@ -121,6 +130,7 @@ class PaperTradingStepRunner:
         self.buy_and_hold_strategy = BuyAndHoldStrategy()
         self.moving_average_strategy = MovingAverageStrategy()
         self.orb_strategy = OpeningRangeBreakoutStrategy()
+        self.agent_strategy = agent_strategy
         self.smoke_test_strategy = PaperTradingSmokeTestStrategy()
         self.risk_validator = BuyAndHoldRiskValidator()
         self.metric_calculator = BasicMetricCalculator()
@@ -160,6 +170,20 @@ class PaperTradingStepRunner:
             NotFoundAppError,
         ):
             raise
+        except AgentProviderConfigurationError as exc:
+            self._persist_failure(
+                experiment_id,
+                execution_step_id,
+                error_code="AGENT_PROVIDER_CONFIGURATION_ERROR",
+                message=exc.message,
+                provider_details=exc.details,
+                fail_experiment=True,
+                event_type=SystemEventType.EXPERIMENT_FAILED,
+            )
+            raise InvalidExperimentConfigurationAppError(
+                exc.message,
+                details=exc.details,
+            ) from exc
         except MarketDataUnavailableError as exc:
             self._persist_failure(
                 experiment_id,
@@ -241,6 +265,14 @@ class PaperTradingStepRunner:
                         "status": experiment.status.value,
                     },
                 )
+            strategy_config = StrategyConfigRepository(session).get_by_experiment_id(
+                experiment_id
+            )
+            if strategy_config is None:
+                raise InvalidExperimentConfigurationAppError(
+                    "Experiment is missing strategy configuration.",
+                    details={"experimentId": experiment_id},
+                )
             if not self._is_supported_experiment(experiment, trigger_type):
                 raise InvalidExperimentConfigurationAppError(
                     "Paper trading supports only SPY Buy-and-Hold daily, Moving "
@@ -252,6 +284,22 @@ class PaperTradingStepRunner:
                         "strategyType": experiment.strategy_type.value,
                         "tradingFrequency": experiment.trading_frequency.value,
                         "assetSymbol": experiment.asset_symbol,
+                    },
+                )
+            if (
+                experiment.strategy_type is StrategyType.AGENTIC_AI
+                and (strategy_config.agent_mode or AgentMode.SINGLE_AGENT)
+                is not AgentMode.SINGLE_AGENT
+            ):
+                raise InvalidExperimentConfigurationAppError(
+                    "Agentic AI paper trading supports SINGLE_AGENT mode only.",
+                    details={
+                        "experimentId": experiment_id,
+                        "agentMode": (
+                            strategy_config.agent_mode.value
+                            if strategy_config.agent_mode is not None
+                            else AgentMode.SINGLE_AGENT.value
+                        ),
                     },
                 )
 
@@ -320,6 +368,11 @@ class PaperTradingStepRunner:
         ):
             return True
         if (
+            experiment.strategy_type is StrategyType.AGENTIC_AI
+            and experiment.trading_frequency is TradingFrequency.DAILY
+        ):
+            return True
+        if (
             experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
             and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
         ):
@@ -345,6 +398,12 @@ class PaperTradingStepRunner:
             strategy_type = experiment.strategy_type
         if strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
             return self._run_orb_step_artifacts(
+                experiment_id,
+                execution_step_id,
+                broker_adapter,
+            )
+        if strategy_type is StrategyType.AGENTIC_AI:
+            return self._run_agentic_ai_step_artifacts(
                 experiment_id,
                 execution_step_id,
                 broker_adapter,
@@ -625,6 +684,162 @@ class PaperTradingStepRunner:
             session.commit()
             return None
 
+    def _run_agentic_ai_step_artifacts(
+        self,
+        experiment_id: int,
+        execution_step_id: int,
+        broker_adapter: BrokerAdapter,
+    ) -> PaperStepFailure | None:
+        bar = self.market_data_provider.get_latest_bar("SPY")
+        with self.session_factory() as session:
+            now = _utcnow()
+            experiment = ExperimentRepository(session).get_by_id(experiment_id)
+            portfolio = PortfolioRepository(session).get_by_experiment_id(experiment_id)
+            strategy_config = StrategyConfigRepository(session).get_by_experiment_id(
+                experiment_id
+            )
+            execution_step = ExecutionStepRepository(session).get(execution_step_id)
+            if (
+                experiment is None
+                or portfolio is None
+                or strategy_config is None
+                or execution_step is None
+            ):
+                raise RuntimeError(f"Experiment {experiment_id} is missing state.")
+
+            selected_model = strategy_config.model_name or self.settings.scadsai_default_model
+            agent_strategy = self._paper_agent_strategy(selected_model)
+            market_data = MarketDataSnapshotRepository(session).add(
+                MarketDataSnapshotModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    timestamp=now,
+                    symbol="SPY",
+                    price=bar.adjusted_close,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.adjusted_close,
+                    volume=bar.volume,
+                    moving_average=None,
+                    rsi=None,
+                    raw_data_json=bar.raw,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            agent_context = AgentContext(
+                experiment_id=experiment_id,
+                execution_step_id=execution_step_id,
+                symbol="SPY",
+                bar=bar,
+                cash=portfolio.cash,
+                position_quantity=portfolio.position_quantity,
+                current_portfolio_value=portfolio.current_portfolio_value,
+                confidence_threshold=strategy_config.confidence_threshold,
+                parameters_json=strategy_config.parameters_json,
+                agent_mode=AgentMode.SINGLE_AGENT,
+                model_name=selected_model,
+            )
+            agent_result = agent_strategy.decide(agent_context)
+            agent_decision = agent_result.decision
+            trading_decision = TradingDecisionRepository(session).add(
+                TradingDecisionModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    market_data_snapshot_id=market_data.id,
+                    source_type=DecisionSourceType.AGENT,
+                    source_name=agent_strategy.source_name,
+                    action=agent_decision.action,
+                    symbol=agent_decision.symbol,
+                    suggested_quantity=None,
+                    suggested_notional=None,
+                    confidence=agent_decision.confidence,
+                    reason=agent_decision.reason,
+                    raw_decision_json=agent_decision.raw_decision_json,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            log_payloads = agent_result.log_payloads or (agent_result.log_payload,)
+            for log_payload in log_payloads:
+                AgentDecisionLogRepository(session).add(
+                    AgentDecisionLogModel(
+                        execution_step_id=execution_step_id,
+                        experiment_id=experiment_id,
+                        trading_decision_id=trading_decision.id,
+                        agent_mode=AgentMode.SINGLE_AGENT,
+                        agent_step_name=log_payload.agent_step_name,
+                        agent_name=log_payload.agent_name,
+                        prompt_version=log_payload.prompt_version,
+                        model_name=log_payload.model_name,
+                        model_version=log_payload.model_version,
+                        input_json=log_payload.input_json,
+                        prompt_text=log_payload.prompt_text,
+                        raw_output_text=log_payload.raw_output_text,
+                        parsed_output_json=log_payload.parsed_output_json,
+                        parsing_status=log_payload.parsing_status,
+                        repair_prompt_text=log_payload.repair_prompt_text,
+                        repair_raw_output_text=log_payload.repair_raw_output_text,
+                        created_at=now,
+                    )
+                )
+            session.flush()
+
+            risk_result = self.risk_validator.evaluate(
+                agent_decision,
+                portfolio,
+                bar.adjusted_close,
+                position_sizing_type=strategy_config.position_sizing_type,
+                position_sizing_value=parse_position_sizing_value(
+                    strategy_config.parameters_json
+                ),
+            )
+            risk_check = RiskCheckRepository(session).add(
+                RiskCheckModel(
+                    execution_step_id=execution_step_id,
+                    experiment_id=experiment_id,
+                    trading_decision_id=trading_decision.id,
+                    approved=risk_result.approved,
+                    final_action=risk_result.final_action,
+                    final_quantity=risk_result.final_quantity,
+                    final_notional=risk_result.final_notional,
+                    rejection_reason=risk_result.rejection_reason,
+                    rules_triggered_json=risk_result.rules_triggered_json,
+                    created_at=now,
+                )
+            )
+            session.flush()
+
+            if self._requires_broker_submission(risk_result):
+                risk_check_id = risk_check.id
+                session.commit()
+                return self._run_broker_execution(
+                    experiment_id=experiment_id,
+                    execution_step_id=execution_step_id,
+                    broker_adapter=broker_adapter,
+                    risk_result=risk_result,
+                    risk_check_id=risk_check_id,
+                    price=bar.adjusted_close,
+                )
+
+            self._persist_snapshot_and_metrics(
+                session=session,
+                experiment_id=experiment_id,
+                execution_step_id=execution_step_id,
+                experiment=experiment,
+                portfolio=portfolio,
+                price=bar.adjusted_close,
+                timestamp=now,
+                trade=None,
+            )
+            execution_step.status = ExecutionStepStatus.COMPLETED
+            execution_step.completed_at = now
+            session.commit()
+            return None
+
     def _decide(
         self,
         strategy_type: StrategyType,
@@ -651,6 +866,12 @@ class PaperTradingStepRunner:
             symbol="SPY",
             position_quantity=portfolio.position_quantity,
         )
+
+    def _paper_agent_strategy(self, model_name: str) -> AgenticAIStrategy:
+        if self.agent_strategy is not None:
+            return self.agent_strategy
+        provider = create_scads_agent_provider(self.settings, model_name)
+        return AgenticAIStrategy(agent=SingleAgent(provider=provider))
 
     def _source_name(self, strategy_type: StrategyType) -> str:
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
