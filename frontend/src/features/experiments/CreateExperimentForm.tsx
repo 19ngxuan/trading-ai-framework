@@ -53,13 +53,44 @@ const initialState: FormState = {
   fallbackAction: "HOLD",
 };
 
+const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
+  BUY_AND_HOLD: "Buy once, then hold the SPY position.",
+  MOVING_AVERAGE: "Use a daily moving average signal.",
+  AGENTIC_AI: "Use a controlled agent decision producer.",
+  OPENING_RANGE_BREAKOUT: "Use 5-minute opening range breakout rules.",
+  PAPER_TRADING_SMOKE_TEST: "Run 1-share paper diagnostics only.",
+};
+
+const MODE_DESCRIPTIONS: Record<ExperimentMode, string> = {
+  HISTORICAL_SIMULATION: "Backtest over a fixed date range.",
+  PAPER_TRADING: "Run against Alpaca paper trading when scheduled or stepped.",
+};
+
+function formatEnumLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function defaultFrequencyFor(strategyType: StrategyType): TradingFrequency {
+  if (strategyType === "OPENING_RANGE_BREAKOUT") return "INTRADAY_5_MIN";
+  if (strategyType === "PAPER_TRADING_SMOKE_TEST") return "TEST_1_MIN";
+  return "DAILY";
+}
+
+function frequenciesFor(
+  strategyType: StrategyType,
+  frequencies: TradingFrequency[],
+) {
+  const defaultFrequency = defaultFrequencyFor(strategyType);
+  return frequencies.filter((frequency) => frequency === defaultFrequency);
+}
+
 function validate(state: FormState): string | null {
   if (!state.name.trim()) return "Name is required.";
   const initialCapital = Number(state.initialCapital);
   if (!Number.isFinite(initialCapital) || initialCapital <= 0) {
     return "Initial capital must be positive.";
   }
-  if (state.startDate > state.endDate) {
+  if (state.mode === "HISTORICAL_SIMULATION" && state.startDate > state.endDate) {
     return "Start date must be before or equal to end date.";
   }
   const feeValue = Number(state.feeValue);
@@ -98,6 +129,14 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
   const createMutation = useCreateExperiment();
   const [state, setState] = useState<FormState>(initialState);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const isHistorical = state.mode === "HISTORICAL_SIMULATION";
+  const isPaper = state.mode === "PAPER_TRADING";
+  const hasStrategyFields =
+    state.strategyType === "MOVING_AVERAGE" || state.strategyType === "AGENTIC_AI";
+  const availableFrequencies = frequenciesFor(
+    state.strategyType,
+    optionsQuery.data?.tradingFrequencies ?? [],
+  );
 
   const riskConfig = useMemo(
     () => ({
@@ -168,9 +207,30 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
   };
 
   return (
-    <form className="form-grid" onSubmit={(event) => void submit(event)}>
-      <section className="form-section">
-        <h3>Basic Configuration</h3>
+    <form className="create-experiment-form" onSubmit={(event) => void submit(event)}>
+      <div className="create-summary">
+        <div>
+          <span className="summary-label">Mode</span>
+          <strong>{formatEnumLabel(state.mode)}</strong>
+        </div>
+        <div>
+          <span className="summary-label">Strategy</span>
+          <strong>{formatEnumLabel(state.strategyType)}</strong>
+        </div>
+        <div>
+          <span className="summary-label">Asset</span>
+          <strong>{state.assetSymbol}</strong>
+        </div>
+      </div>
+
+      <section className="form-section form-card">
+        <div className="form-section-heading">
+          <span className="step-pill">01</span>
+          <div>
+            <h3>Experiment Setup</h3>
+            <p>Name the run and choose the execution mode.</p>
+          </div>
+        </div>
         <label>
           Name
           <input
@@ -188,6 +248,10 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               setState((current) => ({
                 ...current,
                 mode: nextMode,
+                tradingFrequency:
+                  nextMode === "PAPER_TRADING"
+                    ? defaultFrequencyFor(current.strategyType)
+                    : current.tradingFrequency,
                 agentMode:
                   nextMode === "PAPER_TRADING"
                     && current.strategyType === "AGENTIC_AI"
@@ -198,11 +262,6 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                     && current.strategyType === "AGENTIC_AI"
                     ? optionsQuery.data.scadsaiDefaultModel
                     : current.modelName,
-                tradingFrequency:
-                  nextMode === "PAPER_TRADING"
-                    && current.strategyType === "AGENTIC_AI"
-                    ? "DAILY"
-                    : current.tradingFrequency,
               }));
             }}
           >
@@ -212,6 +271,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               </option>
             ))}
           </select>
+          <small>{MODE_DESCRIPTIONS[state.mode]}</small>
         </label>
         <label>
           Strategy
@@ -224,15 +284,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                 strategyType: nextStrategy,
                 movingAverageWindow:
                   nextStrategy === "MOVING_AVERAGE" ? "3" : "",
-                tradingFrequency:
-                  nextStrategy === "OPENING_RANGE_BREAKOUT"
-                    ? "INTRADAY_5_MIN"
-                    : nextStrategy === "PAPER_TRADING_SMOKE_TEST"
-                      ? "TEST_1_MIN"
-                    : current.tradingFrequency === "INTRADAY_5_MIN"
-                        || current.tradingFrequency === "TEST_1_MIN"
-                      ? "DAILY"
-                      : current.tradingFrequency,
+                tradingFrequency: defaultFrequencyFor(nextStrategy),
                 mode:
                   nextStrategy === "PAPER_TRADING_SMOKE_TEST"
                     ? "PAPER_TRADING"
@@ -254,9 +306,10 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               </option>
             ))}
           </select>
+          <small>{STRATEGY_DESCRIPTIONS[state.strategyType]}</small>
         </label>
         {state.strategyType === "PAPER_TRADING_SMOKE_TEST" && (
-          <div className="state-box full-span">
+          <div className="state-box">
             Smoke-test strategy creates alternating 1-share Alpaca paper BUY/SELL
             orders for operational testing only. It is not an investment strategy.
           </div>
@@ -285,24 +338,47 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
             required
           />
         </label>
-        <label>
-          Start Date
-          <input
-            type="date"
-            value={state.startDate}
-            onChange={(event) => update("startDate", event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          End Date
-          <input
-            type="date"
-            value={state.endDate}
-            onChange={(event) => update("endDate", event.target.value)}
-            required
-          />
-        </label>
+      </section>
+
+      <section className="form-section form-card">
+        <div className="form-section-heading">
+          <span className="step-pill">02</span>
+          <div>
+            <h3>Execution Context</h3>
+            <p>
+              {isHistorical
+                ? "Historical simulations need a bounded data window."
+                : "Paper trading uses live scheduler context; dates are not required here."}
+            </p>
+          </div>
+        </div>
+        {isHistorical ? (
+          <div className="field-pair">
+            <label>
+              Start Date
+              <input
+                type="date"
+                value={state.startDate}
+                onChange={(event) => update("startDate", event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              End Date
+              <input
+                type="date"
+                value={state.endDate}
+                onChange={(event) => update("endDate", event.target.value)}
+                required
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="context-note">
+            Paper experiments are controlled by lifecycle actions and the paper
+            scheduler. Historical start/end dates are not part of the user flow.
+          </div>
+        )}
         <label>
           Frequency
           <select
@@ -311,17 +387,30 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               update("tradingFrequency", event.target.value as TradingFrequency)
             }
           >
-            {optionsQuery.data.tradingFrequencies.map((frequency) => (
+            {availableFrequencies.map((frequency) => (
               <option key={frequency} value={frequency}>
                 {frequency}
               </option>
             ))}
           </select>
+          {isPaper && state.strategyType === "OPENING_RANGE_BREAKOUT" && (
+            <small>ORB paper trading evaluates completed 5-minute bars.</small>
+          )}
         </label>
       </section>
 
-      <section className="form-section">
-        <h3>Strategy Configuration</h3>
+      <section className="form-section form-card">
+        <div className="form-section-heading">
+          <span className="step-pill">03</span>
+          <div>
+            <h3>Strategy Details</h3>
+            <p>
+              {hasStrategyFields
+                ? "Only fields required by the selected strategy are shown."
+                : "This strategy does not need additional inputs."}
+            </p>
+          </div>
+        </div>
         {state.strategyType === "MOVING_AVERAGE" && (
           <label>
             Moving Average Window
@@ -396,10 +485,22 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
             </label>
           </>
         )}
+        {!hasStrategyFields && (
+          <div className="context-note">
+            The selected strategy is fully defined by mode, asset, frequency,
+            and the backend risk rules.
+          </div>
+        )}
       </section>
 
-      <section className="form-section">
-        <h3>Risk and Fees</h3>
+      <section className="form-section form-card form-card-muted">
+        <div className="form-section-heading">
+          <span className="step-pill">04</span>
+          <div>
+            <h3>Fees and Risk Defaults</h3>
+            <p>These defaults keep execution conservative unless backend rules change.</p>
+          </div>
+        </div>
         <label>
           Fallback Action
           <input value={state.fallbackAction} readOnly />
@@ -432,15 +533,12 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       </section>
 
       {(validationError || createMutation.error) && (
-        <div className="state-box state-box-error full-span">
+        <div className="state-box state-box-error">
           {validationError || errorMessage(createMutation.error)}
         </div>
       )}
 
-      <div className="button-row full-span">
-        <button disabled={createMutation.isPending} type="submit">
-          Create Experiment
-        </button>
+      <div className="drawer-form-footer">
         <button
           type="button"
           onClick={() => {
@@ -452,6 +550,13 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
           }}
         >
           Cancel
+        </button>
+        <button
+          className="button-primary"
+          disabled={createMutation.isPending}
+          type="submit"
+        >
+          Create Experiment
         </button>
       </div>
     </form>

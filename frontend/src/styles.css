@@ -384,10 +384,113 @@ select {
   gap: 20px;
 }
 
+.create-experiment-form {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 78px;
+}
+
+.create-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #d8dee8;
+}
+
+.create-summary div {
+  min-width: 0;
+  background: #f8fafc;
+  padding: 12px 14px;
+}
+
+.create-summary strong {
+  display: block;
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #66758c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .form-section {
   display: grid;
   gap: 12px;
   align-content: start;
+}
+
+.form-card {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.form-card-muted {
+  background: #fbfcfe;
+}
+
+.form-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.form-section-heading h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 16px;
+}
+
+.form-section-heading p {
+  margin: 4px 0 0;
+  color: #66758c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.step-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #bfccdc;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #405069;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.context-note {
+  border: 1px dashed #c9d3e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #405069;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
 }
 
 .form-section label,
@@ -397,6 +500,27 @@ select {
   color: #405069;
   font-size: 13px;
   font-weight: 700;
+}
+
+.form-section small {
+  color: #66758c;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.drawer-form-footer {
+  position: sticky;
+  bottom: -28px;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 4px -28px -28px;
+  border-top: 1px solid #d8dee8;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 16px 28px;
+  backdrop-filter: blur(8px);
 }
 
 .drawer-overlay {
@@ -691,6 +815,8 @@ select {
 
   .kpi-grid,
   .form-grid,
+  .create-summary,
+  .field-pair,
   .detail-list,
   .compact-detail-list,
   .filter-row,
@@ -708,6 +834,12 @@ select {
   .drawer-panel {
     width: 100vw;
     padding: 20px;
+  }
+
+  .drawer-form-footer {
+    bottom: -20px;
+    margin: 4px -20px -20px;
+    padding: 14px 20px;
   }
 
   .drawer-header {
