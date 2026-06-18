@@ -56,7 +56,7 @@ const initialState: FormState = {
 const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   BUY_AND_HOLD: "Buy once, then hold the SPY position.",
   MOVING_AVERAGE: "Use a daily moving average signal.",
-  AGENTIC_AI: "Use a controlled agent decision producer.",
+  AGENTIC_AI: "Use ScaDS.AI single-agent paper trading.",
   OPENING_RANGE_BREAKOUT: "Use 5-minute opening range breakout rules.",
   PAPER_TRADING_SMOKE_TEST: "Run 1-share paper diagnostics only.",
 };
@@ -84,6 +84,49 @@ function frequenciesFor(
   return frequencies.filter((frequency) => frequency === defaultFrequency);
 }
 
+function strategySupportedForMode(
+  mode: ExperimentMode,
+  strategyType: StrategyType,
+) {
+  if (mode === "HISTORICAL_SIMULATION") {
+    return (
+      strategyType !== "AGENTIC_AI"
+      && strategyType !== "PAPER_TRADING_SMOKE_TEST"
+    );
+  }
+  return true;
+}
+
+function strategiesForMode(mode: ExperimentMode, strategies: StrategyType[]) {
+  return strategies.filter((strategy) => strategySupportedForMode(mode, strategy));
+}
+
+function modeChangeState(
+  current: FormState,
+  nextMode: ExperimentMode,
+  defaultAgentModel: string,
+): Partial<FormState> {
+  const nextStrategy = strategySupportedForMode(nextMode, current.strategyType)
+    ? current.strategyType
+    : "BUY_AND_HOLD";
+
+  return {
+    mode: nextMode,
+    strategyType: nextStrategy,
+    movingAverageWindow:
+      nextStrategy === "MOVING_AVERAGE" ? current.movingAverageWindow || "3" : "",
+    tradingFrequency: defaultFrequencyFor(nextStrategy),
+    agentMode:
+      nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
+        ? "SINGLE_AGENT"
+        : "",
+    modelName:
+      nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
+        ? defaultAgentModel
+        : "",
+  };
+}
+
 function validate(state: FormState): string | null {
   if (!state.name.trim()) return "Name is required.";
   const initialCapital = Number(state.initialCapital);
@@ -92,6 +135,9 @@ function validate(state: FormState): string | null {
   }
   if (state.mode === "HISTORICAL_SIMULATION" && state.startDate > state.endDate) {
     return "Start date must be before or equal to end date.";
+  }
+  if (state.mode === "HISTORICAL_SIMULATION" && state.strategyType === "AGENTIC_AI") {
+    return "Agentic AI is available for paper trading only.";
   }
   const feeValue = Number(state.feeValue);
   if (!Number.isFinite(feeValue) || feeValue < 0) {
@@ -132,7 +178,12 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
   const isHistorical = state.mode === "HISTORICAL_SIMULATION";
   const isPaper = state.mode === "PAPER_TRADING";
   const hasStrategyFields =
-    state.strategyType === "MOVING_AVERAGE" || state.strategyType === "AGENTIC_AI";
+    state.strategyType === "MOVING_AVERAGE"
+    || (isPaper && state.strategyType === "AGENTIC_AI");
+  const availableStrategies = strategiesForMode(
+    state.mode,
+    optionsQuery.data?.strategies ?? [],
+  );
   const availableFrequencies = frequenciesFor(
     state.strategyType,
     optionsQuery.data?.tradingFrequencies ?? [],
@@ -247,21 +298,11 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               const nextMode = event.target.value as ExperimentMode;
               setState((current) => ({
                 ...current,
-                mode: nextMode,
-                tradingFrequency:
-                  nextMode === "PAPER_TRADING"
-                    ? defaultFrequencyFor(current.strategyType)
-                    : current.tradingFrequency,
-                agentMode:
-                  nextMode === "PAPER_TRADING"
-                    && current.strategyType === "AGENTIC_AI"
-                    ? "SINGLE_AGENT"
-                    : current.agentMode,
-                modelName:
-                  nextMode === "PAPER_TRADING"
-                    && current.strategyType === "AGENTIC_AI"
-                    ? optionsQuery.data.scadsaiDefaultModel
-                    : current.modelName,
+                ...modeChangeState(
+                  current,
+                  nextMode,
+                  optionsQuery.data.scadsaiDefaultModel,
+                ),
               }));
             }}
           >
@@ -292,15 +333,15 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                 agentMode:
                   nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
                     ? "SINGLE_AGENT"
-                    : current.agentMode,
+                    : "",
                 modelName:
                   nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
                     ? optionsQuery.data.scadsaiDefaultModel
-                    : current.modelName,
+                    : "",
               }));
             }}
           >
-            {optionsQuery.data.strategies.map((strategy) => (
+            {availableStrategies.map((strategy) => (
               <option key={strategy} value={strategy}>
                 {strategy}
               </option>
@@ -425,7 +466,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
             />
           </label>
         )}
-        {state.strategyType === "AGENTIC_AI" && (
+        {isPaper && state.strategyType === "AGENTIC_AI" && (
           <>
             <label>
               Agent Mode

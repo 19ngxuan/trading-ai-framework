@@ -7,15 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.errors import InvalidExperimentConfigurationAppError
 from app.domain.enums import (
     AgentMode,
-    AgentStepName,
-    DecisionSourceType,
-    ExecutionStepStatus,
     ExperimentMode,
     ExperimentStatus,
     FeeModelType,
-    FinalAction,
     StrategyType,
-    TradeAction,
     TradingFrequency,
 )
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
@@ -48,10 +43,9 @@ class BrokerMustNotBeCalled:
         raise AssertionError("Pipeline paper trading must not call broker.")
 
 
-def _pipeline_parameters(
-    *, action: str = "BUY", verdict: str = "APPROVE", confidence: float = 0.8
-) -> dict:
+def _pipeline_parameters() -> dict:
     return {
+        "riskConfig": {"fallbackAction": "HOLD"},
         "fakePipeline": {
             "marketAnalystOutput": {
                 "marketBias": "BULLISH",
@@ -59,29 +53,27 @@ def _pipeline_parameters(
                 "rationale": "Bullish context.",
             },
             "tradingDecisionOutput": {
-                "action": action,
-                "confidence": confidence,
+                "action": "BUY",
+                "confidence": 0.8,
                 "rationale": "Pipeline proposal.",
             },
             "riskManagerOutput": {
-                "verdict": verdict,
+                "verdict": "APPROVE",
                 "confidence": 0.9,
                 "rationale": "Agent-level verdict.",
             },
-        }
+        },
     }
 
 
 def _create_pipeline_experiment(
     session: Session,
     *,
-    parameters_json: dict,
-    confidence_threshold: Decimal | None = None,
-    mode: ExperimentMode = ExperimentMode.HISTORICAL_SIMULATION,
+    mode: ExperimentMode,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
-        name="M11 pipeline",
+        name="Legacy Agentic AI pipeline",
         mode=mode,
         strategy_type=StrategyType.AGENTIC_AI,
         asset_symbol="SPY",
@@ -104,8 +96,8 @@ def _create_pipeline_experiment(
             moving_average_window=None,
             agent_mode=AgentMode.PIPELINE,
             model_name="deterministic-fake-pipeline",
-            confidence_threshold=confidence_threshold,
-            parameters_json=parameters_json,
+            confidence_threshold=None,
+            parameters_json=_pipeline_parameters(),
             created_at=now,
             updated_at=now,
         )
@@ -135,154 +127,39 @@ def _count(session: Session, model, experiment_id: int) -> int:
     )
 
 
-def test_pipeline_manual_step_persists_three_logs_and_single_decision(
-    database_url: str,
-) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_pipeline_experiment(
-            session, parameters_json=_pipeline_parameters()
-        )
-
-    result = HistoricalStepRunner(session_factory=session_factory).run_next_step(
-        experiment_id
-    )
-
-    assert result.status is ExecutionStepStatus.COMPLETED
-    with session_factory() as session:
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 3
-        assert _count(session, TradingDecisionModel, experiment_id) == 1
-        assert _count(session, RiskCheckModel, experiment_id) == 1
-        assert _count(session, OrderModel, experiment_id) == 1
-        assert _count(session, TradeModel, experiment_id) == 1
-
-        logs = list(
-            session.scalars(
-                select(AgentDecisionLogModel)
-                .where(AgentDecisionLogModel.experiment_id == experiment_id)
-                .order_by(AgentDecisionLogModel.id)
-            )
-        )
-        assert [log.agent_step_name for log in logs] == [
-            AgentStepName.MARKET_ANALYST,
-            AgentStepName.TRADING_DECISION,
-            AgentStepName.RISK_MANAGER,
-        ]
-        assert [log.parsed_output_json["pipelineStage"] for log in logs] == [
-            AgentStepName.MARKET_ANALYST.value,
-            AgentStepName.TRADING_DECISION.value,
-            AgentStepName.RISK_MANAGER.value,
-        ]
-
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        assert decision is not None
-        assert risk_check is not None
-        assert decision.source_type is DecisionSourceType.AGENT
-        assert decision.action is TradeAction.BUY
-        assert decision.raw_decision_json["originalAction"] == "BUY"
-        assert decision.raw_decision_json["finalAction"] == "BUY"
-        assert decision.raw_decision_json["pipelineStages"] == [
-            AgentStepName.MARKET_ANALYST.value,
-            AgentStepName.TRADING_DECISION.value,
-            AgentStepName.RISK_MANAGER.value,
-        ]
-        assert risk_check.trading_decision_id == decision.id
-        assert risk_check.final_action is FinalAction.BUY
-        assert {log.trading_decision_id for log in logs} == {decision.id}
+def _assert_no_execution_artifacts(session: Session, experiment_id: int) -> None:
+    for model in (
+        ExecutionStepModel,
+        AgentDecisionLogModel,
+        TradingDecisionModel,
+        RiskCheckModel,
+        OrderModel,
+        TradeModel,
+    ):
+        assert _count(session, model, experiment_id) == 0
 
 
-def test_pipeline_rejected_proposal_creates_no_order_or_trade(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_pipeline_experiment(
-            session,
-            parameters_json=_pipeline_parameters(action="BUY", verdict="REJECT"),
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        assert decision is not None
-        assert risk_check is not None
-        assert decision.action is TradeAction.HOLD
-        assert decision.raw_decision_json["originalAction"] == "BUY"
-        assert decision.raw_decision_json["finalAction"] == "HOLD"
-        assert decision.raw_decision_json["fallbackReason"] == (
-            "AGENT_RISK_MANAGER_REJECTED"
-        )
-        assert risk_check.final_action is FinalAction.HOLD
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
-
-
-def test_pipeline_low_confidence_creates_hold_before_risk_check(
+def test_pipeline_historical_step_is_rejected_before_artifacts(
     database_url: str,
 ) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
         experiment_id = _create_pipeline_experiment(
             session,
-            confidence_threshold=Decimal("0.7500"),
-            parameters_json=_pipeline_parameters(confidence=0.2),
+            mode=ExperimentMode.HISTORICAL_SIMULATION,
         )
 
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
+    try:
+        HistoricalStepRunner(session_factory=session_factory).run_next_step(
+            experiment_id
+        )
+    except InvalidExperimentConfigurationAppError as exc:
+        assert exc.details["strategyType"] == StrategyType.AGENTIC_AI.value
+    else:
+        raise AssertionError("Historical Agentic AI pipeline should be rejected.")
 
     with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        assert decision is not None
-        assert decision.action is TradeAction.HOLD
-        assert decision.raw_decision_json["confidenceThresholdApplied"] is True
-        assert _count(session, OrderModel, experiment_id) == 0
-
-
-def test_pipeline_sell_without_position_is_stopped_by_risk_check(
-    database_url: str,
-) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_pipeline_experiment(
-            session,
-            parameters_json=_pipeline_parameters(action="SELL", verdict="APPROVE"),
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        assert decision is not None
-        assert risk_check is not None
-        assert decision.action is TradeAction.SELL
-        assert risk_check.final_action is FinalAction.HOLD
-        assert risk_check.rules_triggered_json["reason"] == "NO_POSITION_TO_SELL"
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
+        _assert_no_execution_artifacts(session, experiment_id)
 
 
 def test_pipeline_paper_trading_is_rejected_without_broker_call(
@@ -293,7 +170,6 @@ def test_pipeline_paper_trading_is_rejected_without_broker_call(
         experiment_id = _create_pipeline_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
-            parameters_json=_pipeline_parameters(),
         )
 
     runner = PaperTradingStepRunner(
@@ -308,6 +184,4 @@ def test_pipeline_paper_trading_is_rejected_without_broker_call(
         raise AssertionError("Pipeline paper trading should be rejected.")
 
     with session_factory() as session:
-        assert _count(session, ExecutionStepModel, experiment_id) == 0
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
+        _assert_no_execution_artifacts(session, experiment_id)

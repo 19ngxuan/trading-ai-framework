@@ -336,6 +336,18 @@ class ExperimentService:
             )
         if (
             experiment.mode is ExperimentMode.HISTORICAL_SIMULATION
+            and experiment.strategy_type is StrategyType.AGENTIC_AI
+        ):
+            raise InvalidExperimentConfigurationAppError(
+                "Agentic AI is supported for PAPER_TRADING mode only.",
+                details={
+                    "experimentId": experiment_id,
+                    "mode": experiment.mode.value,
+                    "strategyType": experiment.strategy_type.value,
+                },
+            )
+        if (
+            experiment.mode is ExperimentMode.HISTORICAL_SIMULATION
             and experiment.strategy_type is StrategyType.MOVING_AVERAGE
             and experiment.trading_frequency is not TradingFrequency.DAILY
         ):

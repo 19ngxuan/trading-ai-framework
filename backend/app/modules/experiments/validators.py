@@ -4,8 +4,8 @@ from typing import Any
 from app.api.schemas.experiment_schemas import CreateExperimentRequest
 from app.core.config import get_settings
 from app.core.errors import ValidationAppError
-from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 from app.domain.enums import AgentMode
+from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 
 
 def _validate_risk_config(risk_config: dict[str, Any]) -> None:
@@ -41,6 +41,19 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
         raise ValidationAppError(
             "feeValue must be greater than or equal to 0.",
             details={"field": "feeValue"},
+        )
+
+    if (
+        request.mode is ExperimentMode.HISTORICAL_SIMULATION
+        and request.strategy_type is StrategyType.AGENTIC_AI
+    ):
+        raise ValidationAppError(
+            "Agentic AI is supported for PAPER_TRADING mode only.",
+            details={
+                "field": "strategyType",
+                "mode": request.mode.value,
+                "strategyType": request.strategy_type.value,
+            },
         )
 
     if request.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:

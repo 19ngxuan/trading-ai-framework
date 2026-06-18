@@ -17,7 +17,7 @@ def _create_request_payload() -> dict:
     return {
         "name": "M2 experiment",
         "mode": "HISTORICAL_SIMULATION",
-        "strategyType": "AGENTIC_AI",
+        "strategyType": "BUY_AND_HOLD",
         "assetSymbol": "SPY",
         "initialCapital": 10000.0,
         "startDate": "2024-01-01",
@@ -52,6 +52,12 @@ def _create_buy_and_hold_payload() -> dict:
         "confidenceThreshold": None,
         "parametersJson": {"riskConfig": {"fallbackAction": "HOLD"}},
     }
+    return payload
+
+
+def _create_paper_buy_and_hold_payload() -> dict:
+    payload = _create_buy_and_hold_payload()
+    payload["mode"] = "PAPER_TRADING"
     return payload
 
 
@@ -183,7 +189,21 @@ def test_create_experiment_accepts_orb_paper_trading(client) -> None:
     assert body["experiment"]["tradingFrequency"] == "INTRADAY_5_MIN"
 
 
-def test_create_experiment_rejects_agentic_ai_paper_trading(client) -> None:
+def test_create_experiment_rejects_agentic_ai_historical_simulation(client) -> None:
+    payload = _create_request_payload()
+    payload["mode"] = "HISTORICAL_SIMULATION"
+    payload["strategyType"] = "AGENTIC_AI"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["errorCode"] == "VALIDATION_ERROR"
+    assert body["details"]["mode"] == "HISTORICAL_SIMULATION"
+    assert body["details"]["strategyType"] == "AGENTIC_AI"
+
+
+def test_create_experiment_accepts_agentic_ai_paper_trading(client) -> None:
     payload = _create_request_payload()
     payload["mode"] = "PAPER_TRADING"
     payload["strategyType"] = "AGENTIC_AI"
@@ -339,7 +359,10 @@ def test_detail_not_found_returns_normalized_error(client) -> None:
 
 
 def test_lifecycle_transitions_and_events(client) -> None:
-    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+    create_response = client.post(
+        "/api/v1/experiments",
+        json=_create_paper_buy_and_hold_payload(),
+    )
     experiment_id = create_response.json()["experiment"]["id"]
 
     start_response = client.post(f"/api/v1/experiments/{experiment_id}/start")
@@ -421,8 +444,11 @@ def test_start_buy_and_hold_historical_runs_background_simulation(client) -> Non
     engine.dispose()
 
 
-def test_start_non_m3_experiment_remains_lifecycle_only(client) -> None:
-    create_response = client.post("/api/v1/experiments", json=_create_request_payload())
+def test_start_paper_experiment_remains_lifecycle_only(client) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json=_create_paper_buy_and_hold_payload(),
+    )
     experiment_id = create_response.json()["experiment"]["id"]
 
     response = client.post(f"/api/v1/experiments/{experiment_id}/start")

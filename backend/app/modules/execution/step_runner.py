@@ -167,13 +167,12 @@ class HistoricalStepRunner:
                 not in {
                     StrategyType.BUY_AND_HOLD,
                     StrategyType.MOVING_AVERAGE,
-                    StrategyType.AGENTIC_AI,
                 }
                 or experiment.trading_frequency is not TradingFrequency.DAILY
                 or experiment.asset_symbol != "SPY"
             ):
                 raise InvalidExperimentConfigurationAppError(
-                    "Manual stepping supports only daily historical SPY Buy-and-Hold, Moving Average, and Agentic AI experiments.",
+                    "Manual stepping supports only daily historical SPY Buy-and-Hold and Moving Average experiments.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,
@@ -182,19 +181,6 @@ class HistoricalStepRunner:
                         "assetSymbol": experiment.asset_symbol,
                     },
                 )
-            if (
-                experiment.strategy_type is StrategyType.AGENTIC_AI
-                and trigger_type is TriggerType.SCHEDULED
-            ):
-                raise InvalidExperimentConfigurationAppError(
-                    "Agentic AI historical execution supports manual run-next-step only.",
-                    details={
-                        "experimentId": experiment_id,
-                        "strategyType": experiment.strategy_type.value,
-                        "triggerType": trigger_type.value,
-                    },
-                )
-
             lock_acquired = session.scalar(
                 text("SELECT pg_try_advisory_xact_lock(:experiment_id)"),
                 {"experiment_id": experiment_id},

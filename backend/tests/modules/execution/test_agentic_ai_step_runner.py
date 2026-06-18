@@ -7,15 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.errors import InvalidExperimentConfigurationAppError
 from app.domain.enums import (
     AgentMode,
-    DecisionSourceType,
-    ExecutionStepStatus,
     ExperimentMode,
     ExperimentStatus,
     FeeModelType,
-    FinalAction,
-    ParsingStatus,
     StrategyType,
-    TradeAction,
     TradingFrequency,
     TriggerType,
 )
@@ -26,10 +21,8 @@ from app.persistence.models import (
     ExecutionStepModel,
     ExperimentModel,
     MarketDataSnapshotModel,
-    MetricSnapshotModel,
     OrderModel,
     PortfolioModel,
-    PortfolioSnapshotModel,
     RiskCheckModel,
     StrategyConfigModel,
     TradeModel,
@@ -37,27 +30,22 @@ from app.persistence.models import (
 )
 
 
-def _create_agentic_experiment(
+def _create_historical_agentic_experiment(
     session: Session,
     *,
-    parameters_json: dict,
-    confidence_threshold: Decimal | None = None,
-    initial_capital: Decimal = Decimal("10000.0000"),
-    mode: ExperimentMode = ExperimentMode.HISTORICAL_SIMULATION,
-    trading_frequency: TradingFrequency = TradingFrequency.DAILY,
-    asset_symbol: str = "SPY",
+    agent_mode: AgentMode = AgentMode.SINGLE_AGENT,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
-        name="M10 agentic AI",
-        mode=mode,
+        name="Legacy historical Agentic AI",
+        mode=ExperimentMode.HISTORICAL_SIMULATION,
         strategy_type=StrategyType.AGENTIC_AI,
-        asset_symbol=asset_symbol,
+        asset_symbol="SPY",
         status=ExperimentStatus.RUNNING,
-        initial_capital=initial_capital,
+        initial_capital=Decimal("10000.0000"),
         start_date=date(2024, 1, 2),
         end_date=date(2024, 1, 5),
-        trading_frequency=trading_frequency,
+        trading_frequency=TradingFrequency.DAILY,
         fee_model_type=FeeModelType.NONE,
         fee_value=Decimal("0"),
         created_at=now,
@@ -70,10 +58,19 @@ def _create_agentic_experiment(
             experiment_id=experiment.id,
             strategy_type=StrategyType.AGENTIC_AI,
             moving_average_window=None,
-            agent_mode=AgentMode.SINGLE_AGENT,
+            agent_mode=agent_mode,
             model_name="deterministic-fake-agent",
-            confidence_threshold=confidence_threshold,
-            parameters_json=parameters_json,
+            confidence_threshold=None,
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Historical Agentic AI is no longer supported.",
+                    }
+                },
+            },
             created_at=now,
             updated_at=now,
         )
@@ -81,12 +78,12 @@ def _create_agentic_experiment(
     session.add(
         PortfolioModel(
             experiment_id=experiment.id,
-            cash=initial_capital,
+            cash=Decimal("10000.0000"),
             position_symbol=None,
             position_quantity=Decimal("0"),
             current_price=None,
             current_position_value=Decimal("0"),
-            current_portfolio_value=initial_capital,
+            current_portfolio_value=Decimal("10000.0000"),
             updated_at=now,
         )
     )
@@ -103,248 +100,55 @@ def _count(session: Session, model, experiment_id: int) -> int:
     )
 
 
-def test_agentic_ai_manual_step_persists_audit_chain_and_buy(
+def _assert_no_execution_artifacts(session: Session, experiment_id: int) -> None:
+    for model in (
+        ExecutionStepModel,
+        MarketDataSnapshotModel,
+        AgentDecisionLogModel,
+        TradingDecisionModel,
+        RiskCheckModel,
+        OrderModel,
+        TradeModel,
+    ):
+        assert _count(session, model, experiment_id) == 0
+
+
+def test_historical_agentic_ai_manual_step_is_rejected_before_artifacts(
     database_url: str,
 ) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            parameters_json={
-                "fakeAgent": {
-                    "output": {
-                        "action": "BUY",
-                        "confidence": 0.9,
-                        "rationale": "Deterministic buy.",
-                    }
-                }
-            },
-        )
-
-    result = HistoricalStepRunner(session_factory=session_factory).run_next_step(
-        experiment_id
-    )
-
-    assert result.execution_step_id is not None
-    assert result.status is ExecutionStepStatus.COMPLETED
-    with session_factory() as session:
-        assert _count(session, ExecutionStepModel, experiment_id) == 1
-        assert _count(session, MarketDataSnapshotModel, experiment_id) == 1
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 1
-        assert _count(session, TradingDecisionModel, experiment_id) == 1
-        assert _count(session, RiskCheckModel, experiment_id) == 1
-        assert _count(session, PortfolioSnapshotModel, experiment_id) == 1
-        assert _count(session, MetricSnapshotModel, experiment_id) == 1
-        assert _count(session, OrderModel, experiment_id) == 1
-        assert _count(session, TradeModel, experiment_id) == 1
-
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        agent_log = session.scalar(
-            select(AgentDecisionLogModel).where(
-                AgentDecisionLogModel.experiment_id == experiment_id
-            )
-        )
-        assert decision is not None
-        assert risk_check is not None
-        assert agent_log is not None
-        assert decision.source_type is DecisionSourceType.AGENT
-        assert decision.action is TradeAction.BUY
-        assert risk_check.trading_decision_id == decision.id
-        assert risk_check.final_action is FinalAction.BUY
-        assert agent_log.trading_decision_id == decision.id
-        assert agent_log.parsing_status is ParsingStatus.SUCCESS
-
-
-def test_agentic_ai_invalid_output_repairs_to_hold(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            parameters_json={
-                "fakeAgent": {
-                    "output": "not json",
-                    "repairOutput": {
-                        "action": "HOLD",
-                        "confidence": 0.6,
-                        "rationale": "Repaired hold.",
-                    },
-                }
-            },
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        agent_log = session.scalar(
-            select(AgentDecisionLogModel).where(
-                AgentDecisionLogModel.experiment_id == experiment_id
-            )
-        )
-        assert decision is not None
-        assert agent_log is not None
-        assert decision.action is TradeAction.HOLD
-        assert agent_log.parsing_status is ParsingStatus.REPAIRED
-        assert agent_log.repair_prompt_text is not None
-        assert agent_log.repair_raw_output_text is not None
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
-
-
-def test_agentic_ai_failed_repair_falls_back_to_hold(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            parameters_json={
-                "fakeAgent": {
-                    "output": "not json",
-                    "repairOutput": "still not json",
-                }
-            },
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        agent_log = session.scalar(
-            select(AgentDecisionLogModel).where(
-                AgentDecisionLogModel.experiment_id == experiment_id
-            )
-        )
-        assert decision is not None
-        assert agent_log is not None
-        assert decision.action is TradeAction.HOLD
-        assert decision.confidence == Decimal("0.0000")
-        assert agent_log.parsing_status is ParsingStatus.FAILED
-        assert agent_log.parsed_output_json["fallbackUsed"] is True
-
-
-def test_agentic_ai_low_confidence_converts_to_hold(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            confidence_threshold=Decimal("0.7500"),
-            parameters_json={
-                "fakeAgent": {
-                    "output": {
-                        "action": "BUY",
-                        "confidence": 0.4,
-                        "rationale": "Weak buy.",
-                    }
-                }
-            },
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        decision = session.scalar(
-            select(TradingDecisionModel).where(
-                TradingDecisionModel.experiment_id == experiment_id
-            )
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        agent_log = session.scalar(
-            select(AgentDecisionLogModel).where(
-                AgentDecisionLogModel.experiment_id == experiment_id
-            )
-        )
-        assert decision is not None
-        assert risk_check is not None
-        assert agent_log is not None
-        assert decision.action is TradeAction.HOLD
-        assert risk_check.final_action is FinalAction.HOLD
-        assert agent_log.parsed_output_json["confidenceThresholdApplied"] is True
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
-
-
-def test_agentic_ai_sell_never_shorts(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            parameters_json={
-                "fakeAgent": {
-                    "output": {
-                        "action": "SELL",
-                        "confidence": 0.9,
-                        "rationale": "Try to sell without position.",
-                    }
-                }
-            },
-        )
-
-    HistoricalStepRunner(session_factory=session_factory).run_next_step(experiment_id)
-
-    with session_factory() as session:
-        risk_check = session.scalar(
-            select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
-        )
-        portfolio = session.scalar(
-            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
-        )
-        assert risk_check is not None
-        assert portfolio is not None
-        assert risk_check.final_action is FinalAction.HOLD
-        assert risk_check.rules_triggered_json["reason"] == "NO_POSITION_TO_SELL"
-        assert portfolio.position_quantity == Decimal("0E-8")
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
-
-
-def test_agentic_ai_scheduled_trigger_is_rejected_before_artifacts(
-    database_url: str,
-) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_agentic_experiment(
-            session,
-            parameters_json={
-                "fakeAgent": {
-                    "output": {
-                        "action": "BUY",
-                        "confidence": 0.9,
-                        "rationale": "Scheduled agent is out of scope.",
-                    }
-                }
-            },
-        )
+        experiment_id = _create_historical_agentic_experiment(session)
 
     try:
         HistoricalStepRunner(session_factory=session_factory).run_next_step(
-            experiment_id, trigger_type=TriggerType.SCHEDULED
+            experiment_id
         )
     except InvalidExperimentConfigurationAppError as exc:
-        assert exc.details["triggerType"] == TriggerType.SCHEDULED.value
+        assert exc.details["strategyType"] == StrategyType.AGENTIC_AI.value
     else:
-        raise AssertionError("Scheduled Agentic AI execution should be rejected.")
+        raise AssertionError("Historical Agentic AI should be rejected.")
 
     with session_factory() as session:
-        assert _count(session, ExecutionStepModel, experiment_id) == 0
-        assert _count(session, MarketDataSnapshotModel, experiment_id) == 0
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 0
-        assert _count(session, TradingDecisionModel, experiment_id) == 0
-        assert _count(session, RiskCheckModel, experiment_id) == 0
-        assert _count(session, OrderModel, experiment_id) == 0
-        assert _count(session, TradeModel, experiment_id) == 0
+        _assert_no_execution_artifacts(session, experiment_id)
+
+
+def test_historical_agentic_ai_scheduled_step_is_rejected_before_artifacts(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_historical_agentic_experiment(session)
+
+    try:
+        HistoricalStepRunner(session_factory=session_factory).run_next_step(
+            experiment_id,
+            trigger_type=TriggerType.SCHEDULED,
+        )
+    except InvalidExperimentConfigurationAppError as exc:
+        assert exc.details["strategyType"] == StrategyType.AGENTIC_AI.value
+    else:
+        raise AssertionError("Scheduled historical Agentic AI should be rejected.")
+
+    with session_factory() as session:
+        _assert_no_execution_artifacts(session, experiment_id)
