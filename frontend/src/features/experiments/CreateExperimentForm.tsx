@@ -35,6 +35,10 @@ type FormState = {
   fallbackAction: "HOLD";
 };
 
+type CreateExperimentFormProps = {
+  onCancel?: () => void;
+};
+
 const initialState: FormState = {
   name: "",
   mode: "HISTORICAL_SIMULATION",
@@ -129,7 +133,7 @@ function validate(state: FormState): string | null {
   return null;
 }
 
-export function CreateExperimentForm() {
+export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
   const navigate = useNavigate();
   const optionsQuery = useOptions();
   const createMutation = useCreateExperiment();
@@ -556,7 +560,16 @@ export function CreateExperimentForm() {
         <button disabled={createMutation.isPending} type="submit">
           Create Experiment
         </button>
-        <button type="button" onClick={() => navigate("/experiments")}>
+        <button
+          type="button"
+          onClick={() => {
+            if (onCancel) {
+              onCancel();
+              return;
+            }
+            navigate("/experiments");
+          }}
+        >
           Cancel
         </button>
       </div>

@@ -16,7 +16,7 @@ export function DashboardPage() {
           <p className="eyebrow">Dashboard</p>
           <h2>Experiment Overview</h2>
         </div>
-        <Link className="button-link" to="/experiments/new">
+        <Link className="button-link" to="/experiments?create=1">
           Create Experiment
         </Link>
       </div>

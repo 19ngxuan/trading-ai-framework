@@ -36,12 +36,14 @@ The Version 1 frontend contains these routes:
 /
  /dashboard
  /experiments
- /experiments/new
  /experiments/:experimentId
  /compare
  /events
  /settings
 ```
+
+`/experiments/new` may remain as a compatibility route, but it is not a primary
+sidebar destination. New experiment creation is launched from `/experiments`.
 
 Recommended redirect:
 
@@ -151,7 +153,7 @@ It is similar to the dashboard table but may provide more filtering and sorting.
 - Strategy filters
 - Mode filters
 - Search by experiment name
-- Create Experiment button
+- Create Experiment button that opens the slide-in creation form
 
 ## 6.3 Data Dependencies
 
@@ -162,18 +164,21 @@ GET /api/v1/experiments?status=...&strategyType=...&mode=...&limit=...&offset=..
 ## 6.4 User Actions
 
 - open experiment detail
-- create experiment
+- create experiment through the slide-in form
 - start / pause / resume / stop
 - run next step
 - add experiment to compare selection
 
 ---
 
-## 7. `/experiments/new`
+## 7. Experiment Creation Form
 
 ## 7.1 Purpose
 
-The Create Experiment page allows the user to configure a new experiment.
+The create experiment form allows the user to configure a new experiment. The
+primary UX is a slide-in drawer launched from `/experiments`. The legacy
+`/experiments/new` route may keep rendering the same form for compatibility, but
+it should not appear as a separate sidebar item.
 
 After creation, the experiment remains in `CREATED` status and must be started manually.
 

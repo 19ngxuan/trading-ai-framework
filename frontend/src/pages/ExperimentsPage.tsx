@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
+import { CreateExperimentDrawer } from "../features/experiments/CreateExperimentDrawer";
 import { ExperimentSummaryTable } from "../features/experiments/ExperimentSummaryTable";
 import { useExperiments, useOptions } from "../features/experiments/hooks";
 import type {
@@ -13,9 +14,11 @@ import type {
 
 export function ExperimentsPage() {
   const optionsQuery = useOptions();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState<ExperimentStatus | "">("");
   const [strategyType, setStrategyType] = useState<StrategyType | "">("");
   const [mode, setMode] = useState<ExperimentMode | "">("");
+  const isCreateDrawerOpen = searchParams.get("create") === "1";
 
   const experimentsQuery = useExperiments(
     {
@@ -28,6 +31,22 @@ export function ExperimentsPage() {
     true,
   );
 
+  const openCreateDrawer = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("create", "1");
+      return next;
+    });
+  };
+
+  const closeCreateDrawer = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("create");
+      return next;
+    });
+  };
+
   return (
     <div className="page-stack">
       <div className="page-title-row">
@@ -35,9 +54,9 @@ export function ExperimentsPage() {
           <p className="eyebrow">Experiments</p>
           <h2>Experiment List</h2>
         </div>
-        <Link className="button-link" to="/experiments/new">
+        <button className="button-primary" onClick={openCreateDrawer} type="button">
           Create Experiment
-        </Link>
+        </button>
       </div>
 
       <section className="panel wide-panel">
@@ -100,6 +119,10 @@ export function ExperimentsPage() {
           <ExperimentSummaryTable experiments={experimentsQuery.data.items} />
         </section>
       )}
+      <CreateExperimentDrawer
+        isOpen={isCreateDrawerOpen}
+        onClose={closeCreateDrawer}
+      />
     </div>
   );
 }
