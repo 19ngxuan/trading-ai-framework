@@ -493,7 +493,94 @@ select {
   padding: 12px;
 }
 
+.strategy-category-grid,
+.ai-pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-pattern-section {
+  display: grid;
+  gap: 12px;
+}
+
+.choice-card {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  align-content: start;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #405069;
+  padding: 12px;
+  text-align: left;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.choice-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: #7b8da8;
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.08);
+}
+
+.choice-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.choice-card-active {
+  border-color: #256f61;
+  background: #f1faf6;
+  box-shadow: inset 0 0 0 1px #256f61;
+}
+
+.choice-card span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.choice-card strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.choice-card small {
+  color: #66758c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.choice-card-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #66758c;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #405069;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .form-section label,
+.form-section .form-field,
 .filter-row label {
   display: grid;
   gap: 6px;
@@ -817,6 +904,8 @@ select {
   .form-grid,
   .create-summary,
   .field-pair,
+  .strategy-category-grid,
+  .ai-pattern-grid,
   .detail-list,
   .compact-detail-list,
   .filter-row,

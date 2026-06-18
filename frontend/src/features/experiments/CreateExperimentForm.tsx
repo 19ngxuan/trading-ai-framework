@@ -16,7 +16,9 @@ import { useCreateExperiment, useOptions } from "./hooks";
 type FormState = {
   name: string;
   mode: ExperimentMode;
+  strategyCategory: StrategyCategory;
   strategyType: StrategyType;
+  aiDecisionPattern: AiDecisionPattern;
   assetSymbol: string;
   initialCapital: string;
   startDate: string;
@@ -35,10 +37,20 @@ type CreateExperimentFormProps = {
   onCancel?: () => void;
 };
 
+type StrategyCategory = "RULE_BASED" | "AI_STRATEGY";
+
+type AiDecisionPattern =
+  | "LLM_SINGLE_PROMPT"
+  | "LLM_CHAIN"
+  | "SINGLE_AGENT"
+  | "MULTI_AGENT";
+
 const initialState: FormState = {
   name: "",
   mode: "HISTORICAL_SIMULATION",
+  strategyCategory: "RULE_BASED",
   strategyType: "BUY_AND_HOLD",
+  aiDecisionPattern: "SINGLE_AGENT",
   assetSymbol: "SPY",
   initialCapital: "10000",
   startDate: "2024-01-02",
@@ -60,6 +72,43 @@ const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   OPENING_RANGE_BREAKOUT: "Use 5-minute opening range breakout rules.",
   PAPER_TRADING_SMOKE_TEST: "Run 1-share paper diagnostics only.",
 };
+
+const STRATEGY_CATEGORY_DESCRIPTIONS: Record<StrategyCategory, string> = {
+  RULE_BASED: "Deterministic strategies with fixed trading rules.",
+  AI_STRATEGY: "LLM-backed decision patterns with RiskCheck enforcement.",
+};
+
+const AI_PATTERN_OPTIONS: Array<{
+  value: AiDecisionPattern;
+  label: string;
+  description: string;
+  enabled: boolean;
+}> = [
+  {
+    value: "LLM_SINGLE_PROMPT",
+    label: "LLM Single Prompt",
+    description: "One prompt produces one advisory trading decision.",
+    enabled: false,
+  },
+  {
+    value: "LLM_CHAIN",
+    label: "LLM Chain",
+    description: "Several fixed LLM steps run in sequence.",
+    enabled: false,
+  },
+  {
+    value: "SINGLE_AGENT",
+    label: "Single Agent",
+    description: "One agent evaluates context and proposes a decision.",
+    enabled: true,
+  },
+  {
+    value: "MULTI_AGENT",
+    label: "Multi Agent",
+    description: "Several specialized agents cooperate on a decision.",
+    enabled: false,
+  },
+];
 
 const MODE_DESCRIPTIONS: Record<ExperimentMode, string> = {
   HISTORICAL_SIMULATION: "Backtest over a fixed date range.",
@@ -101,6 +150,10 @@ function strategiesForMode(mode: ExperimentMode, strategies: StrategyType[]) {
   return strategies.filter((strategy) => strategySupportedForMode(mode, strategy));
 }
 
+function ruleBasedStrategies(strategies: StrategyType[]) {
+  return strategies.filter((strategy) => strategy !== "AGENTIC_AI");
+}
+
 function modeChangeState(
   current: FormState,
   nextMode: ExperimentMode,
@@ -112,7 +165,12 @@ function modeChangeState(
 
   return {
     mode: nextMode,
+    strategyCategory:
+      nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
+        ? "AI_STRATEGY"
+        : "RULE_BASED",
     strategyType: nextStrategy,
+    aiDecisionPattern: "SINGLE_AGENT",
     movingAverageWindow:
       nextStrategy === "MOVING_AVERAGE" ? current.movingAverageWindow || "3" : "",
     tradingFrequency: defaultFrequencyFor(nextStrategy),
@@ -156,6 +214,12 @@ function validate(state: FormState): string | null {
     }
   }
   if (state.strategyType === "AGENTIC_AI" && state.mode === "PAPER_TRADING") {
+    if (state.strategyCategory !== "AI_STRATEGY") {
+      return "Agentic AI must be configured through AI Strategy.";
+    }
+    if (state.aiDecisionPattern !== "SINGLE_AGENT") {
+      return "Only Single Agent paper trading is executable right now.";
+    }
     if (state.agentMode && state.agentMode !== "SINGLE_AGENT") {
       return "Paper trading Agentic AI supports SINGLE_AGENT mode only.";
     }
@@ -184,6 +248,9 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
     state.mode,
     optionsQuery.data?.strategies ?? [],
   );
+  const availableRuleBasedStrategies = ruleBasedStrategies(availableStrategies);
+  const canUseAiStrategy =
+    isPaper && availableStrategies.includes("AGENTIC_AI");
   const availableFrequencies = frequenciesFor(
     state.strategyType,
     optionsQuery.data?.tradingFrequencies ?? [],
@@ -217,6 +284,44 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setState((current) => ({ ...current, [key]: value }));
+  };
+
+  const selectRuleBasedCategory = () => {
+    setState((current) => {
+      const availableRuleStrategies = ruleBasedStrategies(
+        strategiesForMode(current.mode, optionsQuery.data.strategies),
+      );
+      const nextStrategy = availableRuleStrategies.some(
+        (strategy) => strategy === current.strategyType,
+      )
+        ? current.strategyType
+        : "BUY_AND_HOLD";
+      return {
+        ...current,
+        strategyCategory: "RULE_BASED",
+        strategyType: nextStrategy,
+        aiDecisionPattern: "SINGLE_AGENT",
+        agentMode: "",
+        modelName: "",
+        confidenceThreshold: "",
+        movingAverageWindow:
+          nextStrategy === "MOVING_AVERAGE" ? current.movingAverageWindow || "3" : "",
+        tradingFrequency: defaultFrequencyFor(nextStrategy),
+      };
+    });
+  };
+
+  const selectAiCategory = () => {
+    setState((current) => ({
+      ...current,
+      strategyCategory: "AI_STRATEGY",
+      strategyType: "AGENTIC_AI",
+      aiDecisionPattern: "SINGLE_AGENT",
+      movingAverageWindow: "",
+      tradingFrequency: "DAILY",
+      agentMode: "SINGLE_AGENT",
+      modelName: current.modelName || optionsQuery.data.scadsaiDefaultModel,
+    }));
   };
 
   const submit = async (event: FormEvent) => {
@@ -266,7 +371,11 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
         </div>
         <div>
           <span className="summary-label">Strategy</span>
-          <strong>{formatEnumLabel(state.strategyType)}</strong>
+          <strong>
+            {state.strategyCategory === "AI_STRATEGY"
+              ? formatEnumLabel(state.aiDecisionPattern)
+              : formatEnumLabel(state.strategyType)}
+          </strong>
         </div>
         <div>
           <span className="summary-label">Asset</span>
@@ -314,41 +423,126 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
           </select>
           <small>{MODE_DESCRIPTIONS[state.mode]}</small>
         </label>
-        <label>
-          Strategy
-          <select
-            value={state.strategyType}
-            onChange={(event) => {
-              const nextStrategy = event.target.value as StrategyType;
-              setState((current) => ({
-                ...current,
-                strategyType: nextStrategy,
-                movingAverageWindow:
-                  nextStrategy === "MOVING_AVERAGE" ? "3" : "",
-                tradingFrequency: defaultFrequencyFor(nextStrategy),
-                mode:
-                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
-                    ? "PAPER_TRADING"
-                    : current.mode,
-                agentMode:
-                  nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
-                    ? "SINGLE_AGENT"
-                    : "",
-                modelName:
-                  nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
-                    ? optionsQuery.data.scadsaiDefaultModel
-                    : "",
-              }));
-            }}
-          >
-            {availableStrategies.map((strategy) => (
-              <option key={strategy} value={strategy}>
-                {strategy}
-              </option>
-            ))}
-          </select>
-          <small>{STRATEGY_DESCRIPTIONS[state.strategyType]}</small>
-        </label>
+        <div className="form-field">
+          <span className="field-label">Strategy Category</span>
+          {isPaper ? (
+            <div className="strategy-category-grid">
+              <button
+                className={
+                  state.strategyCategory === "RULE_BASED"
+                    ? "choice-card choice-card-active"
+                    : "choice-card"
+                }
+                type="button"
+                onClick={selectRuleBasedCategory}
+              >
+                <strong>Rule-Based</strong>
+                <small>{STRATEGY_CATEGORY_DESCRIPTIONS.RULE_BASED}</small>
+              </button>
+              <button
+                className={
+                  state.strategyCategory === "AI_STRATEGY"
+                    ? "choice-card choice-card-active"
+                    : "choice-card"
+                }
+                disabled={!canUseAiStrategy}
+                type="button"
+                onClick={selectAiCategory}
+              >
+                <strong>AI Strategy</strong>
+                <small>{STRATEGY_CATEGORY_DESCRIPTIONS.AI_STRATEGY}</small>
+              </button>
+            </div>
+          ) : (
+            <div className="context-note">
+              Historical simulations currently support rule-based strategies only.
+            </div>
+          )}
+        </div>
+        {state.strategyCategory === "RULE_BASED" && (
+          <label>
+            Rule-Based Strategy
+            <select
+              value={state.strategyType}
+              onChange={(event) => {
+                const nextStrategy = event.target.value as StrategyType;
+                setState((current) => ({
+                  ...current,
+                  strategyCategory: "RULE_BASED",
+                  strategyType: nextStrategy,
+                  aiDecisionPattern: "SINGLE_AGENT",
+                  movingAverageWindow:
+                    nextStrategy === "MOVING_AVERAGE" ? "3" : "",
+                  tradingFrequency: defaultFrequencyFor(nextStrategy),
+                  mode:
+                    nextStrategy === "PAPER_TRADING_SMOKE_TEST"
+                      ? "PAPER_TRADING"
+                      : current.mode,
+                  agentMode: "",
+                  modelName: "",
+                }));
+              }}
+            >
+              {availableRuleBasedStrategies.map((strategy) => (
+                <option key={strategy} value={strategy}>
+                  {strategy}
+                </option>
+              ))}
+            </select>
+            <small>{STRATEGY_DESCRIPTIONS[state.strategyType]}</small>
+          </label>
+        )}
+        {isPaper && state.strategyCategory === "AI_STRATEGY" && (
+          <div className="ai-pattern-section">
+            <div>
+              <span className="field-label">AI Decision Pattern</span>
+              <div className="ai-pattern-grid">
+                {AI_PATTERN_OPTIONS.map((pattern) => {
+                  const isActive = state.aiDecisionPattern === pattern.value;
+                  return (
+                    <button
+                      key={pattern.value}
+                      className={
+                        isActive
+                          ? "choice-card choice-card-active"
+                          : "choice-card"
+                      }
+                      disabled={!pattern.enabled}
+                      type="button"
+                      onClick={() => {
+                        if (!pattern.enabled) return;
+                        setState((current) => ({
+                          ...current,
+                          strategyCategory: "AI_STRATEGY",
+                          strategyType: "AGENTIC_AI",
+                          aiDecisionPattern: pattern.value,
+                          movingAverageWindow: "",
+                          tradingFrequency: "DAILY",
+                          agentMode: "SINGLE_AGENT",
+                          modelName:
+                            current.modelName
+                            || optionsQuery.data.scadsaiDefaultModel,
+                        }));
+                      }}
+                    >
+                      <span>
+                        <strong>{pattern.label}</strong>
+                        {!pattern.enabled && (
+                          <em className="choice-card-badge">Planned</em>
+                        )}
+                      </span>
+                      <small>{pattern.description}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="context-note">
+              AI output is advisory only. RiskCheck still decides whether a broker
+              order may be submitted.
+            </div>
+          </div>
+        )}
         {state.strategyType === "PAPER_TRADING_SMOKE_TEST" && (
           <div className="state-box">
             Smoke-test strategy creates alternating 1-share Alpaca paper BUY/SELL
@@ -469,48 +663,18 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
         {isPaper && state.strategyType === "AGENTIC_AI" && (
           <>
             <label>
-              Agent Mode
+              ScaDS.AI Model
               <select
-                value={state.agentMode}
-                onChange={(event) =>
-                  update("agentMode", event.target.value as AgentMode | "")
-                }
+                value={state.modelName || optionsQuery.data.scadsaiDefaultModel}
+                onChange={(event) => update("modelName", event.target.value)}
               >
-                <option value="">None</option>
-                {optionsQuery.data.agentModes
-                  .filter((mode) =>
-                    state.mode === "PAPER_TRADING" ? mode === "SINGLE_AGENT" : true,
-                  )
-                  .map((mode) => (
-                  <option key={mode} value={mode}>
-                    {mode}
+                {optionsQuery.data.scadsaiAllowedModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
                   </option>
-                  ))}
+                ))}
               </select>
             </label>
-            {state.mode === "PAPER_TRADING" ? (
-              <label>
-                ScaDS.AI Model
-                <select
-                  value={state.modelName || optionsQuery.data.scadsaiDefaultModel}
-                  onChange={(event) => update("modelName", event.target.value)}
-                >
-                  {optionsQuery.data.scadsaiAllowedModels.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label>
-                Model Name
-                <input
-                  value={state.modelName}
-                  onChange={(event) => update("modelName", event.target.value)}
-                />
-              </label>
-            )}
             <label>
               Confidence Threshold
               <input
