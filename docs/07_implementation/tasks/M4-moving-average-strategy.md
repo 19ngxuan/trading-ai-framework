@@ -11,7 +11,7 @@ Implement the 200-day Moving Average strategy and make it executable in historic
 - Implement MovingAverageStrategy
 - Calculate/use moving_average from snapshots
 - Generate BUY/SELL/HOLD decisions
-- Respect ALL_IN position sizing through Risk Engine
+- Respect RiskCheck executable quantity decisions
 - Persist decisions and trades
 
 ---

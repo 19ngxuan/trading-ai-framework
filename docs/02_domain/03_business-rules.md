@@ -396,10 +396,10 @@ The system must not allow purchases beyond available cash and configured limits.
 
 ---
 
-### BR-035: Maximum position size must be enforced
+### BR-035: Maximum executable size must be controlled
 
-The current implementation enforces configured M13 position sizing for BUY
-quantity. Broader max-position-percent risk limits are documented for future
+The current implementation sizes BUY orders from available cash using whole
+shares. Broader max-position-percent risk limits are documented for future
 expansion.
 
 ---
@@ -476,10 +476,10 @@ Portfolio cash must never become negative through simulation or paper-trading st
 
 Position quantity must never become negative in V1.
 
-M13 position sizing changes only executable `BUY` quantity. `SELL` always
+BUY execution uses available cash and whole-share rounding. `SELL` always
 liquidates the existing long SPY position and must never open a short position.
-If a configured `BUY` size produces less than one whole share, the final action
-becomes `HOLD` with an auditable position-sizing reason.
+If available cash cannot buy one whole share, the final action becomes `HOLD`
+with an auditable reason.
 
 ---
 

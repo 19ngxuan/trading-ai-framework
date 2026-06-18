@@ -3,7 +3,6 @@ import type { MetricSnapshot } from "./metrics";
 
 export type ExperimentMode =
   | "HISTORICAL_SIMULATION"
-  | "LIVE_SIMULATION"
   | "PAPER_TRADING";
 
 export type StrategyType =
@@ -29,11 +28,6 @@ export type TradingFrequency =
   | "TEST_1_MIN";
 export type FeeModelType = "NONE" | "FIXED" | "PERCENTAGE";
 export type AgentMode = "SINGLE_AGENT" | "PIPELINE";
-export type PositionSizingType =
-  | "ALL_IN"
-  | "FIXED_CASH"
-  | "PERCENT_OF_PORTFOLIO"
-  | "FIXED_QUANTITY";
 export type OrderStatus =
   | "CREATED"
   | "SUBMITTED"
@@ -70,10 +64,7 @@ export type StrategyConfig = {
   id: number;
   experimentId: number;
   strategyType: StrategyType;
-  strategyVersion: string;
   movingAverageWindow: number | null;
-  positionSizingType: PositionSizingType | null;
-  positionSizingValue: number | null;
   agentMode: AgentMode | null;
   modelName: string | null;
   confidenceThreshold: number | null;
@@ -135,10 +126,7 @@ export type OptionsResponse = {
 };
 
 export type StrategyConfigInput = {
-  strategyVersion: string;
   movingAverageWindow: number | null;
-  positionSizingType: PositionSizingType | null;
-  positionSizingValue: number | null;
   agentMode: AgentMode | null;
   modelName: string | null;
   confidenceThreshold: number | null;

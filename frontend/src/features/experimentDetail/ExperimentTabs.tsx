@@ -194,16 +194,8 @@ export function ExperimentTabs({
       {tab === "config" && (
         <dl className="detail-list">
           <div>
-            <dt>Strategy Version</dt>
-            <dd>{detail.strategyConfig.strategyVersion}</dd>
-          </div>
-          <div>
             <dt>Moving Average Window</dt>
             <dd>{detail.strategyConfig.movingAverageWindow ?? "-"}</dd>
-          </div>
-          <div>
-            <dt>Position Sizing</dt>
-            <dd>{detail.strategyConfig.positionSizingType ?? "-"}</dd>
           </div>
           <div>
             <dt>Fee Model</dt>

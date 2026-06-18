@@ -209,16 +209,11 @@ Strategy Configuration:
 
 For `BUY_AND_HOLD`:
 
-- strategy version
-- position sizing type
-- optional position sizing value
 - optional parameters
 
 For `MOVING_AVERAGE`:
 
 - moving average window
-- position sizing type
-- strategy version
 - optional parameters
 
 For `AGENTIC_AI`:
@@ -226,21 +221,8 @@ For `AGENTIC_AI`:
 - agent mode
 - model name
 - confidence threshold
-- position sizing type
-- optional position sizing value
-- strategy version
 - deterministic fake single-agent or pipeline parameters in `parametersJson` for historical execution
 - ScaDS.AI model selection from `/api/v1/options` for `PAPER_TRADING` + `SINGLE_AGENT`
-
-Position sizing fields:
-
-- `ALL_IN`: hide or disable value input.
-- `FIXED_CASH`: show positive cash amount input.
-- `PERCENT_OF_PORTFOLIO`: show decimal percentage input with `0 < value <= 1`.
-- `FIXED_QUANTITY`: show positive whole-number quantity input.
-
-Backend validation remains authoritative. In M13, position sizing affects BUY
-quantity only; SELL always liquidates the existing long SPY position.
 
 Risk Configuration:
 

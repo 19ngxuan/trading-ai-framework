@@ -21,9 +21,7 @@ def _paper_trading_payload() -> dict:
         "feeModelType": "NONE",
         "feeValue": 0,
         "strategyConfig": {
-            "strategyVersion": "buy-and-hold-v1",
             "movingAverageWindow": None,
-            "positionSizingType": "ALL_IN",
             "agentMode": None,
             "modelName": None,
             "confidenceThreshold": None,

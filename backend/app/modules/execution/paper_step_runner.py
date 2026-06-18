@@ -37,7 +37,6 @@ from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderEr
 from app.modules.broker.factory import create_broker_adapter
 from app.modules.execution.metrics import BasicMetricCalculator
 from app.modules.execution.paper_provider import PaperExecutionProvider
-from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import BuyAndHoldRiskValidator, RiskResult
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.factory import create_market_data_provider
@@ -499,15 +498,13 @@ class PaperTradingStepRunner:
                 strategy_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=self._risk_sizing_type(
-                    experiment.strategy_type,
-                    strategy_config.position_sizing_type,
-                ),
-                position_sizing_value=self._risk_sizing_value(
-                    experiment.strategy_type,
-                    strategy_config.parameters_json,
-                ),
             )
+            if experiment.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+                risk_result = self._smoke_test_risk_result(
+                    strategy_decision.action,
+                    portfolio,
+                    bar.adjusted_close,
+                )
             risk_check = RiskCheckRepository(session).add(
                 RiskCheckModel(
                     execution_step_id=execution_step_id,
@@ -636,10 +633,6 @@ class PaperTradingStepRunner:
                 strategy_decision,
                 portfolio,
                 bar.close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = RiskCheckRepository(session).add(
                 RiskCheckModel(
@@ -792,10 +785,6 @@ class PaperTradingStepRunner:
                 agent_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = RiskCheckRepository(session).add(
                 RiskCheckModel(
@@ -983,19 +972,48 @@ class PaperTradingStepRunner:
                 for trade in trades
             )
 
-    def _risk_sizing_type(
-        self, strategy_type: StrategyType, configured_sizing_type: str | None
-    ) -> str | None:
-        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
-            return "FIXED_QUANTITY"
-        return configured_sizing_type
-
-    def _risk_sizing_value(
-        self, strategy_type: StrategyType, parameters_json: dict | None
-    ) -> Decimal | None:
-        if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
-            return Decimal("1")
-        return parse_position_sizing_value(parameters_json)
+    @staticmethod
+    def _smoke_test_risk_result(
+        action: TradeAction,
+        portfolio: PortfolioModel,
+        price: Decimal,
+    ) -> RiskResult:
+        if action is TradeAction.SELL:
+            position_quantity = portfolio.position_quantity or Decimal("0")
+            if position_quantity <= 0:
+                return RiskResult(
+                    approved=True,
+                    final_action=FinalAction.HOLD,
+                    final_quantity=None,
+                    final_notional=None,
+                    rejection_reason="No SPY position exists to sell.",
+                    rules_triggered_json={"reason": "NO_POSITION_TO_SELL"},
+                )
+            return RiskResult(
+                approved=True,
+                final_action=FinalAction.SELL,
+                final_quantity=position_quantity,
+                final_notional=(position_quantity * price).quantize(Decimal("0.0001")),
+                rejection_reason=None,
+                rules_triggered_json={"reason": "SELL_FULL_POSITION"},
+            )
+        if action is TradeAction.BUY and portfolio.cash >= price:
+            return RiskResult(
+                approved=True,
+                final_action=FinalAction.BUY,
+                final_quantity=Decimal("1"),
+                final_notional=price.quantize(Decimal("0.0001")),
+                rejection_reason=None,
+                rules_triggered_json={"reason": "SMOKE_TEST_FIXED_ONE_SHARE"},
+            )
+        return RiskResult(
+            approved=True,
+            final_action=FinalAction.HOLD,
+            final_quantity=None,
+            final_notional=None,
+            rejection_reason="Insufficient cash to buy one SPY share.",
+            rules_triggered_json={"reason": "INSUFFICIENT_CASH_FOR_ONE_SHARE"},
+        )
 
     def _run_broker_execution(
         self,

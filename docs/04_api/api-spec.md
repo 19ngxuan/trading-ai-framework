@@ -151,10 +151,7 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
   "feeModelType": "NONE",
   "feeValue": 0,
   "strategyConfig": {
-    "strategyVersion": "moving-average-v1",
     "movingAverageWindow": 200,
-    "positionSizingType": "ALL_IN",
-    "positionSizingValue": null,
     "agentMode": null,
     "modelName": null,
     "confidenceThreshold": null,
@@ -174,14 +171,10 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
 }
 ```
 
-Position sizing is applied after a strategy or agent proposes `BUY`, `SELL`, or
-`HOLD` and before execution. Supported values are `ALL_IN`, `FIXED_CASH`,
-`PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`. `positionSizingValue` is optional
-for `ALL_IN`, required and positive for `FIXED_CASH`, required with `0 < value <=
-1` for `PERCENT_OF_PORTFOLIO`, and required as a positive whole number for
-`FIXED_QUANTITY`. In M13, `positionSizingValue` affects `BUY` only; `SELL`
-always liquidates the existing long SPY position and never opens a short
-position. The value is persisted in `strategyConfig.parametersJson`.
+Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
+authoritative and determines the executable whole-share quantity from the
+current portfolio state. BUY uses available cash, SELL liquidates the existing
+long SPY position, and the system never opens short positions.
 
 Opening Range Breakout creation is supported only for
 `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
@@ -316,10 +309,7 @@ Returns the complete high-level experiment detail.
     "id": 1,
     "experimentId": 1,
     "strategyType": "MOVING_AVERAGE",
-    "strategyVersion": "moving-average-v1",
     "movingAverageWindow": 200,
-    "positionSizingType": "ALL_IN",
-    "positionSizingValue": null,
     "agentMode": null,
     "modelName": null,
     "confidenceThreshold": null,
@@ -711,7 +701,7 @@ Returns frontend-selectable enum values and supported options.
 ```json
 {
   "assets": ["SPY"],
-  "modes": ["HISTORICAL_SIMULATION", "LIVE_SIMULATION", "PAPER_TRADING"],
+  "modes": ["HISTORICAL_SIMULATION", "PAPER_TRADING"],
   "strategies": ["BUY_AND_HOLD", "MOVING_AVERAGE", "AGENTIC_AI", "OPENING_RANGE_BREAKOUT"],
   "experimentStatuses": ["CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED", "FAILED"],
   "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY", "INTRADAY_5_MIN"],

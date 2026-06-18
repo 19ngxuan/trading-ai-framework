@@ -30,7 +30,6 @@ from app.modules.execution.orchestrator import (
     HistoricalBuyAndHoldOrchestrator,
     HistoricalMovingAverageOrchestrator,
 )
-from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import HistoricalSimulationRiskValidator
 from app.modules.execution.simulation_provider import SimulationExecutionProvider
 from app.modules.market_data.errors import (
@@ -412,10 +411,6 @@ class HistoricalStepRunner:
                 agent_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(

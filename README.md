@@ -22,7 +22,7 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments, manual/scheduled `MOVING_AVERAGE` daily SPY paper experiments, scheduled `OPENING_RANGE_BREAKOUT` 5-minute SPY paper experiments, scheduled smoke-test diagnostics, and `AGENTIC_AI` single-agent daily SPY paper experiments when ScaDS.AI is explicitly enabled
 - Deterministic single-agent and pipeline-agent `AGENTIC_AI` historical manual steps using fake providers only
 - Optional ScaDS.AI single-agent provider for paper-trading `AGENTIC_AI`
-- Configurable position sizing for BUY quantities: `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY`
+- RiskCheck-controlled whole-share execution sizing
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
 The current implementation intentionally does not include real-money trading,
@@ -190,19 +190,12 @@ uses the ScaDS.AI OpenAI-compatible API only when `SCADSAI_LLM_ENABLED=true`,
 calling, and direct agent access to broker, market data, scheduler, persistence,
 or secrets remain out of scope.
 
-Position sizing is configured in experiment creation through
-`strategyConfig.positionSizingType` and optional `strategyConfig.positionSizingValue`.
-`positionSizingValue` is persisted in `strategy_configs.parameters_json`.
-Supported sizing types are:
-
-- `ALL_IN`: buy as many whole shares as available cash allows.
-- `FIXED_CASH`: cap BUY notional by a positive cash amount.
-- `PERCENT_OF_PORTFOLIO`: cap BUY notional by `currentPortfolioValue * value`, where `0 < value <= 1`.
-- `FIXED_QUANTITY`: request a positive whole-share quantity capped by available cash.
-
-In M13, position sizing affects BUY only. SELL always liquidates the existing long
-SPY position and never opens a short position. If sizing yields less than one
-whole share, the final action becomes HOLD with an auditable reason.
+Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
+authoritative and determines the executable whole-share quantity from the
+current portfolio state. BUY uses available cash, SELL liquidates the existing
+long SPY position, and the system never opens short positions. If available cash
+cannot buy one whole share, the final action becomes HOLD with an auditable
+reason.
 
 ## Database Migrations
 

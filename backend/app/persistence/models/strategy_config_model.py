@@ -21,9 +21,7 @@ class StrategyConfigModel(Base):
     strategy_type: Mapped[StrategyType] = mapped_column(
         strategy_type_enum, nullable=False
     )
-    strategy_version: Mapped[str] = mapped_column(String, nullable=False)
     moving_average_window: Mapped[int | None] = mapped_column(Integer)
-    position_sizing_type: Mapped[str | None] = mapped_column(String)
     agent_mode: Mapped[AgentMode | None] = mapped_column(agent_mode_enum)
     model_name: Mapped[str | None] = mapped_column(String)
     confidence_threshold: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
@@ -33,6 +31,5 @@ class StrategyConfigModel(Base):
 
     __table_args__ = (
         Index("ix_strategy_configs_strategy_type", "strategy_type"),
-        Index("ix_strategy_configs_strategy_version", "strategy_version"),
         Index("ix_strategy_configs_agent_mode", "agent_mode"),
     )

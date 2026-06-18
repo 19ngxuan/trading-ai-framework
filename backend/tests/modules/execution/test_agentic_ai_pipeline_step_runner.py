@@ -101,9 +101,7 @@ def _create_pipeline_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=StrategyType.AGENTIC_AI,
-            strategy_version="agentic-ai-pipeline-v1",
             moving_average_window=None,
-            position_sizing_type="ALL_IN",
             agent_mode=AgentMode.PIPELINE,
             model_name="deterministic-fake-pipeline",
             confidence_threshold=confidence_threshold,
@@ -283,10 +281,6 @@ def test_pipeline_sell_without_position_is_stopped_by_risk_check(
         assert decision.action is TradeAction.SELL
         assert risk_check.final_action is FinalAction.HOLD
         assert risk_check.rules_triggered_json["reason"] == "NO_POSITION_TO_SELL"
-        assert (
-            risk_check.rules_triggered_json["positionSizing"]["sizingReason"]
-            == "NO_POSITION_TO_SELL"
-        )
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0
 

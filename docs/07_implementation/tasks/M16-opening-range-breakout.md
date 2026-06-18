@@ -62,5 +62,5 @@ The execution pipeline remains:
 Strategy -> TradingDecision -> RiskCheck -> ExecutionStep -> Order/Trade
 ```
 
-Existing configurable position sizing applies to `BUY`. `SELL` remains full
-liquidation of the existing long SPY position.
+RiskCheck determines executable BUY quantity from available cash. `SELL`
+remains full liquidation of the existing long SPY position.

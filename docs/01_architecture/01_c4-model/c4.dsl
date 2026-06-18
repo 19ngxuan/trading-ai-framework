@@ -7,7 +7,7 @@ workspace "Trading Lab" "C4 architecture model for a FastAPI modular monolith tr
         brokerApi = softwareSystem "Broker API" "Executes paper-trading orders and provides broker state."
         llmProvider = softwareSystem "LLM Provider" "Provides language-model reasoning for agentic trading decisions."
 
-        tradingLab = softwareSystem "Trading Lab" "Runs historical simulations, live simulations, and paper-trading experiments." {
+        tradingLab = softwareSystem "Trading Lab" "Runs historical simulations and paper-trading experiments." {
 
             frontend = container "Web Frontend" "Dashboard for experiment configuration, execution monitoring, metrics, and agent logs." "React / TypeScript" {
                 tags "Frontend"
@@ -34,7 +34,7 @@ workspace "Trading Lab" "C4 architecture model for a FastAPI modular monolith tr
 
                 metricsModule = component "Metrics Module" "Computes portfolio performance, returns, drawdown, and benchmark comparison." "Python Module"
 
-                schedulerModule = component "Scheduler Module" "Triggers scheduled execution steps for live simulation and paper trading." "Python Module"
+                schedulerModule = component "Scheduler Module" "Triggers scheduled historical and paper-trading execution steps." "Python Module"
 
                 persistenceLayer = component "Persistence Layer" "Provides database access through repositories, models, and migrations." "SQLAlchemy / Alembic"
 

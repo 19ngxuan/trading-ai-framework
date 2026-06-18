@@ -63,8 +63,8 @@ Strategy -> TradingDecision -> RiskCheck -> ExecutionStep -> Order/Trade
 Broker submission happens only after a persisted approved `RiskCheck`.
 
 `HOLD` and rejected risk checks create no broker call. `SELL` can only close the
-local long SPY position and must never open a short position. BUY sizing uses the
-M13 position sizing path.
+local long SPY position and must never open a short position. BUY sizing uses
+available cash and whole-share rounding in the RiskCheck path.
 
 Submitted paper orders continue to be synced by the existing M20 broker-sync
 job. Broker sync also continues for open submitted orders after pause or stop.

@@ -583,7 +583,7 @@ Responsibility:
 Rules:
 
 - If final action is HOLD, do not create order.
-- If mode is HISTORICAL_SIMULATION or LIVE_SIMULATION, use simulation provider.
+- If mode is HISTORICAL_SIMULATION, use simulation provider.
 - If mode is PAPER_TRADING, use paper provider and Broker Module.
 - Must not execute rejected decisions.
 

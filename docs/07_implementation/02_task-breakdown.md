@@ -27,7 +27,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M10 | `tasks/M10-agentic-ai-single-agent.md` | Single-agent AI strategy |
 | M11 | `tasks/M11-agentic-ai-pipeline.md` | Pipeline-agent strategy |
 | M12 | `tasks/M12-compare-and-events-ui.md` | Compare screen and Events UI |
-| M13 | `tasks/M13-testing-hardening-readme.md` | Configurable position sizing and regression coverage |
+| M13 | `tasks/M13-testing-hardening-readme.md` | RiskCheck sizing cleanup and regression coverage |
 | M14 | `tasks/M14-frontend-chart-polish.md` | Frontend SVG chart axes and responsive proportional sizing |
 | M15 | `tasks/M15-hardening-documentation.md` | Documentation, API contract, runbook, and safety-boundary hardening |
 | M16 | `tasks/M16-opening-range-breakout.md` | Opening Range Breakout historical simulation |
@@ -59,7 +59,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 11. M10 Agentic AI Single Agent
 12. M11 Agentic AI Pipeline
 13. M12 Compare + Events UI
-14. M13 Configurable Position Sizing
+14. M13 RiskCheck Sizing Cleanup
 15. M14 Frontend Chart Polish
 16. M15 Hardening + Documentation
 17. M16 Opening Range Breakout

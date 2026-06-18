@@ -8,7 +8,6 @@ import type {
   CreateExperimentPayload,
   ExperimentMode,
   FeeModelType,
-  PositionSizingType,
   StrategyType,
   TradingFrequency,
 } from "../../types/experiment";
@@ -25,10 +24,7 @@ type FormState = {
   tradingFrequency: TradingFrequency;
   feeModelType: FeeModelType;
   feeValue: string;
-  strategyVersion: string;
   movingAverageWindow: string;
-  positionSizingType: PositionSizingType;
-  positionSizingValue: string;
   agentMode: AgentMode | "";
   modelName: string;
   confidenceThreshold: string;
@@ -50,31 +46,15 @@ const initialState: FormState = {
   tradingFrequency: "DAILY",
   feeModelType: "NONE",
   feeValue: "0",
-  strategyVersion: "buy-and-hold-v1",
   movingAverageWindow: "",
-  positionSizingType: "ALL_IN",
-  positionSizingValue: "",
   agentMode: "",
   modelName: "",
   confidenceThreshold: "",
   fallbackAction: "HOLD",
 };
 
-function strategyVersion(strategyType: StrategyType) {
-  if (strategyType === "MOVING_AVERAGE") return "moving-average-v1";
-  if (strategyType === "AGENTIC_AI") return "agentic-ai-v1";
-  if (strategyType === "OPENING_RANGE_BREAKOUT") {
-    return "opening-range-breakout-v1";
-  }
-  if (strategyType === "PAPER_TRADING_SMOKE_TEST") {
-    return "paper-trading-smoke-test-v1";
-  }
-  return "buy-and-hold-v1";
-}
-
 function validate(state: FormState): string | null {
   if (!state.name.trim()) return "Name is required.";
-  if (!state.strategyVersion.trim()) return "Strategy version is required.";
   const initialCapital = Number(state.initialCapital);
   if (!Number.isFinite(initialCapital) || initialCapital <= 0) {
     return "Initial capital must be positive.";
@@ -107,27 +87,6 @@ function validate(state: FormState): string | null {
     }
     if (state.tradingFrequency !== "DAILY") {
       return "Paper trading Agentic AI supports DAILY frequency only.";
-    }
-  }
-  if (state.positionSizingType !== "ALL_IN") {
-    const sizingValue = Number(state.positionSizingValue);
-    if (!Number.isFinite(sizingValue)) {
-      return "Position sizing value is required.";
-    }
-    if (state.positionSizingType === "FIXED_CASH" && sizingValue <= 0) {
-      return "Fixed cash position sizing must be positive.";
-    }
-    if (
-      state.positionSizingType === "PERCENT_OF_PORTFOLIO" &&
-      (sizingValue <= 0 || sizingValue > 1)
-    ) {
-      return "Percent of portfolio must be greater than 0 and less than or equal to 1.";
-    }
-    if (
-      state.positionSizingType === "FIXED_QUANTITY" &&
-      (!Number.isInteger(sizingValue) || sizingValue <= 0)
-    ) {
-      return "Fixed quantity must be a positive whole number.";
     }
   }
   return null;
@@ -188,15 +147,9 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       feeModelType: state.feeModelType,
       feeValue: Number(state.feeValue),
       strategyConfig: {
-        strategyVersion: state.strategyVersion.trim(),
         movingAverageWindow: state.movingAverageWindow
           ? Number(state.movingAverageWindow)
           : null,
-        positionSizingType: state.positionSizingType || null,
-        positionSizingValue:
-          state.positionSizingType === "ALL_IN"
-            ? null
-            : Number(state.positionSizingValue),
         agentMode: state.agentMode || null,
         modelName: state.modelName || null,
         confidenceThreshold: state.confidenceThreshold
@@ -269,7 +222,6 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               setState((current) => ({
                 ...current,
                 strategyType: nextStrategy,
-                strategyVersion: strategyVersion(nextStrategy),
                 movingAverageWindow:
                   nextStrategy === "MOVING_AVERAGE" ? "3" : "",
                 tradingFrequency:
@@ -293,14 +245,6 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                   nextStrategy === "AGENTIC_AI" && current.mode === "PAPER_TRADING"
                     ? optionsQuery.data.scadsaiDefaultModel
                     : current.modelName,
-                positionSizingType:
-                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
-                    ? "FIXED_QUANTITY"
-                    : current.positionSizingType,
-                positionSizingValue:
-                  nextStrategy === "PAPER_TRADING_SMOKE_TEST"
-                    ? "1"
-                    : current.positionSizingValue,
               }));
             }}
           >
@@ -378,14 +322,6 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
 
       <section className="form-section">
         <h3>Strategy Configuration</h3>
-        <label>
-          Strategy Version
-          <input
-            value={state.strategyVersion}
-            onChange={(event) => update("strategyVersion", event.target.value)}
-            required
-          />
-        </label>
         {state.strategyType === "MOVING_AVERAGE" && (
           <label>
             Moving Average Window
@@ -399,61 +335,6 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               }
             />
           </label>
-        )}
-        {state.strategyType !== "PAPER_TRADING_SMOKE_TEST" && (
-          <>
-            <label>
-              Position Sizing
-              <select
-                value={state.positionSizingType}
-                onChange={(event) => {
-                  const nextType = event.target.value as PositionSizingType;
-                  setState((current) => ({
-                    ...current,
-                    positionSizingType: nextType,
-                    positionSizingValue:
-                      nextType === "ALL_IN" ? "" : current.positionSizingValue,
-                  }));
-                }}
-              >
-                <option value="ALL_IN">ALL_IN</option>
-                <option value="FIXED_CASH">FIXED_CASH</option>
-                <option value="PERCENT_OF_PORTFOLIO">
-                  PERCENT_OF_PORTFOLIO
-                </option>
-                <option value="FIXED_QUANTITY">FIXED_QUANTITY</option>
-              </select>
-            </label>
-            {state.positionSizingType !== "ALL_IN" && (
-              <label>
-                Position Sizing Value
-                <input
-                  min={
-                    state.positionSizingType === "PERCENT_OF_PORTFOLIO"
-                      ? "0"
-                      : "1"
-                  }
-                  max={
-                    state.positionSizingType === "PERCENT_OF_PORTFOLIO"
-                      ? "1"
-                      : undefined
-                  }
-                  step={
-                    state.positionSizingType === "FIXED_QUANTITY"
-                      ? "1"
-                      : state.positionSizingType === "PERCENT_OF_PORTFOLIO"
-                        ? "0.01"
-                        : "0.01"
-                  }
-                  type="number"
-                  value={state.positionSizingValue}
-                  onChange={(event) =>
-                    update("positionSizingValue", event.target.value)
-                  }
-                />
-              </label>
-            )}
-          </>
         )}
         {state.strategyType === "AGENTIC_AI" && (
           <>

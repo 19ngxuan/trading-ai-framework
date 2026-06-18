@@ -39,8 +39,6 @@ def _create_experiment(
     session: Session,
     *,
     initial_capital: Decimal = Decimal("10000.0000"),
-    position_sizing_type: str = "ALL_IN",
-    position_sizing_value: Decimal | None = None,
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
@@ -64,20 +62,11 @@ def _create_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=StrategyType.BUY_AND_HOLD,
-            strategy_version="buy-and-hold-v1",
             moving_average_window=None,
-            position_sizing_type=position_sizing_type,
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,
-            parameters_json={
-                "riskConfig": {"fallbackAction": "HOLD"},
-                **(
-                    {"positionSizingValue": float(position_sizing_value)}
-                    if position_sizing_value is not None
-                    else {}
-                ),
-            },
+            parameters_json={"riskConfig": {"fallbackAction": "HOLD"}},
             created_at=now,
             updated_at=now,
         )
@@ -193,45 +182,11 @@ def test_insufficient_cash_converts_buy_to_hold(database_url: str) -> None:
         assert risk_checks[0].final_action is FinalAction.HOLD
         assert risk_checks[0].rejection_reason is not None
         assert "Insufficient cash" in risk_checks[0].rejection_reason
-        assert (
-            risk_checks[0].rules_triggered_json["positionSizing"]["sizingReason"]
-            == "POSITION_SIZE_BELOW_ONE_SHARE"
+        assert risk_checks[0].rules_triggered_json["reason"] == (
+            "INSUFFICIENT_CASH_FOR_ONE_SHARE"
         )
         assert _count(session, OrderModel, experiment_id) == 0
         assert _count(session, TradeModel, experiment_id) == 0
-
-
-def test_buy_and_hold_fixed_cash_buys_configured_size(database_url: str) -> None:
-    session_factory = create_session_factory(database_url)
-    with session_factory() as session:
-        experiment_id = _create_experiment(
-            session,
-            position_sizing_type="FIXED_CASH",
-            position_sizing_value=Decimal("1000"),
-        )
-
-    HistoricalBuyAndHoldOrchestrator(session_factory=session_factory).run(experiment_id)
-
-    with session_factory() as session:
-        order = session.scalar(
-            select(OrderModel).where(OrderModel.experiment_id == experiment_id)
-        )
-        risk_check = session.scalar(
-            select(RiskCheckModel)
-            .where(RiskCheckModel.experiment_id == experiment_id)
-            .order_by(RiskCheckModel.id)
-        )
-        assert order is not None
-        assert risk_check is not None
-        assert order.quantity == Decimal("2.00000000")
-        assert risk_check.final_quantity == Decimal("2.00000000")
-        assert risk_check.rules_triggered_json["positionSizing"] == {
-            "positionSizingType": "FIXED_CASH",
-            "positionSizingValue": 1000.0,
-            "requestedQuantity": 2.0,
-            "finalQuantity": 2.0,
-            "sizingReason": "FIXED_CASH",
-        }
 
 
 def test_orchestrator_persists_failure_state_before_step_created(

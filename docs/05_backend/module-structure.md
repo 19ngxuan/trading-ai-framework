@@ -482,7 +482,6 @@ Suggested path:
 backend/app/modules/risk/
 ├── engine.py
 ├── rules.py
-└── position_sizing.py
 ```
 
 Responsibilities:
@@ -510,10 +509,10 @@ Key rules:
 
 - No decision may be executed without a `RiskCheck`.
 - The Risk Module is authoritative over agent suggestions.
-- Agents may suggest position size, but Risk Module decides final executable size.
+- Agents may suggest only BUY, SELL, or HOLD; Risk Module decides final executable size.
 - V1 receives risk configuration from `strategy_configs.parameters_json.riskConfig` after applying documented defaults.
-- M13 position sizing receives `position_sizing_type` from `strategy_configs` and
-  optional `positionSizingValue` from `strategy_configs.parameters_json`.
+- BUY uses available cash for whole-share sizing, and SELL closes the existing
+  long SPY position without opening shorts.
 
 ---
 

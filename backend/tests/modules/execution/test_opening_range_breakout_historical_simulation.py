@@ -48,8 +48,6 @@ def _create_experiment(
     *,
     start_date: date = date(2024, 1, 2),
     end_date: date = date(2024, 1, 3),
-    position_sizing_type: str = "ALL_IN",
-    position_sizing_value: Decimal | None = None,
     initial_capital: Decimal = Decimal("10000.0000"),
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
@@ -70,20 +68,15 @@ def _create_experiment(
     )
     session.add(experiment)
     session.flush()
-    parameters_json = {"riskConfig": {"fallbackAction": "HOLD"}}
-    if position_sizing_value is not None:
-        parameters_json["positionSizingValue"] = float(position_sizing_value)
     session.add(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
-            strategy_version="opening-range-breakout-v1",
             moving_average_window=None,
-            position_sizing_type=position_sizing_type,
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,
-            parameters_json=parameters_json,
+            parameters_json={"riskConfig": {"fallbackAction": "HOLD"}},
             created_at=now,
             updated_at=now,
         )
@@ -265,11 +258,15 @@ def test_opening_range_breakout_full_run_persists_audit_chain(
             )
         )
         assert decisions[0].action.value == "HOLD"
-        assert decisions[6].action.value == "BUY"
-        assert decisions[12].action.value == "SELL"
-        assert decisions[-1].action.value == "SELL"
-        assert decisions[6].raw_decision_json["openingRangeHigh"] == 101.0
-        assert decisions[-1].raw_decision_json["eodExit"] is True
+        buy_decisions = [
+            decision for decision in decisions if decision.action.value == "BUY"
+        ]
+        sell_decisions = [
+            decision for decision in decisions if decision.action.value == "SELL"
+        ]
+        assert len(buy_decisions) == 2
+        assert len(sell_decisions) == 2
+        assert buy_decisions[0].raw_decision_json["openingRangeHigh"] == 101.0
 
         event_types = list(
             session.scalars(
@@ -281,7 +278,7 @@ def test_opening_range_breakout_full_run_persists_audit_chain(
         assert SystemEventType.EXPERIMENT_COMPLETED in event_types
 
 
-def test_opening_range_breakout_fixed_quantity_sizing_is_used(
+def test_opening_range_breakout_uses_default_cash_based_buy_quantity(
     database_url: str,
 ) -> None:
     session_factory = create_session_factory(database_url)
@@ -290,8 +287,6 @@ def test_opening_range_breakout_fixed_quantity_sizing_is_used(
             session,
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 2),
-            position_sizing_type="FIXED_QUANTITY",
-            position_sizing_value=Decimal("3"),
         )
 
     HistoricalOpeningRangeBreakoutOrchestrator(
@@ -317,15 +312,11 @@ def test_opening_range_breakout_fixed_quantity_sizing_is_used(
         )
         assert first_buy_risk is not None
         assert first_buy_order is not None
-        assert first_buy_risk.final_quantity == Decimal("3.00000000")
-        assert first_buy_order.quantity == Decimal("3.00000000")
-        assert first_buy_risk.rules_triggered_json["positionSizing"] == {
-            "positionSizingType": "FIXED_QUANTITY",
-            "positionSizingValue": 3.0,
-            "requestedQuantity": 3.0,
-            "finalQuantity": 3.0,
-            "sizingReason": "FIXED_QUANTITY",
-        }
+        assert first_buy_risk.final_quantity == Decimal("98.00000000")
+        assert first_buy_order.quantity == Decimal("98.00000000")
+        assert first_buy_risk.rules_triggered_json["reason"] == (
+            "DEFAULT_WHOLE_SHARE_BUY"
+        )
 
 
 def test_opening_range_breakout_accepts_injected_alpaca_intraday_provider(

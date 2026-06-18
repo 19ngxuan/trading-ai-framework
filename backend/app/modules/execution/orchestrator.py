@@ -14,7 +14,6 @@ from app.domain.enums import (
     TriggerType,
 )
 from app.modules.execution.metrics import BasicMetricCalculator
-from app.modules.execution.position_sizing import parse_position_sizing_value
 from app.modules.execution.risk import (
     BuyAndHoldRiskValidator,
     HistoricalSimulationRiskValidator,
@@ -219,10 +218,6 @@ class HistoricalBuyAndHoldOrchestrator:
                 strategy_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(
@@ -538,10 +533,6 @@ class HistoricalMovingAverageOrchestrator(HistoricalBuyAndHoldOrchestrator):
                 strategy_decision,
                 portfolio,
                 bar.adjusted_close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(
@@ -823,10 +814,6 @@ class HistoricalOpeningRangeBreakoutOrchestrator(HistoricalBuyAndHoldOrchestrato
                 strategy_decision,
                 portfolio,
                 bar.close,
-                position_sizing_type=strategy_config.position_sizing_type,
-                position_sizing_value=parse_position_sizing_value(
-                    strategy_config.parameters_json
-                ),
             )
             risk_check = risk_check_repository.add(
                 RiskCheckModel(

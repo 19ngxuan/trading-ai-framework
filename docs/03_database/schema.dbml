@@ -7,7 +7,6 @@
 
 Enum experiment_mode {
   HISTORICAL_SIMULATION
-  LIVE_SIMULATION
   PAPER_TRADING
 }
 
@@ -187,10 +186,8 @@ Table strategy_configs {
   experiment_id bigint [not null, unique, ref: > experiments.id]
 
   strategy_type strategy_type [not null]
-  strategy_version varchar [not null]
 
   moving_average_window int
-  position_sizing_type varchar
   agent_mode agent_mode
   model_name varchar
   confidence_threshold decimal(5, 4)
@@ -202,7 +199,6 @@ Table strategy_configs {
 
   indexes {
     strategy_type
-    strategy_version
     agent_mode
   }
 }

@@ -6,10 +6,6 @@ from app.core.config import get_settings
 from app.core.errors import ValidationAppError
 from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 from app.domain.enums import AgentMode
-from app.modules.execution.position_sizing import (
-    PositionSizingConfigurationError,
-    validate_position_sizing_config,
-)
 
 
 def _validate_risk_config(risk_config: dict[str, Any]) -> None:
@@ -68,25 +64,6 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                     "field": "tradingFrequency",
                     "value": request.trading_frequency.value,
                 },
-            )
-        if request.strategy_config.position_sizing_type not in {
-            None,
-            "FIXED_QUANTITY",
-        }:
-            raise ValidationAppError(
-                "Paper trading smoke-test uses fixed 1-share sizing only.",
-                details={
-                    "field": "strategyConfig.positionSizingType",
-                    "value": request.strategy_config.position_sizing_type,
-                },
-            )
-        if (
-            request.strategy_config.position_sizing_value is not None
-            and request.strategy_config.position_sizing_value != Decimal("1")
-        ):
-            raise ValidationAppError(
-                "Paper trading smoke-test positionSizingValue must be 1 when provided.",
-                details={"field": "strategyConfig.positionSizingValue"},
             )
     elif request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
         if request.mode not in {
@@ -178,21 +155,6 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 "confidenceThreshold must be between 0 and 1 when provided.",
                 details={"field": "strategyConfig.confidenceThreshold"},
             )
-
-    try:
-        validate_position_sizing_config(
-            request.strategy_config.position_sizing_type,
-            request.strategy_config.position_sizing_value,
-        )
-    except PositionSizingConfigurationError as exc:
-        raise ValidationAppError(
-            str(exc),
-            details={
-                "field": "strategyConfig.positionSizingValue",
-                "positionSizingType": request.strategy_config.position_sizing_type
-                or "ALL_IN",
-            },
-        ) from exc
 
     parameters_json = request.strategy_config.parameters_json or {}
     risk_config = parameters_json.get("riskConfig")

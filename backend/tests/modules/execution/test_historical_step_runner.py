@@ -68,13 +68,7 @@ def _create_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=strategy_type,
-            strategy_version=(
-                "moving-average-v1"
-                if strategy_type is StrategyType.MOVING_AVERAGE
-                else "buy-and-hold-v1"
-            ),
             moving_average_window=moving_average_window,
-            position_sizing_type="ALL_IN",
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,

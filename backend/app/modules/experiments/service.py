@@ -35,7 +35,6 @@ from app.modules.execution.orchestrator import (
     HistoricalMovingAverageOrchestrator,
     HistoricalOpeningRangeBreakoutOrchestrator,
 )
-from app.modules.execution.position_sizing import ALL_IN, parse_position_sizing_value
 from app.modules.experiments.status_machine import validate_transition
 from app.modules.experiments.validators import validate_create_experiment_request
 from app.persistence.database import create_session_factory
@@ -70,22 +69,11 @@ def _to_portfolio_response(model: PortfolioModel) -> PortfolioResponse:
 
 
 def _to_strategy_config_response(model: StrategyConfigModel) -> StrategyConfigResponse:
-    response = StrategyConfigResponse.model_validate(model)
-    response.position_sizing_value = parse_position_sizing_value(model.parameters_json)
-    return response
+    return StrategyConfigResponse.model_validate(model)
 
 
 def _strategy_parameters_json(request: CreateExperimentRequest) -> dict[str, Any] | None:
     parameters_json = dict(request.strategy_config.parameters_json or {})
-    sizing_type = request.strategy_config.position_sizing_type or ALL_IN
-    if sizing_type == ALL_IN:
-        parameters_json.pop("positionSizingValue", None)
-    elif request.strategy_config.position_sizing_value is not None:
-        value = request.strategy_config.position_sizing_value
-        if value == value.to_integral_value():
-            parameters_json["positionSizingValue"] = int(value)
-        else:
-            parameters_json["positionSizingValue"] = float(value)
     return parameters_json or None
 
 
@@ -163,9 +151,7 @@ class ExperimentService:
             strategy_config = StrategyConfigModel(
                 experiment_id=experiment.id,
                 strategy_type=request.strategy_type,
-                strategy_version=request.strategy_config.strategy_version,
                 moving_average_window=request.strategy_config.moving_average_window,
-                position_sizing_type=request.strategy_config.position_sizing_type,
                 agent_mode=request.strategy_config.agent_mode,
                 model_name=request.strategy_config.model_name,
                 confidence_threshold=request.strategy_config.confidence_threshold,

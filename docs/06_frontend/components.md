@@ -344,14 +344,11 @@ Fields depend on selected strategy type.
 
 For `BUY_AND_HOLD`:
 
-- strategy version
 - optional parameters
 
 For `MOVING_AVERAGE`:
 
 - moving average window
-- position sizing type
-- strategy version
 - optional parameters
 
 For `AGENTIC_AI`:
@@ -359,7 +356,6 @@ For `AGENTIC_AI`:
 - agent mode
 - model name
 - confidence threshold
-- prompt or strategy version
 - optional parameters
 
 ## 7.4 `RiskConfigSection`

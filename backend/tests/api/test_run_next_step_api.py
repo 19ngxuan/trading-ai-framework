@@ -31,9 +31,7 @@ def _buy_and_hold_payload() -> dict:
         "feeModelType": "NONE",
         "feeValue": 0,
         "strategyConfig": {
-            "strategyVersion": "buy-and-hold-v1",
             "movingAverageWindow": None,
-            "positionSizingType": "ALL_IN",
             "agentMode": None,
             "modelName": None,
             "confidenceThreshold": None,
@@ -48,9 +46,7 @@ def _moving_average_payload() -> dict:
     payload["strategyType"] = "MOVING_AVERAGE"
     payload["endDate"] = "2024-01-10"
     payload["strategyConfig"] = {
-        "strategyVersion": "moving-average-v1",
         "movingAverageWindow": 3,
-        "positionSizingType": "ALL_IN",
         "agentMode": None,
         "modelName": None,
         "confidenceThreshold": None,
@@ -64,9 +60,7 @@ def _agentic_ai_payload() -> dict:
     payload["name"] = "M10 Agentic AI"
     payload["strategyType"] = "AGENTIC_AI"
     payload["strategyConfig"] = {
-        "strategyVersion": "agentic-ai-v1",
         "movingAverageWindow": None,
-        "positionSizingType": "ALL_IN",
         "agentMode": "SINGLE_AGENT",
         "modelName": "deterministic-fake-agent",
         "confidenceThreshold": None,

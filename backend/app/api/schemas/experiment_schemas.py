@@ -29,12 +29,13 @@ class CamelModel(BaseModel):
 
 
 class StrategyConfigInput(CamelModel):
-    strategy_version: str = Field(alias="strategyVersion")
-    moving_average_window: int | None = Field(default=None, alias="movingAverageWindow")
-    position_sizing_type: str | None = Field(default=None, alias="positionSizingType")
-    position_sizing_value: Decimal | None = Field(
-        default=None, alias="positionSizingValue"
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        extra="forbid",
     )
+
+    moving_average_window: int | None = Field(default=None, alias="movingAverageWindow")
     agent_mode: AgentMode | None = Field(default=None, alias="agentMode")
     model_name: str | None = Field(default=None, alias="modelName")
     confidence_threshold: Decimal | None = Field(default=None, alias="confidenceThreshold")

@@ -193,8 +193,6 @@ def _create_experiment(
     asset_symbol: str = "SPY",
     cash: Decimal = Decimal("10000.0000"),
     position_quantity: Decimal = Decimal("0"),
-    position_sizing_type: str = "ALL_IN",
-    position_sizing_value: Decimal | None = None,
     moving_average_window: int | None = None,
     agent_mode=None,
     model_name: str | None = None,
@@ -223,20 +221,11 @@ def _create_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=strategy_type,
-            strategy_version="buy-and-hold-v1",
             moving_average_window=moving_average_window,
-            position_sizing_type=position_sizing_type,
             agent_mode=agent_mode,
             model_name=model_name,
             confidence_threshold=confidence_threshold,
-            parameters_json=parameters_json or {
-                "riskConfig": {"fallbackAction": "HOLD"},
-                **(
-                    {"positionSizingValue": float(position_sizing_value)}
-                    if position_sizing_value is not None
-                    else {}
-                ),
-            },
+            parameters_json=parameters_json or {"riskConfig": {"fallbackAction": "HOLD"}},
             created_at=now,
             updated_at=now,
         )
@@ -441,16 +430,12 @@ def test_duplicate_scheduled_paper_slot_is_rejected(database_url: str) -> None:
         )
 
 
-def test_paper_buy_submitted_quantity_respects_position_sizing(
+def test_paper_buy_submitted_quantity_uses_default_cash_based_quantity(
     database_url: str,
 ) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
-        experiment_id = _create_experiment(
-            session,
-            position_sizing_type="FIXED_QUANTITY",
-            position_sizing_value=Decimal("3"),
-        )
+        experiment_id = _create_experiment(session)
 
     broker = FakeBrokerAdapter(
         result=_broker_result(status="accepted", filled_quantity="0")
@@ -459,18 +444,15 @@ def test_paper_buy_submitted_quantity_respects_position_sizing(
 
     assert result.status is ExecutionStepStatus.COMPLETED
     assert len(broker.calls) == 1
-    assert broker.calls[0]["quantity"] == Decimal("3")
+    assert broker.calls[0]["quantity"] == Decimal("100")
 
     with session_factory() as session:
         risk_check = session.scalar(
             select(RiskCheckModel).where(RiskCheckModel.experiment_id == experiment_id)
         )
         assert risk_check is not None
-        assert risk_check.final_quantity == Decimal("3.00000000")
-        assert (
-            risk_check.rules_triggered_json["positionSizing"]["sizingReason"]
-            == "FIXED_QUANTITY"
-        )
+        assert risk_check.final_quantity == Decimal("100.00000000")
+        assert risk_check.rules_triggered_json["reason"] == "DEFAULT_WHOLE_SHARE_BUY"
 
 
 def test_hold_creates_no_broker_call_order_or_trade(database_url: str) -> None:

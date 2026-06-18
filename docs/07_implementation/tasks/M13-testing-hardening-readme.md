@@ -1,17 +1,17 @@
-# M13: Configurable Position Sizing
+# M13: RiskCheck Sizing Cleanup
 
 ## Goal
 
-Add configurable position sizing so experiment creators can control BUY order
-size without changing strategy or agent decision logic.
+Keep executable quantity control inside RiskCheck so strategies and agents only
+propose `BUY`, `SELL`, or `HOLD`.
 
 ---
 
 ## Scope
 
-- Backend position sizing calculator
-- API validation for position sizing config
-- Frontend create-form support
+- Backend RiskCheck sizing behavior
+- API schema cleanup
+- Frontend create-form cleanup
 - Documentation/OpenAPI alignment
 - Regression tests for historical, agentic historical, and paper-trading paths
 
@@ -35,18 +35,15 @@ size without changing strategy or agent decision logic.
 
 ## Acceptance Criteria
 
-- `ALL_IN`, `FIXED_CASH`, `PERCENT_OF_PORTFOLIO`, and `FIXED_QUANTITY` are supported.
-- Existing `ALL_IN` behavior remains backward compatible.
-- Position sizing affects BUY quantity only.
+- BUY uses available cash and whole-share rounding.
 - SELL always liquidates the existing long SPY position and never shorts.
-- Invalid create payloads return `422 VALIDATION_ERROR`.
-- Position sizing details are auditable through `RiskCheck`.
+- Quantity decisions are auditable through `RiskCheck`.
 
 ---
 
 ## Test Requirements
 
-- Position sizing unit tests
+- RiskCheck sizing regression tests
 - API validation tests
 - Historical Buy-and-Hold, Moving Average, Agentic-AI, and paper-trading regression tests
 - Full backend PostgreSQL suite
@@ -56,7 +53,6 @@ size without changing strategy or agent decision logic.
 
 ## Files Likely Affected
 
-- backend/app/modules/execution/position_sizing.py
 - backend/app/modules/execution/risk.py
 - backend/app/api/schemas/experiment_schemas.py
 - frontend/src/features/experiments/CreateExperimentForm.tsx

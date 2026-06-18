@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -66,8 +67,8 @@ def test_scads_provider_posts_openai_compatible_request() -> None:
     assert response.raw_output_text == '{"action":"HOLD","confidence":0,"rationale":"test"}'
     assert requests[0].url.path == "/v1/chat/completions"
     assert requests[0].headers["authorization"] == "Bearer secret-key"
-    payload = requests[0].read().decode()
-    assert "meta-llama/Llama-3.3-70B-Instruct" in payload
+    payload = json.loads(requests[0].read().decode())
+    assert payload["model"] == "meta-llama/Llama-3.3-70B-Instruct"
     assert "tools" not in payload
 
 

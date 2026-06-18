@@ -27,7 +27,15 @@ FORBIDDEN_CONFIG_IMPORTS = {
 
 
 def _agent_python_files() -> list[Path]:
-    return sorted(AGENT_MODULE_DIR.glob("*.py"))
+    provider_boundary_files = {
+        "provider_factory.py",
+        "scads_provider.py",
+    }
+    return sorted(
+        path
+        for path in AGENT_MODULE_DIR.glob("*.py")
+        if path.name not in provider_boundary_files
+    )
 
 
 def test_agent_modules_do_not_import_broker_persistence_network_or_llm_modules() -> None:

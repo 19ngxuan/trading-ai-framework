@@ -68,13 +68,7 @@ def _create_paper_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=strategy_type,
-            strategy_version=(
-                "paper-trading-smoke-test-v1"
-                if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST
-                else "buy-and-hold-v1"
-            ),
             moving_average_window=None,
-            position_sizing_type="ALL_IN",
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,

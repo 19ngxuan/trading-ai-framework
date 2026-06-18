@@ -137,9 +137,7 @@ Main fields:
 - `id`
 - `experiment_id`
 - `strategy_type`
-- `strategy_version`
 - `moving_average_window`
-- `position_sizing_type`
 - `agent_mode`
 - `model_name`
 - `confidence_threshold`
@@ -150,12 +148,9 @@ Main fields:
 Responsibilities:
 
 - store strategy-specific configuration
-- store the strategy version used by an experiment
 - support flexible strategy parameters through `parameters_json`
 
 For V1, risk configuration is stored inside `parameters_json.riskConfig`.
-M13 position sizing stores the sizing type in `position_sizing_type` and the
-optional ergonomic API value in `parameters_json.positionSizingValue`.
 
 Default V1 risk configuration:
 
@@ -182,13 +177,14 @@ Validation rules:
 - `fallbackAction`: V1 must be `HOLD`, default `HOLD`.
 - Unknown keys may be preserved in JSON but ignored by the V1 Risk Engine.
 
-Position sizing rules:
+Execution sizing rules:
 
-- `ALL_IN`: `positionSizingValue` is optional and ignored.
-- `FIXED_CASH`: `positionSizingValue` must be positive.
-- `PERCENT_OF_PORTFOLIO`: `positionSizingValue` must satisfy `0 < value <= 1`.
-- `FIXED_QUANTITY`: `positionSizingValue` must be a positive whole number.
-- In M13, position sizing affects BUY only. SELL liquidates the current long SPY position.
+- Strategies and agents propose only `BUY`, `SELL`, or `HOLD`.
+- RiskCheck determines the executable whole-share quantity from portfolio state.
+- BUY uses available cash.
+- SELL liquidates the current long SPY position.
+- The system never opens short positions.
+- If available cash cannot buy one whole share, final action becomes `HOLD`.
 
 Examples:
 
@@ -197,8 +193,6 @@ Moving Average strategy:
 ```json
 {
   "movingAverageWindow": 200,
-  "positionSizingType": "ALL_IN",
-  "positionSizingValue": null,
   "tradeOnCrossOnly": false
 }
 ```

@@ -55,9 +55,7 @@ def _create_experiment(
         StrategyConfigModel(
             experiment_id=experiment.id,
             strategy_type=StrategyType.BUY_AND_HOLD,
-            strategy_version="buy-and-hold-v1",
             moving_average_window=None,
-            position_sizing_type="ALL_IN",
             agent_mode=None,
             model_name=None,
             confidence_threshold=None,

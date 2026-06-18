@@ -3,7 +3,6 @@ from enum import Enum
 
 class ExperimentMode(str, Enum):
     HISTORICAL_SIMULATION = "HISTORICAL_SIMULATION"
-    LIVE_SIMULATION = "LIVE_SIMULATION"
     PAPER_TRADING = "PAPER_TRADING"
 
 

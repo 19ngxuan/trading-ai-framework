@@ -204,20 +204,20 @@ Important rules:
 
 ---
 
-## 5. Live-Like Simulation Workflow
+## 5. Scheduled Historical Step Workflow
 
 Goal:
 
-Run a simulation over time using scheduled execution steps.
+Advance supported historical simulations one persisted step at a time.
 
 Flow:
 
-1. Experiment is created with `mode = LIVE_SIMULATION`.
+1. Experiment is created with `mode = HISTORICAL_SIMULATION`.
 2. User starts the experiment.
 3. Experiment status becomes `RUNNING`.
-4. Scheduler identifies the next due execution time.
+4. Scheduler identifies eligible historical daily experiments.
 5. Scheduler triggers an `ExecutionStep` with `trigger_type = SCHEDULED`.
-6. Backend fetches latest market data.
+6. Backend reads configured historical market data.
 7. Backend runs the same decision-risk-execution pipeline as historical simulation.
 8. Backend stores snapshots, metrics, and events.
 9. Scheduler waits until the next due time.

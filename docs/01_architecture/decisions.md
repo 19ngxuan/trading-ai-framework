@@ -152,13 +152,12 @@ This applies to:
 
 The Risk Engine is authoritative.
 
-Agents and strategies may suggest actions and position sizes, but the Risk Engine determines the final executable action and size.
+Agents and strategies may suggest actions, but the Risk Engine determines the final executable action and size.
 
 No order may be created without a `RiskCheck`.
 
-M13 configurable position sizing is part of this RiskCheck path. It affects BUY
-quantity only; SELL liquidates the existing long SPY position and must never
-open a short position.
+BUY quantity is derived from available cash and whole-share rounding. SELL
+liquidates the existing long SPY position and must never open a short position.
 
 ---
 
