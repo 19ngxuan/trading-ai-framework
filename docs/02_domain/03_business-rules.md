@@ -333,6 +333,19 @@ Fallback details must be auditable in `AgentDecisionLog`. A dedicated
 
 ---
 
+### BR-027A: ScaDS.AI paper agent scope
+
+ScaDS.AI may be used only for `PAPER_TRADING` + `AGENTIC_AI` +
+`SINGLE_AGENT` + `DAILY` + `SPY` when `SCADSAI_LLM_ENABLED=true`, an API key is
+configured, and the selected model is in `SCADSAI_ALLOWED_MODELS`.
+
+Historical Agentic-AI execution remains deterministic and uses fake providers.
+Pipeline-agent paper trading, ORB/intraday agent trading, prompt editing, tool
+calling, and direct agent access to broker, Alpaca, scheduler, persistence,
+environment, or secret APIs are out of scope.
+
+---
+
 ### BR-028: Agent Risk Manager is not the system Risk Engine
 
 A pipeline agent may include an agent step named `RISK_MANAGER`.

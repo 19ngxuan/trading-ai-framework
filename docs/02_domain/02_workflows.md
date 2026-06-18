@@ -272,14 +272,16 @@ Important rules:
 - Paper trading must not use live-trading endpoints.
 - Paper scheduler execution is disabled by default and supports Buy-and-Hold
   daily SPY, Moving Average daily SPY, Opening Range Breakout intraday SPY, and
-  gated smoke-test SPY experiments.
-- Manual paper `run-next-step` supports Buy-and-Hold and Moving Average
-  debugging. Opening Range Breakout paper trading is scheduled-only in M23.
+  gated smoke-test SPY experiments. It also supports Agentic-AI single-agent
+  daily SPY paper trading when ScaDS.AI is explicitly enabled.
+- Manual paper `run-next-step` supports Buy-and-Hold, Moving Average, and
+  Agentic-AI single-agent debugging. Opening Range Breakout paper trading is
+  scheduled-only.
 - ORB paper scheduling evaluates completed regular-session 5-minute bars only.
   Missing expected completed bars are skipped before step creation.
 - Broker order-status polling is implemented for submitted paper orders.
 - Full broker reconciliation, account sync, position sync, outbox processing, and automatic order cancellation are deferred.
-- Agentic-AI paper trading is not implemented.
+- Agentic-AI pipeline paper trading and ORB/intraday agent paper trading are not implemented.
 
 ---
 
@@ -332,7 +334,9 @@ Flow:
 2. Agentic AI strategy delegates to Agent Module.
 3. Agent Module builds agent input.
 4. Agent Module builds prompt.
-5. Agent Module calls LLM Provider.
+5. Agent Module calls the configured provider. Historical execution uses
+   deterministic fake providers; paper single-agent execution may call ScaDS.AI
+   when explicitly enabled.
 6. Agent Module stores raw LLM output.
 7. Agent Module parses output.
 8. If output is invalid, Agent Module attempts repair.
@@ -356,6 +360,10 @@ Important rules:
 - LLM output must never be executed directly.
 - Agent Risk Manager is not a replacement for the system Risk Engine.
 - Agent logs must preserve inputs, prompts, raw outputs, parsed outputs, and repair attempts.
+- Agents must not call broker, Alpaca, scheduler, persistence, repository,
+  environment, or secret APIs directly.
+- Pipeline mode is historical-only and deterministic in the current
+  implementation.
 
 ---
 

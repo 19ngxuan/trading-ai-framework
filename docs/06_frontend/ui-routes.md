@@ -224,7 +224,8 @@ For `AGENTIC_AI`:
 - position sizing type
 - optional position sizing value
 - strategy version
-- deterministic fake single-agent or pipeline parameters in `parametersJson`
+- deterministic fake single-agent or pipeline parameters in `parametersJson` for historical execution
+- ScaDS.AI model selection from `/api/v1/options` for `PAPER_TRADING` + `SINGLE_AGENT`
 
 Position sizing fields:
 
@@ -355,8 +356,8 @@ The `Config` tab must show immutable configuration used by the experiment.
 For paper trading experiments, the detail page shows a Paper Trading Status
 card. It explains that `start` is lifecycle-only, scheduled paper execution runs
 at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York for daily
-rule-based strategies, and broker sync may continue for submitted paper orders
-after pause or stop. Opening Range Breakout paper trading is scheduled on
+rule-based and Agentic-AI single-agent strategies, and broker sync may continue
+for submitted paper orders after pause or stop. Opening Range Breakout paper trading is scheduled on
 completed 5-minute regular-session bars and may expose due-bar timestamps as
 operational metadata.
 

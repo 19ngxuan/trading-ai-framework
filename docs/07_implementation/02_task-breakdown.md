@@ -33,10 +33,14 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M16 | `tasks/M16-opening-range-breakout.md` | Opening Range Breakout historical simulation |
 | M17 | `tasks/M17-alpaca-intraday-market-data.md` | Alpaca intraday market data for Opening Range Breakout |
 | M18 | `tasks/M18-trading-calendar-intraday-orb.md` | Trading calendar and early-close support for intraday ORB |
+| M19 | `tasks/M19-interactive-charts.md` | Interactive charts and KPI/chart consistency |
 | M20 | `tasks/M20-live-paper-trading.md` | Scheduled paper trading and broker order-status sync |
+| M21 | `tasks/M21-paper-operations-ui.md` | Read-only paper trading operations UI and audit endpoints |
 | M22 | `tasks/M22-paper-trading-smoke-test.md` | Diagnostics-only paper trading smoke-test strategy |
 | M23 Spike | `tasks/M23-alpaca-xetra-paper-trading-spike.md` | Spike to verify Alpaca Xetra/European ETF paper-trading feasibility |
 | M23 | `tasks/M23-rule-based-paper-trading.md` | Scheduled paper trading for rule-based Moving Average and Opening Range Breakout |
+| M24 | `tasks/M24-scadsai-single-agent-paper-trading.md` | ScaDS.AI single-agent paper trading with model selection |
+| M25 | `tasks/M25-hardening-documentation.md` | Documentation, API contract, and safety-boundary hardening after M24 |
 
 ---
 
@@ -61,10 +65,14 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 17. M16 Opening Range Breakout
 18. M17 Alpaca Intraday Market Data for ORB
 19. M18 Trading Calendar + Early-Close Support
-20. M20 Live Paper Trading Scheduler + Broker Sync
-21. M22 Paper Trading Smoke-Test Strategy
-22. M23 Alpaca Xetra Paper Trading Spike
-23. M23 Rule-Based Paper Trading
+20. M19 Interactive Charts + KPI Consistency
+21. M20 Live Paper Trading Scheduler + Broker Sync
+22. M21 Paper Trading Operations UI
+23. M22 Paper Trading Smoke-Test Strategy
+24. M23 Alpaca Xetra Paper Trading Spike
+25. M23 Rule-Based Paper Trading
+26. M24 ScaDS.AI Single-Agent Paper Trading
+27. M25 Hardening + Documentation
 
 ---
 

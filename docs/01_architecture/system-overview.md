@@ -48,6 +48,7 @@ V1 is split into three implementation stages:
 - Add Agentic AI as a strategy type.
 - Support a Single-Agent decision mode.
 - Support a simple Pipeline-Agent mode.
+- Support ScaDS.AI single-agent decisions for controlled daily SPY paper trading when explicitly enabled.
 - Store agent inputs, prompts, raw outputs, parsed outputs, decisions, and risk checks.
 - Compare agentic strategies against rule-based baselines.
 
@@ -208,7 +209,12 @@ The system must only use Alpaca paper-trading endpoints in V1.
 
 Used by the Agent Module to generate agentic-AI trading decisions.
 
-LLM outputs must be parsed, validated, and passed through the RiskEngine before execution.
+Historical agent execution uses deterministic fake providers. ScaDS.AI is
+available only for `PAPER_TRADING` + `AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` +
+`SPY` when explicitly configured. LLM outputs must be parsed, validated, stored
+as TradingDecision input, and passed through the RiskEngine before execution.
+Agents must not access broker, Alpaca, persistence, scheduler, environment, or
+secret APIs directly.
 
 ## 9. Out of Scope
 

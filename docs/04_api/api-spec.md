@@ -448,6 +448,7 @@ Triggers one manual execution step. In the current implementation this supports:
 - `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 - `MOVING_AVERAGE` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
+- `AGENTIC_AI` + `PAPER_TRADING` + `SINGLE_AGENT` + `DAILY` + `SPY`, only when Alpaca paper trading and ScaDS.AI are explicitly enabled
 
 `PAPER_TRADING_SMOKE_TEST` and paper-trading Opening Range Breakout are
 scheduled-only. Manual `run-next-step` is rejected for those experiments.
@@ -663,11 +664,13 @@ Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
 `WAITING_FOR_COMPLETED_INTRADAY_BAR` or
 `CURRENT_INTRADAY_SLOT_ALREADY_EXECUTED`.
 
-M23 supports scheduled paper trading for `MOVING_AVERAGE` + `DAILY` + `SPY` and
-`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average manual
-`run-next-step` is supported for debugging. ORB paper trading is scheduled-only
-and skips before step creation if the expected completed 5-minute bar is
-unavailable.
+Scheduled paper trading supports `BUY_AND_HOLD` + `DAILY` + `SPY`,
+`MOVING_AVERAGE` + `DAILY` + `SPY`, `AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` +
+`SPY`, and `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average
+and Agentic-AI manual `run-next-step` are supported for debugging. ORB paper
+trading is scheduled-only and skips before step creation if the expected
+completed 5-minute bar is unavailable. Agentic-AI pipeline paper trading is not
+implemented.
 
 M22 adds a disabled-by-default diagnostics strategy,
 `PAPER_TRADING_SMOKE_TEST`. It is available in `/options` only when
@@ -714,9 +717,15 @@ Returns frontend-selectable enum values and supported options.
   "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY", "INTRADAY_5_MIN"],
   "feeModelTypes": ["NONE", "FIXED", "PERCENTAGE"],
   "agentModes": ["SINGLE_AGENT", "PIPELINE"],
-  "orderStatuses": ["CREATED", "SUBMITTED", "FILLED", "REJECTED", "FAILED", "CANCELLED"]
+  "orderStatuses": ["CREATED", "SUBMITTED", "FILLED", "REJECTED", "FAILED", "CANCELLED"],
+  "scadsaiLlmEnabled": false,
+  "scadsaiAllowedModels": ["meta-llama/Llama-3.3-70B-Instruct"],
+  "scadsaiDefaultModel": "meta-llama/Llama-3.3-70B-Instruct"
 }
 ```
+
+`PAPER_TRADING_SMOKE_TEST` and `TEST_1_MIN` are included only when
+`PAPER_TRADING_TEST_MODE_ENABLED=true`.
 
 ---
 

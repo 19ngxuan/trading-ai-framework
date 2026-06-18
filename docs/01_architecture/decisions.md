@@ -127,10 +127,13 @@ Strategy / Agent
 
 This keeps rule-based strategies and agentic-AI strategies comparable and prevents the agent from bypassing system safety rules.
 
-The current Agentic-AI implementation uses deterministic fake single-agent and
-pipeline-agent providers only. Real LLM provider SDKs, credentials, network
-calls, paper-trading agent execution, and scheduled agent execution are not
-implemented.
+Historical Agentic-AI execution uses deterministic fake single-agent and
+pipeline-agent providers only. Paper-trading Agentic AI is limited to
+`AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` + `SPY` and may call the ScaDS.AI
+OpenAI-compatible API only through the Agent Module when explicitly enabled by
+configuration. Agent pipeline paper trading, ORB/intraday agent paper trading,
+tool calling, prompt editing, and direct agent access to broker, market-data,
+scheduler, persistence, environment, or secret APIs remain out of scope.
 
 ---
 
@@ -221,10 +224,14 @@ The system must not use live-trading endpoints.
 
 The system must reject or block configurations that would route orders to real-money trading.
 
-Current paper trading is intentionally narrow: manual `run-next-step` only for
-`PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`. Broker reconciliation,
-outbox processing, account sync, position sync, order polling, scheduled paper
-trading, Moving Average paper trading, and Agentic-AI paper trading are deferred.
+Current paper trading is intentionally controlled: supported SPY configurations
+are `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`,
+`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN`, gated diagnostics-only
+`PAPER_TRADING_SMOKE_TEST` + `TEST_1_MIN`, and `AGENTIC_AI` +
+`SINGLE_AGENT` + `DAILY` when ScaDS.AI is explicitly enabled. Broker
+order-status polling exists for submitted paper orders. Full broker
+reconciliation, outbox processing, account sync, position sync, and automatic
+order cancellation remain deferred.
 
 ---
 
@@ -301,8 +308,8 @@ The following rules must be preserved during implementation.
 2. Broker access must go through the Broker Module.
 3. Alpaca-specific logic must not leak into strategies or agents.
 4. Paper-trading mode must use only paper-trading endpoints.
-5. Current paper trading updates local state from immediate paper order responses only.
-6. Full broker reconciliation, mismatch pause policy, and broker sync events are deferred.
+5. Paper trading may submit orders only through the Broker Module after a persisted, approved `RiskCheck`.
+6. Broker sync may update submitted orders and fills, but full broker reconciliation, mismatch pause policy, account sync, position sync, and outbox processing are deferred.
 
 ---
 
@@ -316,6 +323,8 @@ The following rules must be preserved during implementation.
 6. If repair fails, the fallback action is HOLD.
 7. Agent suggestions must still pass through the system Risk Engine.
 8. The Agent Risk Manager inside a pipeline is not a replacement for the system Risk Engine.
+9. Agents must not call broker, Alpaca, scheduler, persistence, repository, environment, or secret APIs directly.
+10. Real LLM execution is currently limited to ScaDS.AI single-agent paper trading; historical agent execution remains deterministic fake-provider execution.
 
 ---
 

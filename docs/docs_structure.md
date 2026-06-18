@@ -28,7 +28,9 @@ must not be used.
 │       ├── ...
 │       ├── M13-testing-hardening-readme.md
 │       ├── M14-frontend-chart-polish.md
-│       └── M15-hardening-documentation.md
+│       ├── M15-hardening-documentation.md
+│       ├── ...
+│       └── M25-hardening-documentation.md
 ├── 08_agent_instructions
 └── docs_structure.md
 ```

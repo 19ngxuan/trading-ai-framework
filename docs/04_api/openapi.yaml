@@ -1455,6 +1455,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrderStatus'
+        scadsaiLlmEnabled:
+          type: boolean
+        scadsaiAllowedModels:
+          type: array
+          items:
+            type: string
+        scadsaiDefaultModel:
+          type: string
     PaginatedResponseBase:
       type: object
       properties:
