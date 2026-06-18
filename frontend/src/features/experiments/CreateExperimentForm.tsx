@@ -39,11 +39,7 @@ type CreateExperimentFormProps = {
 
 type StrategyCategory = "RULE_BASED" | "AI_STRATEGY";
 
-type AiDecisionPattern =
-  | "LLM_SINGLE_PROMPT"
-  | "LLM_CHAIN"
-  | "SINGLE_AGENT"
-  | "MULTI_AGENT";
+type AiDecisionPattern = "SINGLE_AGENT" | "MULTI_AGENT";
 
 const initialState: FormState = {
   name: "",
@@ -65,6 +61,8 @@ const initialState: FormState = {
   fallbackAction: "HOLD",
 };
 
+const RECOMMENDED_CONFIDENCE_THRESHOLD = "0.60";
+
 const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   BUY_AND_HOLD: "Buy once, then hold the SPY position.",
   MOVING_AVERAGE: "Use a daily moving average signal.",
@@ -85,27 +83,15 @@ const AI_PATTERN_OPTIONS: Array<{
   enabled: boolean;
 }> = [
   {
-    value: "LLM_SINGLE_PROMPT",
-    label: "LLM Single Prompt",
-    description: "One prompt produces one advisory trading decision.",
-    enabled: false,
-  },
-  {
-    value: "LLM_CHAIN",
-    label: "LLM Chain",
-    description: "Several fixed LLM steps run in sequence.",
-    enabled: false,
-  },
-  {
     value: "SINGLE_AGENT",
     label: "Single Agent",
-    description: "One agent evaluates context and proposes a decision.",
+    description: "One AI agent evaluates market and portfolio context.",
     enabled: true,
   },
   {
     value: "MULTI_AGENT",
     label: "Multi Agent",
-    description: "Several specialized agents cooperate on a decision.",
+    description: "Several specialized agents split analysis, decision, and critique.",
     enabled: false,
   },
 ];
@@ -182,6 +168,10 @@ function modeChangeState(
       nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
         ? defaultAgentModel
         : "",
+    confidenceThreshold:
+      nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
+        ? current.confidenceThreshold || RECOMMENDED_CONFIDENCE_THRESHOLD
+        : current.confidenceThreshold,
   };
 }
 
@@ -251,6 +241,13 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
   const availableRuleBasedStrategies = ruleBasedStrategies(availableStrategies);
   const canUseAiStrategy =
     isPaper && availableStrategies.includes("AGENTIC_AI");
+  const scadsaiModels = optionsQuery.data?.scadsaiAllowedModels ?? [];
+  const defaultScadsaiModel = scadsaiModels.includes(
+    optionsQuery.data?.scadsaiDefaultModel ?? "",
+  )
+    ? optionsQuery.data?.scadsaiDefaultModel ?? ""
+    : scadsaiModels[0] ?? "";
+  const hasScadsaiModels = scadsaiModels.length > 0;
   const availableFrequencies = frequenciesFor(
     state.strategyType,
     optionsQuery.data?.tradingFrequencies ?? [],
@@ -320,7 +317,9 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       movingAverageWindow: "",
       tradingFrequency: "DAILY",
       agentMode: "SINGLE_AGENT",
-      modelName: current.modelName || optionsQuery.data.scadsaiDefaultModel,
+      modelName: current.modelName || defaultScadsaiModel,
+      confidenceThreshold:
+        current.confidenceThreshold || RECOMMENDED_CONFIDENCE_THRESHOLD,
     }));
   };
 
@@ -521,7 +520,10 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                           agentMode: "SINGLE_AGENT",
                           modelName:
                             current.modelName
-                            || optionsQuery.data.scadsaiDefaultModel,
+                            || defaultScadsaiModel,
+                          confidenceThreshold:
+                            current.confidenceThreshold
+                            || RECOMMENDED_CONFIDENCE_THRESHOLD,
                         }));
                       }}
                     >
@@ -665,29 +667,71 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
             <label>
               ScaDS.AI Model
               <select
-                value={state.modelName || optionsQuery.data.scadsaiDefaultModel}
+                disabled={!hasScadsaiModels}
+                value={state.modelName || defaultScadsaiModel}
                 onChange={(event) => update("modelName", event.target.value)}
               >
-                {optionsQuery.data.scadsaiAllowedModels.map((model) => (
+                {scadsaiModels.map((model) => (
                   <option key={model} value={model}>
                     {model}
                   </option>
                 ))}
               </select>
+              <small>
+                {hasScadsaiModels
+                  ? "All allowed ScaDS.AI models are loaded from backend configuration."
+                  : "No ScaDS.AI models are configured."}
+              </small>
             </label>
-            <label>
-              Confidence Threshold
-              <input
-                min="0"
-                max="1"
-                step="0.01"
-                type="number"
-                value={state.confidenceThreshold}
-                onChange={(event) =>
-                  update("confidenceThreshold", event.target.value)
-                }
-              />
-            </label>
+            <div className="form-field threshold-field">
+              <div className="threshold-heading">
+                <span className="field-label">Confidence Threshold</span>
+                <strong>{state.confidenceThreshold || "None"}</strong>
+              </div>
+              <div className="threshold-control">
+                <input
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  type="range"
+                  value={
+                    state.confidenceThreshold || RECOMMENDED_CONFIDENCE_THRESHOLD
+                  }
+                  onChange={(event) =>
+                    update("confidenceThreshold", event.target.value)
+                  }
+                />
+                <input
+                  aria-label="Confidence threshold value"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  type="number"
+                  value={state.confidenceThreshold}
+                  onChange={(event) =>
+                    update("confidenceThreshold", event.target.value)
+                  }
+                />
+              </div>
+              <div className="threshold-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "confidenceThreshold",
+                      RECOMMENDED_CONFIDENCE_THRESHOLD,
+                    )
+                  }
+                >
+                  Use recommended 0.60
+                </button>
+              </div>
+              <small>
+                Minimum confidence before an AI BUY or SELL proposal can proceed.
+                Below this value, the system converts the proposal to HOLD before
+                RiskCheck. Higher values are more conservative.
+              </small>
+            </div>
           </>
         )}
         {!hasStrategyFields && (

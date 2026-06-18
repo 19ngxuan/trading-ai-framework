@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     scadsai_api_key: str | None = None
     scadsai_base_url: str = "https://llm.scads.ai/v1"
     scadsai_request_timeout_seconds: int = 30
-    scadsai_allowed_models: str = "meta-llama/Llama-3.3-70B-Instruct"
+    scadsai_allowed_models: str = "alias-ha,meta-llama/Llama-3.3-70B-Instruct,meta-llama/Llama-3.1-8B-Instruct,alias-reasoning,alias-huge,alias-huge-no-thinking,Qwen/Qwen3-VL-8B-Instruct,alias-vision,openGPT-X/Teuken-7B-instruct-v0.6,Qwen/Qwen3-Coder-30B-A3B-Instruct,alias-code,google/gemma-4-31B-it,openai/gpt-oss-120b,moonshotai/Kimi-K2.6,MiniMaxAI/MiniMax-M2.7"
     scadsai_default_model: str = "meta-llama/Llama-3.3-70B-Instruct"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

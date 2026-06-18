@@ -709,7 +709,23 @@ Returns frontend-selectable enum values and supported options.
   "agentModes": ["SINGLE_AGENT", "PIPELINE"],
   "orderStatuses": ["CREATED", "SUBMITTED", "FILLED", "REJECTED", "FAILED", "CANCELLED"],
   "scadsaiLlmEnabled": false,
-  "scadsaiAllowedModels": ["meta-llama/Llama-3.3-70B-Instruct"],
+  "scadsaiAllowedModels": [
+    "alias-ha",
+    "meta-llama/Llama-3.3-70B-Instruct",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "alias-reasoning",
+    "alias-huge",
+    "alias-huge-no-thinking",
+    "Qwen/Qwen3-VL-8B-Instruct",
+    "alias-vision",
+    "openGPT-X/Teuken-7B-instruct-v0.6",
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    "alias-code",
+    "google/gemma-4-31B-it",
+    "openai/gpt-oss-120b",
+    "moonshotai/Kimi-K2.6",
+    "MiniMaxAI/MiniMax-M2.7"
+  ],
   "scadsaiDefaultModel": "meta-llama/Llama-3.3-70B-Instruct"
 }
 ```

@@ -579,6 +579,48 @@ select {
   font-weight: 700;
 }
 
+.threshold-field {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.threshold-heading,
+.threshold-control,
+.threshold-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.threshold-heading {
+  justify-content: space-between;
+}
+
+.threshold-heading strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.threshold-control input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.threshold-control input[type="number"] {
+  flex: 0 0 92px;
+}
+
+.threshold-actions button {
+  width: auto;
+  border-color: #bfccdc;
+  background: #ffffff;
+  color: #405069;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .form-section label,
 .form-section .form-field,
 .filter-row label {
