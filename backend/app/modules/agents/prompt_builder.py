@@ -17,6 +17,9 @@ class PromptBuilder:
             "symbol": context.symbol,
             "bar": {
                 "date": context.bar.date.isoformat(),
+                "timestamp": context.bar.timestamp.isoformat()
+                if context.bar.timestamp is not None
+                else None,
                 "open": self._decimal_to_string(context.bar.open),
                 "high": self._decimal_to_string(context.bar.high),
                 "low": self._decimal_to_string(context.bar.low),
@@ -42,8 +45,8 @@ class PromptBuilder:
 
     def build_prompt(self, input_json: dict[str, Any]) -> str:
         return (
-            "You are a single-agent trading strategy for a controlled historical "
-            "simulation. You may only propose one advisory SPY action. You must not "
+            "You are a single-agent trading strategy for a controlled trading "
+            "workflow. You may only propose one advisory SPY action. You must not "
             "call broker, order, trade, portfolio, scheduler, persistence, tool, or "
             "Alpaca APIs. RiskCheck is mandatory and authoritative after your output. "
             "Return strict JSON only with action BUY, SELL, or HOLD, confidence "

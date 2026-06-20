@@ -111,6 +111,17 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 "strategyType": request.strategy_type.value,
             },
         )
+    elif (
+        request.trading_frequency is TradingFrequency.HOURLY
+        and request.strategy_type is not StrategyType.AGENTIC_AI
+    ):
+        raise ValidationAppError(
+            "HOURLY frequency is supported only for Agentic AI paper trading.",
+            details={
+                "field": "tradingFrequency",
+                "strategyType": request.strategy_type.value,
+            },
+        )
 
     if request.mode is ExperimentMode.PAPER_TRADING:
         supported_paper_configs = {
@@ -118,14 +129,16 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             (StrategyType.MOVING_AVERAGE, TradingFrequency.DAILY),
             (StrategyType.OPENING_RANGE_BREAKOUT, TradingFrequency.INTRADAY_5_MIN),
             (StrategyType.AGENTIC_AI, TradingFrequency.DAILY),
+            (StrategyType.AGENTIC_AI, TradingFrequency.HOURLY),
         }
         if request.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST and (
             request.strategy_type,
             request.trading_frequency,
         ) not in supported_paper_configs:
             raise ValidationAppError(
-                "Paper trading supports only rule-based SPY strategies: "
-                "BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, or "
+                "Paper trading supports SPY strategies with these combinations: "
+                "BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
+                "AGENTIC_AI DAILY/HOURLY, or "
                 "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN.",
                 details={
                     "field": "strategyType",
@@ -135,9 +148,9 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             )
         if request.strategy_type is StrategyType.AGENTIC_AI:
             agent_mode = request.strategy_config.agent_mode or AgentMode.SINGLE_AGENT
-            if agent_mode is not AgentMode.SINGLE_AGENT:
+            if agent_mode not in {AgentMode.SINGLE_AGENT, AgentMode.PIPELINE}:
                 raise ValidationAppError(
-                    "Agentic AI paper trading supports SINGLE_AGENT mode only.",
+                    "Agentic AI paper trading supports SINGLE_AGENT or PIPELINE mode only.",
                     details={
                         "field": "strategyConfig.agentMode",
                         "value": agent_mode.value,

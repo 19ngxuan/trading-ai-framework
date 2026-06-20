@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
@@ -29,7 +30,11 @@ from app.domain.enums import (
     TriggerType,
 )
 from app.modules.agents.errors import AgentProviderConfigurationError
-from app.modules.agents.provider_factory import create_scads_agent_provider
+from app.modules.agents.pipeline_agent import AgentDecisionPipeline
+from app.modules.agents.provider_factory import (
+    create_scads_agent_provider,
+    create_scads_pipeline_provider,
+)
 from app.modules.agents.single_agent import SingleAgent
 from app.modules.agents.types import AgentContext
 from app.modules.broker.broker_adapter import BrokerAdapter, BrokerOrderResult
@@ -41,6 +46,7 @@ from app.modules.execution.risk import BuyAndHoldRiskValidator, RiskResult
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.factory import create_market_data_provider
 from app.modules.market_data.factory import create_intraday_market_data_provider
+from app.modules.market_data.hourly_bars import aggregate_hourly_bar
 from app.modules.market_data.intraday_provider import (
     OPENING_RANGE_END,
     IntradayBar,
@@ -94,6 +100,8 @@ from app.persistence.repositories import (
     TradeRepository,
     TradingDecisionRepository,
 )
+
+NEW_YORK_TZ = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -275,8 +283,9 @@ class PaperTradingStepRunner:
             if not self._is_supported_experiment(experiment, trigger_type):
                 raise InvalidExperimentConfigurationAppError(
                     "Paper trading supports only SPY Buy-and-Hold daily, Moving "
-                    "Average daily, scheduled Opening Range Breakout intraday, or "
-                    "scheduled smoke-test experiments when test mode is enabled.",
+                    "Average daily, Agentic AI daily/hourly, scheduled Opening "
+                    "Range Breakout intraday, or scheduled smoke-test experiments "
+                    "when test mode is enabled.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,
@@ -285,23 +294,6 @@ class PaperTradingStepRunner:
                         "assetSymbol": experiment.asset_symbol,
                     },
                 )
-            if (
-                experiment.strategy_type is StrategyType.AGENTIC_AI
-                and (strategy_config.agent_mode or AgentMode.SINGLE_AGENT)
-                is not AgentMode.SINGLE_AGENT
-            ):
-                raise InvalidExperimentConfigurationAppError(
-                    "Agentic AI paper trading supports SINGLE_AGENT mode only.",
-                    details={
-                        "experimentId": experiment_id,
-                        "agentMode": (
-                            strategy_config.agent_mode.value
-                            if strategy_config.agent_mode is not None
-                            else AgentMode.SINGLE_AGENT.value
-                        ),
-                    },
-                )
-
             lock_acquired = session.scalar(
                 text("SELECT pg_try_advisory_xact_lock(:experiment_id)"),
                 {"experiment_id": experiment_id},
@@ -368,7 +360,8 @@ class PaperTradingStepRunner:
             return True
         if (
             experiment.strategy_type is StrategyType.AGENTIC_AI
-            and experiment.trading_frequency is TradingFrequency.DAILY
+            and experiment.trading_frequency
+            in {TradingFrequency.DAILY, TradingFrequency.HOURLY}
         ):
             return True
         if (
@@ -683,7 +676,6 @@ class PaperTradingStepRunner:
         execution_step_id: int,
         broker_adapter: BrokerAdapter,
     ) -> PaperStepFailure | None:
-        bar = self.market_data_provider.get_latest_bar("SPY")
         with self.session_factory() as session:
             now = _utcnow()
             experiment = ExperimentRepository(session).get_by_id(experiment_id)
@@ -701,12 +693,14 @@ class PaperTradingStepRunner:
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
 
             selected_model = strategy_config.model_name or self.settings.scadsai_default_model
-            agent_strategy = self._paper_agent_strategy(selected_model)
+            agent_mode = strategy_config.agent_mode or AgentMode.SINGLE_AGENT
+            bar = self._agent_market_bar(experiment, execution_step)
+            agent_strategy = self._paper_agent_strategy(selected_model, agent_mode)
             market_data = MarketDataSnapshotRepository(session).add(
                 MarketDataSnapshotModel(
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
-                    timestamp=now,
+                    timestamp=bar.timestamp or now,
                     symbol="SPY",
                     price=bar.adjusted_close,
                     open=bar.open,
@@ -732,7 +726,7 @@ class PaperTradingStepRunner:
                 current_portfolio_value=portfolio.current_portfolio_value,
                 confidence_threshold=strategy_config.confidence_threshold,
                 parameters_json=strategy_config.parameters_json,
-                agent_mode=AgentMode.SINGLE_AGENT,
+                agent_mode=agent_mode,
                 model_name=selected_model,
             )
             agent_result = agent_strategy.decide(agent_context)
@@ -763,7 +757,7 @@ class PaperTradingStepRunner:
                         execution_step_id=execution_step_id,
                         experiment_id=experiment_id,
                         trading_decision_id=trading_decision.id,
-                        agent_mode=AgentMode.SINGLE_AGENT,
+                        agent_mode=agent_mode,
                         agent_step_name=log_payload.agent_step_name,
                         agent_name=log_payload.agent_name,
                         prompt_version=log_payload.prompt_version,
@@ -821,7 +815,7 @@ class PaperTradingStepRunner:
                 experiment=experiment,
                 portfolio=portfolio,
                 price=bar.adjusted_close,
-                timestamp=now,
+                timestamp=bar.timestamp or now,
                 trade=None,
             )
             execution_step.status = ExecutionStepStatus.COMPLETED
@@ -856,11 +850,52 @@ class PaperTradingStepRunner:
             position_quantity=portfolio.position_quantity,
         )
 
-    def _paper_agent_strategy(self, model_name: str) -> AgenticAIStrategy:
+    def _paper_agent_strategy(
+        self, model_name: str, agent_mode: AgentMode
+    ) -> AgenticAIStrategy:
         if self.agent_strategy is not None:
             return self.agent_strategy
+        if agent_mode is AgentMode.PIPELINE:
+            provider = create_scads_pipeline_provider(self.settings, model_name)
+            return AgenticAIStrategy(
+                pipeline=AgentDecisionPipeline(provider=provider)
+            )
         provider = create_scads_agent_provider(self.settings, model_name)
         return AgenticAIStrategy(agent=SingleAgent(provider=provider))
+
+    def _agent_market_bar(
+        self,
+        experiment,
+        execution_step: ExecutionStepModel,
+    ):
+        if experiment.trading_frequency is TradingFrequency.HOURLY:
+            return self._load_hourly_agent_bar(execution_step)
+        return self.market_data_provider.get_latest_bar("SPY")
+
+    def _load_hourly_agent_bar(self, execution_step: ExecutionStepModel):
+        scheduled_for = execution_step.scheduled_for or _utcnow()
+        local_slot = scheduled_for.replace(tzinfo=timezone.utc).astimezone(NEW_YORK_TZ)
+        sessions = UsEquitiesTradingCalendar().sessions_between(
+            local_slot.date(),
+            local_slot.date(),
+        )
+        if not sessions:
+            raise MarketDataUnavailableError(
+                "No US equities trading session exists for the hourly AI slot.",
+                details={"scheduledFor": scheduled_for.isoformat()},
+            )
+        session = sessions[0]
+        bars = self.intraday_provider.load_session_until(
+            local_slot.date(),
+            local_slot.replace(tzinfo=None) + timedelta(minutes=55),
+            symbol="SPY",
+        )
+        return aggregate_hourly_bar(
+            session=session,
+            bars=bars,
+            window_start=local_slot.replace(tzinfo=None),
+            symbol="SPY",
+        )
 
     def _source_name(self, strategy_type: StrategyType) -> str:
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:

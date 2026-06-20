@@ -238,10 +238,11 @@ Manual and scheduled execution must not use different business logic.
 
 Goal:
 
-Run a supported rule-based strategy using Alpaca Paper Trading instead of
-internal simulated execution. The current implementation supports SPY
-Buy-and-Hold daily paper trading, SPY Moving Average daily paper trading, and
-scheduled SPY Opening Range Breakout five-minute paper trading.
+Run a supported strategy using Alpaca Paper Trading instead of internal
+simulated execution. The current implementation supports SPY Buy-and-Hold daily
+paper trading, SPY Moving Average daily paper trading, scheduled SPY Opening
+Range Breakout five-minute paper trading, gated diagnostics-only smoke-test
+paper trading, and SPY Agentic-AI paper trading on daily or hourly cadence.
 
 Flow:
 
@@ -251,7 +252,7 @@ Flow:
 4. Manual `run-next-step` or the paper-trading scheduler creates an `ExecutionStep`.
 5. Backend fetches market data.
 6. Backend stores `MarketDataSnapshot`.
-7. Backend runs the supported rule-based strategy.
+7. Backend runs the supported strategy.
 8. Backend stores `TradingDecision`.
 9. Backend runs Risk Engine.
 10. Backend stores `RiskCheck`.
@@ -272,16 +273,16 @@ Important rules:
 - Paper trading must not use live-trading endpoints.
 - Paper scheduler execution is disabled by default and supports Buy-and-Hold
   daily SPY, Moving Average daily SPY, Opening Range Breakout intraday SPY, and
-  gated smoke-test SPY experiments. It also supports Agentic-AI single-agent
-  daily SPY paper trading when ScaDS.AI is explicitly enabled.
+  gated smoke-test SPY experiments. It also supports Agentic-AI paper trading
+  with `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when
+  ScaDS.AI is explicitly enabled.
 - Manual paper `run-next-step` supports Buy-and-Hold, Moving Average, and
-  Agentic-AI single-agent debugging. Opening Range Breakout paper trading is
-  scheduled-only.
+  Agentic-AI debugging. Opening Range Breakout paper trading is scheduled-only.
 - ORB paper scheduling evaluates completed regular-session 5-minute bars only.
   Missing expected completed bars are skipped before step creation.
 - Broker order-status polling is implemented for submitted paper orders.
 - Full broker reconciliation, account sync, position sync, outbox processing, and automatic order cancellation are deferred.
-- Agentic-AI pipeline paper trading and ORB/intraday agent paper trading are not implemented.
+- ORB/intraday agent paper trading is not implemented.
 
 ---
 
@@ -334,9 +335,9 @@ Flow:
 2. Agentic AI strategy delegates to Agent Module.
 3. Agent Module builds agent input.
 4. Agent Module builds prompt.
-5. Agent Module calls the configured provider. Historical execution uses
-   deterministic fake providers; paper single-agent execution may call ScaDS.AI
-   when explicitly enabled.
+5. Agent Module calls the configured provider. Internal deterministic fake
+   providers remain available for regression coverage; user-facing paper-agent
+   execution may call ScaDS.AI when explicitly enabled.
 6. Agent Module stores raw LLM output.
 7. Agent Module parses output.
 8. If output is invalid, Agent Module attempts repair.
@@ -477,7 +478,8 @@ Flow:
 
 Important rules:
 
-- Broker state is source of truth in paper-trading mode.
+- The current implementation does not use broker account/position state as the
+  execution source of truth.
 - State mismatch must not be ignored.
 - Experiment must be paused on mismatch.
 

@@ -127,13 +127,14 @@ Strategy / Agent
 
 This keeps rule-based strategies and agentic-AI strategies comparable and prevents the agent from bypassing system safety rules.
 
-Historical Agentic-AI execution uses deterministic fake single-agent and
-pipeline-agent providers only. Paper-trading Agentic AI is limited to
-`AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` + `SPY` and may call the ScaDS.AI
-OpenAI-compatible API only through the Agent Module when explicitly enabled by
-configuration. Agent pipeline paper trading, ORB/intraday agent paper trading,
-tool calling, prompt editing, and direct agent access to broker, market-data,
-scheduler, persistence, environment, or secret APIs remain out of scope.
+Internal deterministic fake single-agent and pipeline-agent implementations
+remain in the codebase for regression coverage. User-facing paper-trading
+Agentic AI supports `AGENTIC_AI` + `SPY` with `SINGLE_AGENT` or `PIPELINE` on
+`DAILY` or `HOURLY` cadence and may call the ScaDS.AI OpenAI-compatible API
+only through the Agent Module when explicitly enabled by configuration.
+ORB/intraday agent paper trading, tool calling, prompt editing, and direct
+agent access to broker, market-data, scheduler, persistence, environment, or
+secret APIs remain out of scope.
 
 ---
 
@@ -226,11 +227,11 @@ The system must reject or block configurations that would route orders to real-m
 Current paper trading is intentionally controlled: supported SPY configurations
 are `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`,
 `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN`, gated diagnostics-only
-`PAPER_TRADING_SMOKE_TEST` + `TEST_1_MIN`, and `AGENTIC_AI` +
-`SINGLE_AGENT` + `DAILY` when ScaDS.AI is explicitly enabled. Broker
-order-status polling exists for submitted paper orders. Full broker
-reconciliation, outbox processing, account sync, position sync, and automatic
-order cancellation remain deferred.
+`PAPER_TRADING_SMOKE_TEST` + `TEST_1_MIN`, and `AGENTIC_AI` with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is
+explicitly enabled. Broker order-status polling exists for submitted paper
+orders. Full broker reconciliation, outbox processing, account sync, position
+sync, and automatic order cancellation remain deferred.
 
 ---
 
@@ -323,7 +324,9 @@ The following rules must be preserved during implementation.
 7. Agent suggestions must still pass through the system Risk Engine.
 8. The Agent Risk Manager inside a pipeline is not a replacement for the system Risk Engine.
 9. Agents must not call broker, Alpaca, scheduler, persistence, repository, environment, or secret APIs directly.
-10. Real LLM execution is currently limited to ScaDS.AI single-agent paper trading; historical agent execution remains deterministic fake-provider execution.
+10. Real LLM execution is currently limited to ScaDS.AI paper-agent execution on
+    supported SPY daily/hourly paper-trading configurations; internal
+    historical agent paths remain deterministic fake-provider execution.
 
 ---
 

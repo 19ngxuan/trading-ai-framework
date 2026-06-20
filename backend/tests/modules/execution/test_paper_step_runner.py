@@ -35,6 +35,8 @@ from app.modules.broker.broker_adapter import (
 )
 from app.modules.broker.errors import BrokerProviderError
 from app.modules.agents.fake_provider import FakeAgentProvider
+from app.modules.agents.fake_pipeline_provider import FakePipelineProvider
+from app.modules.agents.pipeline_agent import AgentDecisionPipeline
 from app.modules.agents.single_agent import SingleAgent
 from app.modules.execution.broker_sync import PaperBrokerSyncService
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
@@ -309,6 +311,23 @@ def _agent_runner(
         broker_adapter=broker,
         agent_strategy=AgenticAIStrategy(
             agent=SingleAgent(provider=FakeAgentProvider())
+        ),
+    )
+
+
+def _pipeline_agent_runner(
+    database_url: str,
+    broker: FakeBrokerAdapter,
+    market_data_provider: FakeMarketDataProvider,
+    intraday_provider: FakeIntradayProvider | None = None,
+) -> PaperTradingStepRunner:
+    return PaperTradingStepRunner(
+        session_factory=create_session_factory(database_url),
+        market_data_provider=market_data_provider,
+        intraday_provider=intraday_provider,
+        broker_adapter=broker,
+        agent_strategy=AgenticAIStrategy(
+            pipeline=AgentDecisionPipeline(provider=FakePipelineProvider())
         ),
     )
 
@@ -814,7 +833,7 @@ def test_existing_running_step_is_rejected(database_url: str) -> None:
     "overrides",
     [
         {"mode": ExperimentMode.HISTORICAL_SIMULATION},
-        {"strategy_type": StrategyType.AGENTIC_AI},
+        {"strategy_type": StrategyType.BUY_AND_HOLD, "trading_frequency": TradingFrequency.HOURLY},
         {"trading_frequency": TradingFrequency.WEEKLY},
         {"asset_symbol": "QQQ"},
     ],
@@ -1210,7 +1229,7 @@ def test_agentic_ai_paper_low_confidence_holds_without_broker_call(
         assert decision.raw_decision_json["fallbackReason"] == "CONFIDENCE_BELOW_THRESHOLD"
 
 
-def test_agentic_ai_pipeline_paper_is_rejected(database_url: str) -> None:
+def test_agentic_ai_pipeline_paper_creates_three_agent_logs(database_url: str) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
         experiment_id = _create_experiment(
@@ -1218,11 +1237,147 @@ def test_agentic_ai_pipeline_paper_is_rejected(database_url: str) -> None:
             strategy_type=StrategyType.AGENTIC_AI,
             agent_mode=AgentMode.PIPELINE,
             model_name="meta-llama/Llama-3.3-70B-Instruct",
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakePipeline": {
+                    "marketAnalystOutput": {
+                        "marketBias": "BULLISH",
+                        "confidence": 0.8,
+                        "rationale": "Bullish context.",
+                    },
+                    "tradingDecisionOutput": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Pipeline buy.",
+                    },
+                    "riskManagerOutput": {
+                        "verdict": "APPROVE",
+                        "confidence": 0.9,
+                        "rationale": "Approved.",
+                    },
+                },
+            },
         )
 
-    with pytest.raises(InvalidExperimentConfigurationAppError):
-        _agent_runner(
-            database_url,
-            FakeBrokerAdapter(),
-            FakeMarketDataProvider(price=Decimal("100")),
-        ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="100", quantity="100")
+    )
+    result = _pipeline_agent_runner(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("100")),
+    ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert broker.calls[0]["side"] is OrderSide.BUY
+    with session_factory() as session:
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 3
+
+
+def test_agentic_ai_hourly_single_agent_uses_completed_hour_bar(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.AGENTIC_AI,
+            trading_frequency=TradingFrequency.HOURLY,
+            agent_mode=AgentMode.SINGLE_AGENT,
+            model_name="meta-llama/Llama-3.3-70B-Instruct",
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakeAgent": {
+                    "output": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Hourly BUY.",
+                    }
+                },
+            },
+        )
+
+    bars = [_intraday_bar(9, minute, "100") for minute in (30, 35, 40, 45, 50, 55)]
+    bars += [_intraday_bar(10, minute, "101") for minute in (0, 5, 10, 15, 20, 25)]
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="99", quantity="99")
+    )
+    result = _agent_runner(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("100")),
+    )
+    result.intraday_provider = FakeIntradayProvider(bars)
+    step_result = result.run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=datetime(2026, 1, 2, 14, 30),
+    )
+
+    assert step_result.status is ExecutionStepStatus.COMPLETED
+    with session_factory() as session:
+        snapshot = session.scalar(
+            select(MarketDataSnapshotModel).where(
+                MarketDataSnapshotModel.experiment_id == experiment_id
+            )
+        )
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 1
+        assert snapshot is not None
+        assert snapshot.close == Decimal("101")
+        assert snapshot.volume == Decimal("12000")
+
+
+def test_agentic_ai_hourly_pipeline_uses_completed_hour_bar(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.AGENTIC_AI,
+            trading_frequency=TradingFrequency.HOURLY,
+            agent_mode=AgentMode.PIPELINE,
+            model_name="meta-llama/Llama-3.3-70B-Instruct",
+            parameters_json={
+                "riskConfig": {"fallbackAction": "HOLD"},
+                "fakePipeline": {
+                    "marketAnalystOutput": {
+                        "marketBias": "BULLISH",
+                        "confidence": 0.8,
+                        "rationale": "Bullish context.",
+                    },
+                    "tradingDecisionOutput": {
+                        "action": "BUY",
+                        "confidence": 0.9,
+                        "rationale": "Pipeline buy.",
+                    },
+                    "riskManagerOutput": {
+                        "verdict": "APPROVE",
+                        "confidence": 0.9,
+                        "rationale": "Approved.",
+                    },
+                },
+            },
+        )
+
+    bars = [_intraday_bar(9, minute, "100") for minute in (30, 35, 40, 45, 50, 55)]
+    bars += [_intraday_bar(10, minute, "102") for minute in (0, 5, 10, 15, 20, 25)]
+    broker = FakeBrokerAdapter(
+        result=_broker_result(status="filled", filled_quantity="98", quantity="98")
+    )
+    runner = _pipeline_agent_runner(
+        database_url,
+        broker,
+        FakeMarketDataProvider(price=Decimal("100")),
+        FakeIntradayProvider(bars),
+    )
+
+    step_result = runner.run_next_step(
+        experiment_id,
+        trigger_type=TriggerType.SCHEDULED,
+        scheduled_for=datetime(2026, 1, 2, 14, 30),
+    )
+
+    assert step_result.status is ExecutionStepStatus.COMPLETED
+    with session_factory() as session:
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 3

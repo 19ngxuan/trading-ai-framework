@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -14,7 +14,8 @@ def alpaca_bar_to_daily_bar(
 ) -> DailyBar:
     try:
         timestamp = payload["t"]
-        bar_date = _parse_bar_date(timestamp)
+        parsed_timestamp = _parse_bar_timestamp(timestamp)
+        bar_date = parsed_timestamp.date()
         close = Decimal(str(payload["c"]))
         return DailyBar(
             date=bar_date,
@@ -30,6 +31,7 @@ def alpaca_bar_to_daily_bar(
                 "metadata": provider_metadata,
                 "payload": payload,
             },
+            timestamp=parsed_timestamp.astimezone(UTC).replace(tzinfo=None),
         )
     except (KeyError, InvalidOperation, TypeError, ValueError) as exc:
         raise MarketDataProviderError(
@@ -38,6 +40,6 @@ def alpaca_bar_to_daily_bar(
         ) from exc
 
 
-def _parse_bar_date(value: str) -> date:
+def _parse_bar_timestamp(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00")
-    return datetime.fromisoformat(normalized).date()
+    return datetime.fromisoformat(normalized)

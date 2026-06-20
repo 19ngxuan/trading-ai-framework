@@ -39,7 +39,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M22 | `tasks/M22-paper-trading-smoke-test.md` | Diagnostics-only paper trading smoke-test strategy |
 | M23 Spike | `tasks/M23-alpaca-xetra-paper-trading-spike.md` | Spike to verify Alpaca Xetra/European ETF paper-trading feasibility |
 | M23 | `tasks/M23-rule-based-paper-trading.md` | Scheduled paper trading for rule-based Moving Average and Opening Range Breakout |
-| M24 | `tasks/M24-scadsai-single-agent-paper-trading.md` | ScaDS.AI single-agent paper trading with model selection |
+| M24 | `tasks/M24-scadsai-single-agent-paper-trading.md` | ScaDS.AI paper-agent trading with model selection |
 | M25 | `tasks/M25-hardening-documentation.md` | Documentation, API contract, and safety-boundary hardening after M24 |
 
 ---
@@ -71,7 +71,7 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 23. M22 Paper Trading Smoke-Test Strategy
 24. M23 Alpaca Xetra Paper Trading Spike
 25. M23 Rule-Based Paper Trading
-26. M24 ScaDS.AI Single-Agent Paper Trading
+26. M24 ScaDS.AI Paper-Agent Trading
 27. M25 Hardening + Documentation
 
 ---

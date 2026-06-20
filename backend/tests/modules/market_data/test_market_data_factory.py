@@ -15,7 +15,7 @@ from app.modules.market_data.intraday_csv_loader import SpyIntradayCsvLoader
 
 
 def test_default_market_data_provider_is_csv() -> None:
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     provider = create_market_data_provider(settings)
     intraday_provider = create_intraday_market_data_provider(settings)
@@ -26,18 +26,19 @@ def test_default_market_data_provider_is_csv() -> None:
 
 def test_alpaca_provider_requires_credentials() -> None:
     with pytest.raises(ValidationError):
-        Settings(market_data_provider="alpaca")
+        Settings(_env_file=None, market_data_provider="alpaca")
 
 
 def test_invalid_provider_and_timeout_fail_validation() -> None:
     with pytest.raises(ValidationError):
-        Settings(market_data_provider="unknown")
+        Settings(_env_file=None, market_data_provider="unknown")
     with pytest.raises(ValidationError):
-        Settings(alpaca_request_timeout_seconds=0)
+        Settings(_env_file=None, alpaca_request_timeout_seconds=0)
 
 
 def test_factory_returns_alpaca_provider_when_configured() -> None:
     settings = Settings(
+        _env_file=None,
         market_data_provider="alpaca",
         alpaca_api_key_id="key",
         alpaca_api_secret_key="secret",

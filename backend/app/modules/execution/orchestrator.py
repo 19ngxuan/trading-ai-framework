@@ -73,6 +73,8 @@ def _utcnow() -> datetime:
 
 
 def _bar_timestamp(bar: DailyBar) -> datetime:
+    if bar.timestamp is not None:
+        return bar.timestamp
     return datetime.combine(bar.date, time.min)
 
 

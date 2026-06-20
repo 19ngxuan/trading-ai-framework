@@ -19,6 +19,7 @@ from app.domain.enums import (
 )
 from app.modules.execution.step_runner import StepRunResult
 from app.modules.market_data.errors import MarketDataUnavailableError
+from app.modules.market_data.intraday_provider import IntradayBar
 from app.modules.scheduler.jobs import (
     sync_open_paper_broker_orders,
     trigger_due_experiments,
@@ -81,6 +82,42 @@ class MissingIntradayProvider:
 
     def load_session_until(self, *args, **kwargs):
         raise MarketDataUnavailableError("Completed bar is unavailable.")
+
+
+class HourlyIntradayProvider:
+    def __init__(self) -> None:
+        self.bars = [
+            IntradayBar(
+                timestamp=datetime(2026, 1, 2, hour, minute),
+                session_date=date(2026, 1, 2),
+                open=Decimal("100"),
+                high=Decimal("101"),
+                low=Decimal("99"),
+                close=Decimal("100"),
+                volume=Decimal("1000"),
+                raw={"timestamp": datetime(2026, 1, 2, hour, minute).isoformat()},
+            )
+            for hour, minute in (
+                (14, 30),
+                (14, 35),
+                (14, 40),
+                (14, 45),
+                (14, 50),
+                (14, 55),
+                (15, 0),
+                (15, 5),
+                (15, 10),
+                (15, 15),
+                (15, 20),
+                (15, 25),
+            )
+        ]
+
+    def load_range(self, *args, **kwargs):
+        return self.bars
+
+    def load_session_until(self, *args, **kwargs):
+        return self.bars
 
 
 def _create_experiment(
@@ -334,10 +371,24 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             strategy_type=StrategyType.AGENTIC_AI,
             agent_mode=AgentMode.SINGLE_AGENT,
         )
-        _create_experiment(
+        pipeline_daily_id = _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.AGENTIC_AI,
+            agent_mode=AgentMode.PIPELINE,
+        )
+        hourly_single_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.AGENTIC_AI,
+            trading_frequency=TradingFrequency.HOURLY,
+            agent_mode=AgentMode.SINGLE_AGENT,
+        )
+        hourly_pipeline_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            strategy_type=StrategyType.AGENTIC_AI,
+            trading_frequency=TradingFrequency.HOURLY,
             agent_mode=AgentMode.PIPELINE,
         )
         _create_experiment(
@@ -352,6 +403,7 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
         step_runner=fake_runner,
         now=datetime(2026, 1, 2, 16, 5, tzinfo=ZoneInfo("America/New_York")),
         daily_evaluation_time="15:55",
+        intraday_provider=HourlyIntradayProvider(),
     )
 
     assert result.due_slot == datetime(2026, 1, 2, 20, 55)
@@ -359,11 +411,17 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
         (paper_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
         (moving_average_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
         (agentic_ai_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
+        (pipeline_daily_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 20, 55)),
+        (hourly_single_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 19, 30)),
+        (hourly_pipeline_id, TriggerType.SCHEDULED, datetime(2026, 1, 2, 19, 30)),
     ]
     assert [item.experiment_id for item in result.results] == [
         paper_id,
         moving_average_id,
         agentic_ai_id,
+        pipeline_daily_id,
+        hourly_single_id,
+        hourly_pipeline_id,
     ]
     assert result.skipped == []
     assert result.errors == []

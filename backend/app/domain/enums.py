@@ -25,6 +25,7 @@ class ExperimentStatus(str, Enum):
 
 class TradingFrequency(str, Enum):
     DAILY = "DAILY"
+    HOURLY = "HOURLY"
     WEEKLY = "WEEKLY"
     MONTHLY = "MONTHLY"
     INTRADAY_5_MIN = "INTRADAY_5_MIN"

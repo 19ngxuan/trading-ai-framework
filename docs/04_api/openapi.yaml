@@ -462,7 +462,7 @@ components:
       enum: [CREATED, RUNNING, PAUSED, STOPPED, COMPLETED, FAILED]
     TradingFrequency:
       type: string
-      enum: [DAILY, WEEKLY, MONTHLY, INTRADAY_5_MIN, TEST_1_MIN]
+      enum: [DAILY, WEEKLY, MONTHLY, HOURLY, INTRADAY_5_MIN, TEST_1_MIN]
     FeeModelType:
       type: string
       enum: [NONE, FIXED, PERCENTAGE]

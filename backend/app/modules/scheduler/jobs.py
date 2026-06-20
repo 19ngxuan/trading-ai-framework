@@ -12,6 +12,7 @@ from app.modules.execution.paper_step_runner import PaperTradingStepRunner
 from app.modules.execution.step_runner import HistoricalStepRunner, StepRunResult
 from app.modules.market_data.errors import MarketDataProviderError, MarketDataUnavailableError
 from app.modules.market_data.factory import create_intraday_market_data_provider
+from app.modules.market_data.hourly_bars import latest_completed_hourly_window
 from app.modules.market_data.intraday_provider import IntradayMarketDataProvider
 from app.modules.market_data.trading_calendar import (
     TradingSession,
@@ -123,8 +124,14 @@ def trigger_due_paper_trading_experiments(
         if paper_trading_test_mode_enabled
         else None
     )
+    hourly_due_slot = _paper_hourly_due_slot(now=local_now)
     orb_due_slot = _paper_orb_due_slot(now=local_now)
-    if daily_due_slot is None and smoke_test_due_slot is None and orb_due_slot is None:
+    if (
+        daily_due_slot is None
+        and smoke_test_due_slot is None
+        and hourly_due_slot is None
+        and orb_due_slot is None
+    ):
         return PaperSchedulerTickResult(
             results=[],
             skipped=[],
@@ -137,25 +144,40 @@ def trigger_due_paper_trading_experiments(
     pre_errors: list[ScheduledStepError] = []
     with session_factory() as session:
         repository = ExperimentRepository(session)
-        scheduled_experiments: list[tuple[int, datetime | None]] = []
+        scheduled_experiments: list[
+            tuple[int, datetime | None, str | None, str | None]
+        ] = []
         reported_due_slot: datetime | None = None
         if daily_due_slot is not None:
-            daily_ids = repository.list_paper_scheduler_eligible_experiment_ids()
+            daily_ids = repository.list_paper_daily_scheduler_eligible_experiment_ids()
             if daily_ids:
                 reported_due_slot = reported_due_slot or daily_due_slot
-            scheduled_experiments.extend((experiment_id, daily_due_slot) for experiment_id in daily_ids)
+            scheduled_experiments.extend(
+                (experiment_id, daily_due_slot, None, None)
+                for experiment_id in daily_ids
+            )
+        provider = None
+        if hourly_due_slot is not None:
+            hourly_ids = repository.list_paper_hourly_ai_scheduler_eligible_experiment_ids()
+            if hourly_ids:
+                reported_due_slot = reported_due_slot or hourly_due_slot
+            scheduled_experiments.extend(
+                (experiment_id, hourly_due_slot, None, None)
+                for experiment_id in hourly_ids
+            )
         if smoke_test_due_slot is not None:
             smoke_ids = repository.list_paper_smoke_test_scheduler_eligible_experiment_ids()
             if smoke_ids:
                 reported_due_slot = reported_due_slot or smoke_test_due_slot
             scheduled_experiments.extend(
-                (experiment_id, smoke_test_due_slot) for experiment_id in smoke_ids
+                (experiment_id, smoke_test_due_slot, None, None)
+                for experiment_id in smoke_ids
             )
         if orb_due_slot is not None:
             orb_ids = repository.list_paper_orb_scheduler_eligible_experiment_ids()
             if orb_ids:
                 reported_due_slot = reported_due_slot or orb_due_slot
-                provider = intraday_provider or create_intraday_market_data_provider(
+                provider = provider or intraday_provider or create_intraday_market_data_provider(
                     step_runner.settings
                 )
             for experiment_id in orb_ids:
@@ -172,7 +194,14 @@ def trigger_due_paper_trading_experiments(
                         exc.message,
                     )
                     # Keep missing completed bars as a scheduler skip with no step.
-                    scheduled_experiments.append((experiment_id, None))
+                    scheduled_experiments.append(
+                        (
+                            experiment_id,
+                            None,
+                            "PAPER_ORB_COMPLETED_BAR_UNAVAILABLE",
+                            "Expected completed ORB bar is not available yet.",
+                        )
+                    )
                 except MarketDataProviderError as exc:
                     logger.exception(
                         "ORB paper market-data preflight failed for experiment %s.",
@@ -186,18 +215,20 @@ def trigger_due_paper_trading_experiments(
                         )
                     )
                 else:
-                    scheduled_experiments.append((experiment_id, orb_due_slot))
+                    scheduled_experiments.append(
+                        (experiment_id, orb_due_slot, None, None)
+                    )
 
     results: list[StepRunResult] = []
     skipped: list[ScheduledStepSkip] = []
     errors: list[ScheduledStepError] = pre_errors
-    for experiment_id, due_slot in scheduled_experiments:
+    for experiment_id, due_slot, skip_code, skip_message in scheduled_experiments:
         if due_slot is None:
             skipped.append(
                 ScheduledStepSkip(
                     experiment_id=experiment_id,
-                    error_code="PAPER_ORB_COMPLETED_BAR_UNAVAILABLE",
-                    message="Expected completed ORB bar is not available yet.",
+                    error_code=skip_code or "PAPER_STEP_UNAVAILABLE",
+                    message=skip_message or "Expected paper trading slot is not available.",
                 )
             )
             continue
@@ -309,6 +340,24 @@ def _paper_orb_due_slot(*, now: datetime) -> datetime | None:
     if due_local is None:
         return None
     return due_local.replace(tzinfo=None)
+
+
+def _paper_hourly_due_slot(*, now: datetime) -> datetime | None:
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=NEW_YORK_TZ)
+    local_now = now.astimezone(NEW_YORK_TZ)
+    sessions = UsEquitiesTradingCalendar().sessions_between(
+        local_now.date(),
+        local_now.date(),
+    )
+    if not sessions:
+        return None
+    window = latest_completed_hourly_window(local_now, sessions[0])
+    if window is None:
+        return None
+    return window.start.replace(tzinfo=NEW_YORK_TZ).astimezone(UTC).replace(
+        tzinfo=None
+    )
 
 
 def _latest_completed_bar_start(

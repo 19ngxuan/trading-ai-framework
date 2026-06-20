@@ -18,8 +18,10 @@ from app.domain.enums import (
     TradingFrequency,
 )
 from app.modules.market_data.trading_calendar import UsEquitiesTradingCalendar
+from app.modules.market_data.hourly_bars import hourly_windows_for_session
 from app.modules.scheduler.jobs import (
     _paper_daily_due_slot,
+    _paper_hourly_due_slot,
     _paper_orb_due_slot,
     _paper_smoke_test_due_slot,
 )
@@ -64,6 +66,9 @@ def get_experiment_paper_status(
         if is_smoke_test and settings.paper_trading_test_mode_enabled
         else _paper_orb_due_slot(now=now)
         if is_orb
+        else _paper_hourly_due_slot(now=now)
+        if experiment.strategy_type is StrategyType.AGENTIC_AI
+        and experiment.trading_frequency is TradingFrequency.HOURLY
         else _paper_daily_due_slot(
             now=now,
             daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
@@ -74,6 +79,10 @@ def get_experiment_paper_status(
         daily_evaluation_time=settings.paper_trading_daily_evaluation_time,
         smoke_test=is_smoke_test and settings.paper_trading_test_mode_enabled,
         orb=is_orb,
+        hourly=(
+            experiment.strategy_type is StrategyType.AGENTIC_AI
+            and experiment.trading_frequency is TradingFrequency.HOURLY
+        ),
     )
     open_order_count = orders.count_open_submitted_by_experiment(experiment_id)
     last_sync = broker_sync_logs.latest_by_experiment(experiment_id)
@@ -136,13 +145,14 @@ def _supported_by_paper_scheduler(experiment: ExperimentModel, strategy_config) 
     if (
         experiment.mode is ExperimentMode.PAPER_TRADING
         and experiment.strategy_type is StrategyType.AGENTIC_AI
-        and experiment.trading_frequency is TradingFrequency.DAILY
+        and experiment.trading_frequency
+        in {TradingFrequency.DAILY, TradingFrequency.HOURLY}
         and experiment.asset_symbol == "SPY"
     ):
         return (
             strategy_config is not None
             and (strategy_config.agent_mode or AgentMode.SINGLE_AGENT)
-            is AgentMode.SINGLE_AGENT
+            in {AgentMode.SINGLE_AGENT, AgentMode.PIPELINE}
         )
     if (
         experiment.mode is ExperimentMode.PAPER_TRADING
@@ -183,7 +193,8 @@ def _status_reason(
         return (
             "UNSUPPORTED_PAPER_CONFIGURATION",
             "The paper scheduler supports BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
-            "AGENTIC_AI SINGLE_AGENT DAILY, OPENING_RANGE_BREAKOUT INTRADAY_5_MIN, "
+            "AGENTIC_AI SINGLE_AGENT or PIPELINE with DAILY or HOURLY, "
+            "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN, "
             "and gated smoke-test SPY paper-trading experiments.",
         )
     if not settings.paper_trading_scheduler_enabled:
@@ -227,6 +238,17 @@ def _status_reason(
                 "NON_TRADING_DAY",
                 "Today is not a US equities trading day, so no ORB paper step is due.",
             )
+        if experiment.strategy_type is StrategyType.AGENTIC_AI:
+            if experiment.trading_frequency is TradingFrequency.HOURLY:
+                if _is_trading_day(local_date):
+                    return (
+                        "WAITING_FOR_COMPLETED_HOURLY_BAR",
+                        "The AI paper strategy is waiting for a completed regular-session hourly bar.",
+                    )
+                return (
+                    "NON_TRADING_DAY",
+                    "Today is not a US equities trading day, so no hourly AI paper step is due.",
+                )
         if _is_trading_day(local_date):
             return (
                 "WAITING_FOR_DAILY_EVALUATION_TIME",
@@ -247,6 +269,14 @@ def _status_reason(
                 "CURRENT_INTRADAY_SLOT_ALREADY_EXECUTED",
                 "The current ORB 5-minute bar slot has already been executed.",
             )
+        if (
+            experiment.strategy_type is StrategyType.AGENTIC_AI
+            and experiment.trading_frequency is TradingFrequency.HOURLY
+        ):
+            return (
+                "CURRENT_HOURLY_SLOT_ALREADY_EXECUTED",
+                "The current hourly AI bar slot has already been executed.",
+            )
         return (
             "CURRENT_DUE_SLOT_ALREADY_EXECUTED",
             "The current daily paper evaluation slot has already been executed.",
@@ -258,7 +288,12 @@ def _status_reason(
 
 
 def _next_evaluation_time(
-    *, now: datetime, daily_evaluation_time: str, smoke_test: bool, orb: bool
+    *,
+    now: datetime,
+    daily_evaluation_time: str,
+    smoke_test: bool,
+    orb: bool,
+    hourly: bool,
 ) -> datetime | None:
     local_now = now.astimezone(NEW_YORK_TZ)
     if orb:
@@ -300,6 +335,30 @@ def _next_evaluation_time(
             if candidate >= local_now:
                 return candidate.astimezone(UTC).replace(tzinfo=None)
         return None
+    if hourly:
+        current_slot = _paper_hourly_due_slot(now=local_now)
+        if current_slot is not None:
+            return current_slot
+        calendar = UsEquitiesTradingCalendar()
+        for day_offset in range(0, 15):
+            candidate_date = local_now.date() + timedelta(days=day_offset)
+            sessions = calendar.sessions_between(candidate_date, candidate_date)
+            if not sessions:
+                continue
+            session = sessions[0]
+            for window in hourly_windows_for_session(session):
+                candidate = datetime.combine(
+                    candidate_date,
+                    window.start.time(),
+                    tzinfo=NEW_YORK_TZ,
+                ) + timedelta(hours=1)
+                if candidate >= local_now:
+                    return datetime.combine(
+                        candidate_date,
+                        window.start.time(),
+                        tzinfo=NEW_YORK_TZ,
+                    ).astimezone(UTC).replace(tzinfo=None)
+        return None
 
     hour, minute = _parse_hh_mm(daily_evaluation_time)
     calendar = UsEquitiesTradingCalendar()
@@ -333,6 +392,23 @@ def _operational_metadata(
     next_evaluation_time: datetime | None,
 ) -> dict | None:
     if experiment.strategy_type is not StrategyType.OPENING_RANGE_BREAKOUT:
+        if experiment.strategy_type is StrategyType.AGENTIC_AI:
+            return {
+                "strategy": "AGENTIC_AI",
+                "agentMode": "SINGLE_AGENT_OR_PIPELINE",
+                "barInterval": (
+                    "1Hour"
+                    if experiment.trading_frequency is TradingFrequency.HOURLY
+                    else "1Day"
+                ),
+                "currentDueBarTimestamp": current_due_slot.isoformat()
+                if current_due_slot is not None
+                else None,
+                "nextDueBarTimestamp": next_evaluation_time.isoformat()
+                if next_evaluation_time is not None
+                else None,
+                "timezone": "America/New_York",
+            }
         return None
     return {
         "strategy": "OPENING_RANGE_BREAKOUT",

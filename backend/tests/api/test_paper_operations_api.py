@@ -2,10 +2,12 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.domain.enums import (
+    AgentMode,
     BrokerName,
     BrokerSyncStatus,
     DecisionSourceType,
@@ -299,6 +301,43 @@ def test_paper_status_supports_orb_and_exposes_operational_metadata(
     assert body["supportedByPaperScheduler"] is True
     assert body["operationalMetadata"]["strategy"] == "OPENING_RANGE_BREAKOUT"
     assert "nextDueBarTimestamp" in body["operationalMetadata"]
+    get_settings.cache_clear()
+
+
+def test_paper_status_supports_hourly_agentic_ai(
+    monkeypatch, migrated_database: str
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_PAPER_TRADING_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_API_KEY_ID", "test-key")
+    monkeypatch.setenv("ALPACA_API_SECRET_KEY", "test-secret")
+    get_settings.cache_clear()
+    session_factory = create_session_factory(migrated_database)
+    with session_factory() as session:
+        experiment_id = _create_paper_experiment(
+            session,
+            status=ExperimentStatus.RUNNING,
+            strategy_type=StrategyType.AGENTIC_AI,
+            trading_frequency=TradingFrequency.HOURLY,
+        )
+        config = session.scalar(
+            select(StrategyConfigModel).where(
+                StrategyConfigModel.experiment_id == experiment_id
+            )
+        )
+        assert config is not None
+        config.agent_mode = AgentMode.PIPELINE
+        session.commit()
+
+    with TestClient(create_app()) as client:
+        response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["supportedByPaperScheduler"] is True
+    assert body["tradingFrequency"] == "HOURLY"
+    assert body["operationalMetadata"]["strategy"] == "AGENTIC_AI"
+    assert body["operationalMetadata"]["barInterval"] == "1Hour"
     get_settings.cache_clear()
 
 

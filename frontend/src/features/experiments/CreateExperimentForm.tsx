@@ -66,7 +66,7 @@ const RECOMMENDED_CONFIDENCE_THRESHOLD = "0.60";
 const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   BUY_AND_HOLD: "Buy once, then hold the SPY position.",
   MOVING_AVERAGE: "Use a daily moving average signal.",
-  AGENTIC_AI: "Use ScaDS.AI single-agent paper trading.",
+  AGENTIC_AI: "Use ScaDS.AI-backed paper trading with agent guardrails.",
   OPENING_RANGE_BREAKOUT: "Use 5-minute opening range breakout rules.",
   PAPER_TRADING_SMOKE_TEST: "Run 1-share paper diagnostics only.",
 };
@@ -92,7 +92,7 @@ const AI_PATTERN_OPTIONS: Array<{
     value: "MULTI_AGENT",
     label: "Multi Agent",
     description: "Several specialized agents split analysis, decision, and critique.",
-    enabled: false,
+    enabled: true,
   },
 ];
 
@@ -111,10 +111,19 @@ function defaultFrequencyFor(strategyType: StrategyType): TradingFrequency {
   return "DAILY";
 }
 
+function agentModeForPattern(pattern: AiDecisionPattern): AgentMode {
+  return pattern === "MULTI_AGENT" ? "PIPELINE" : "SINGLE_AGENT";
+}
+
 function frequenciesFor(
   strategyType: StrategyType,
   frequencies: TradingFrequency[],
 ) {
+  if (strategyType === "AGENTIC_AI") {
+    return frequencies.filter(
+      (frequency) => frequency === "DAILY" || frequency === "HOURLY",
+    );
+  }
   const defaultFrequency = defaultFrequencyFor(strategyType);
   return frequencies.filter((frequency) => frequency === defaultFrequency);
 }
@@ -162,7 +171,7 @@ function modeChangeState(
     tradingFrequency: defaultFrequencyFor(nextStrategy),
     agentMode:
       nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
-        ? "SINGLE_AGENT"
+        ? agentModeForPattern("SINGLE_AGENT")
         : "",
     modelName:
       nextMode === "PAPER_TRADING" && nextStrategy === "AGENTIC_AI"
@@ -207,17 +216,15 @@ function validate(state: FormState): string | null {
     if (state.strategyCategory !== "AI_STRATEGY") {
       return "Agentic AI must be configured through AI Strategy.";
     }
-    if (state.aiDecisionPattern !== "SINGLE_AGENT") {
-      return "Only Single Agent paper trading is executable right now.";
-    }
-    if (state.agentMode && state.agentMode !== "SINGLE_AGENT") {
-      return "Paper trading Agentic AI supports SINGLE_AGENT mode only.";
+    const expectedAgentMode = agentModeForPattern(state.aiDecisionPattern);
+    if (state.agentMode && state.agentMode !== expectedAgentMode) {
+      return "Selected AI pattern does not match the persisted agent mode.";
     }
     if (!state.modelName.trim()) {
       return "Paper trading Agentic AI requires a model selection.";
     }
-    if (state.tradingFrequency !== "DAILY") {
-      return "Paper trading Agentic AI supports DAILY frequency only.";
+    if (!["DAILY", "HOURLY"].includes(state.tradingFrequency)) {
+      return "Paper trading Agentic AI supports DAILY or HOURLY frequency only.";
     }
   }
   return null;
@@ -316,7 +323,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       aiDecisionPattern: "SINGLE_AGENT",
       movingAverageWindow: "",
       tradingFrequency: "DAILY",
-      agentMode: "SINGLE_AGENT",
+      agentMode: agentModeForPattern("SINGLE_AGENT"),
       modelName: current.modelName || defaultScadsaiModel,
       confidenceThreshold:
         current.confidenceThreshold || RECOMMENDED_CONFIDENCE_THRESHOLD,
@@ -516,8 +523,12 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                           strategyType: "AGENTIC_AI",
                           aiDecisionPattern: pattern.value,
                           movingAverageWindow: "",
-                          tradingFrequency: "DAILY",
-                          agentMode: "SINGLE_AGENT",
+                          tradingFrequency:
+                            current.tradingFrequency === "HOURLY"
+                            || current.tradingFrequency === "DAILY"
+                              ? current.tradingFrequency
+                              : "DAILY",
+                          agentMode: agentModeForPattern(pattern.value),
                           modelName:
                             current.modelName
                             || defaultScadsaiModel,
@@ -630,6 +641,13 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
               </option>
             ))}
           </select>
+          {isPaper && state.strategyType === "AGENTIC_AI" && (
+            <small>
+              {state.tradingFrequency === "HOURLY"
+                ? "Hourly AI evaluates the latest completed regular-session hourly bar."
+                : "Daily AI evaluates the latest completed daily bar close."}
+            </small>
+          )}
           {isPaper && state.strategyType === "OPENING_RANGE_BREAKOUT" && (
             <small>ORB paper trading evaluates completed 5-minute bars.</small>
           )}

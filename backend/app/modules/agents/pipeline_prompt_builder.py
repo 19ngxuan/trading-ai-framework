@@ -77,7 +77,7 @@ class PipelinePromptBuilder(PromptBuilder):
     ) -> str:
         return (
             f"{stage_name} is a deterministic advisory stage for a controlled "
-            "historical simulation. It must not call tools, broker, Alpaca, order, "
+            "trading workflow. It must not call tools, broker, Alpaca, order, "
             "trade, portfolio, scheduler, repository, persistence, or market-data "
             "APIs. RiskCheck remains mandatory and authoritative after the final "
             f"pipeline decision. {instruction} Input: {input_json}"

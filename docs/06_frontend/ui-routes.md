@@ -218,11 +218,17 @@ For `MOVING_AVERAGE`:
 
 For `AGENTIC_AI`:
 
-- agent mode
-- model name
-- confidence threshold
-- deterministic fake single-agent or pipeline parameters in `parametersJson` for historical execution
-- ScaDS.AI model selection from `/api/v1/options` for `PAPER_TRADING` + `SINGLE_AGENT`
+- available in the create UX only for `PAPER_TRADING`
+- strategy category `AI Strategy`
+- AI pattern selector:
+  - `Single Agent`
+  - `Multi Agent`
+- backend mapping:
+  - `Single Agent` -> `agentMode=SINGLE_AGENT`
+  - `Multi Agent` -> `agentMode=PIPELINE`
+- model name from `/api/v1/options`
+- confidence threshold with recommendation/explanation copy
+- frequency constrained to `DAILY` or `HOURLY`
 
 Risk Configuration:
 
@@ -343,10 +349,11 @@ The `Config` tab must show immutable configuration used by the experiment.
 For paper trading experiments, the detail page shows a Paper Trading Status
 card. It explains that `start` is lifecycle-only, scheduled paper execution runs
 at `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York for daily
-rule-based and Agentic-AI single-agent strategies, and broker sync may continue
-for submitted paper orders after pause or stop. Opening Range Breakout paper trading is scheduled on
-completed 5-minute regular-session bars and may expose due-bar timestamps as
-operational metadata.
+rule-based and daily Agentic-AI strategies, that hourly Agentic-AI execution
+waits for completed regular-session hourly bars, and that broker sync may
+continue for submitted paper orders after pause or stop. Opening Range Breakout
+paper trading is scheduled on completed 5-minute regular-session bars and may
+expose due-bar timestamps as operational metadata.
 
 When `PAPER_TRADING_TEST_MODE_ENABLED=true`, the options endpoint may expose
 `PAPER_TRADING_SMOKE_TEST` with `TEST_1_MIN`. The create form should show a

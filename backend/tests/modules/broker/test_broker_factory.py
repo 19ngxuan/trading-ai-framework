@@ -8,7 +8,7 @@ from app.modules.broker.factory import create_broker_adapter
 
 
 def test_paper_trading_disabled_by_default() -> None:
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.alpaca_paper_trading_enabled is False
     with pytest.raises(BrokerConfigurationError):
@@ -16,23 +16,24 @@ def test_paper_trading_disabled_by_default() -> None:
 
 
 def test_paper_trading_requires_credentials_only_when_enabled() -> None:
-    Settings(alpaca_paper_trading_enabled=False)
+    Settings(_env_file=None, alpaca_paper_trading_enabled=False)
 
     with pytest.raises(ValidationError):
-        Settings(alpaca_paper_trading_enabled=True)
+        Settings(_env_file=None, alpaca_paper_trading_enabled=True)
 
 
 def test_invalid_order_timeout_and_live_base_url_fail_validation() -> None:
     with pytest.raises(ValidationError):
-        Settings(alpaca_order_timeout_seconds=0)
+        Settings(_env_file=None, alpaca_order_timeout_seconds=0)
 
     with pytest.raises(ValidationError):
-        Settings(alpaca_trading_base_url="https://api.alpaca.markets")
+        Settings(_env_file=None, alpaca_trading_base_url="https://api.alpaca.markets")
 
 
 def test_factory_returns_alpaca_paper_adapter_when_enabled() -> None:
     adapter = create_broker_adapter(
         Settings(
+            _env_file=None,
             alpaca_paper_trading_enabled=True,
             alpaca_api_key_id="key",
             alpaca_api_secret_key="secret",

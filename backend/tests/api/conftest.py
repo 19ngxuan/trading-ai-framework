@@ -44,6 +44,18 @@ def migrated_database() -> str:
 
 
 @pytest.fixture(autouse=True)
+def isolated_test_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "csv")
+    monkeypatch.setenv("ALPACA_PAPER_TRADING_ENABLED", "false")
+    monkeypatch.setenv("PAPER_TRADING_SCHEDULER_ENABLED", "false")
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "false")
+    monkeypatch.setenv("SCADSAI_LLM_ENABLED", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def clean_tables(migrated_database: str) -> Generator[None, None, None]:
     engine = create_engine(migrated_database, pool_pre_ping=True)
     with engine.begin() as connection:

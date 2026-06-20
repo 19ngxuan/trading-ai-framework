@@ -28,9 +28,11 @@ def test_options_endpoint_returns_documented_enums(monkeypatch) -> None:
     assert "PAPER_TRADING_SMOKE_TEST" not in body["strategies"]
     assert "CREATED" in body["experimentStatuses"]
     assert "INTRADAY_5_MIN" in body["tradingFrequencies"]
+    assert "HOURLY" in body["tradingFrequencies"]
     assert "TEST_1_MIN" not in body["tradingFrequencies"]
     assert "NONE" in body["feeModelTypes"]
     assert "SINGLE_AGENT" in body["agentModes"]
+    assert "PIPELINE" in body["agentModes"]
     assert "FILLED" in body["orderStatuses"]
     assert body["scadsaiLlmEnabled"] is False
     assert body["scadsaiDefaultModel"] == "meta-llama/Llama-3.3-70B-Instruct"

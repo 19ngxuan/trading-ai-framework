@@ -133,6 +133,10 @@ Manual and scheduled execution must use the same business pipeline.
 trade per day; strategies may produce `HOLD`, risk may convert executable
 actions to `HOLD`, and missing market data may fail safely.
 
+`HOURLY` frequency means completed regular-session hourly bar evaluation
+cadence. In the current implementation it is supported only for
+`PAPER_TRADING` + `AGENTIC_AI` + `SPY`.
+
 `INTRADAY_5_MIN` frequency means five-minute bar evaluation cadence. In the
 current implementation it is supported only by Opening Range Breakout historical
 simulation using deterministic local SPY fixture data by default or Alpaca
@@ -335,9 +339,10 @@ Fallback details must be auditable in `AgentDecisionLog`. A dedicated
 
 ### BR-027A: ScaDS.AI paper agent scope
 
-ScaDS.AI may be used only for `PAPER_TRADING` + `AGENTIC_AI` +
-`SINGLE_AGENT` + `DAILY` + `SPY` when `SCADSAI_LLM_ENABLED=true`, an API key is
-configured, and the selected model is in `SCADSAI_ALLOWED_MODELS`.
+ScaDS.AI may be used only for `PAPER_TRADING` + `AGENTIC_AI` + `SPY` with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when
+`SCADSAI_LLM_ENABLED=true`, an API key is configured, and the selected model is
+in `SCADSAI_ALLOWED_MODELS`.
 
 Historical Agentic-AI execution remains deterministic and uses fake providers.
 Pipeline-agent paper trading, ORB/intraday agent trading, prompt editing, tool
@@ -535,12 +540,15 @@ Strategies, agents, API routes, and frontend code must not call Broker API direc
 
 ---
 
-### BR-052: Broker is source of truth in paper-trading mode
+### BR-052: Local experiment state remains authoritative until fuller reconciliation exists
 
-For fully reconciled paper-trading workflows, broker cash, positions, and order
-state should be authoritative. The current M9 implementation does not perform
-broker account/position reconciliation; it updates local state from immediate
-paper order responses only.
+The current paper-trading implementation uses local experiment portfolio state
+as the execution source of truth and applies broker fills into that local audit
+state.
+
+For a future fully reconciled workflow, broker cash, positions, and order state
+may become authoritative. That fuller reconciliation path is not implemented in
+the current system.
 
 ---
 

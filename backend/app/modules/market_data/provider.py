@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Protocol
 
@@ -16,6 +16,7 @@ class DailyBar:
     adjusted_close: Decimal
     volume: Decimal
     raw: dict
+    timestamp: datetime | None = None
 
 
 class MarketDataProvider(Protocol):

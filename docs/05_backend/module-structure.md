@@ -41,21 +41,23 @@ backend/
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── experiments.py
-│   │   │   ├── execution_steps.py
 │   │   │   ├── trades.py
 │   │   │   ├── orders.py
+│   │   │   ├── broker_sync.py
 │   │   │   ├── metrics.py
-│   │   │   ├── agent_logs.py
+│   │   │   ├── paper_status.py
 │   │   │   ├── events.py
 │   │   │   ├── comparison.py
+│   │   │   ├── health.py
 │   │   │   └── options.py
 │   │   └── schemas/
 │   │       ├── experiment_schemas.py
 │   │       ├── execution_schemas.py
 │   │       ├── trade_schemas.py
 │   │       ├── order_schemas.py
+│   │       ├── broker_sync_schemas.py
 │   │       ├── metric_schemas.py
-│   │       ├── agent_log_schemas.py
+│   │       ├── paper_status_schemas.py
 │   │       ├── event_schemas.py
 │   │       ├── comparison_schemas.py
 │   │       └── error_schemas.py
@@ -596,8 +598,10 @@ Key rules:
 
 - Only paper-trading endpoints may be used in Version 1.
 - Live-trading endpoints must be blocked.
-- In paper-trading mode, broker state is the source of truth.
-- If local and broker state diverge, the experiment must be paused and a broker sync event must be recorded.
+- Submitted-order status and fills may be synchronized from the broker, but full
+  broker reconciliation is deferred.
+- Local experiment portfolio state remains the execution source of truth until a
+  fuller reconciliation design is implemented.
 
 ---
 

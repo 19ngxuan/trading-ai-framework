@@ -19,18 +19,17 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
-- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments, manual/scheduled `MOVING_AVERAGE` daily SPY paper experiments, scheduled `OPENING_RANGE_BREAKOUT` 5-minute SPY paper experiments, scheduled smoke-test diagnostics, and `AGENTIC_AI` single-agent daily SPY paper experiments when ScaDS.AI is explicitly enabled
-- Deterministic single-agent and pipeline-agent `AGENTIC_AI` historical manual steps using fake providers only
-- Optional ScaDS.AI single-agent provider for paper-trading `AGENTIC_AI`
+- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments, manual/scheduled `MOVING_AVERAGE` daily SPY paper experiments, scheduled `OPENING_RANGE_BREAKOUT` 5-minute SPY paper experiments, scheduled smoke-test diagnostics, and `AGENTIC_AI` paper experiments with `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is explicitly enabled
+- Deterministic fake single-agent and pipeline-agent implementations retained for internal regression coverage
+- Optional ScaDS.AI provider for paper-trading `AGENTIC_AI`
 - RiskCheck-controlled whole-share execution sizing
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
 The current implementation intentionally does not include real-money trading,
 broker account/position reconciliation, historical scheduler-triggered Opening
 Range Breakout execution, Opening Range Breakout manual `run-next-step`,
-Agentic-AI pipeline paper trading, ORB/intraday agent paper trading, prompt
-editing, tool calling, public execution-step or agent-log detail APIs, or
-frontend trading action controls.
+ORB/intraday agent paper trading, prompt editing, tool calling, public
+execution-step or agent-log detail APIs, or frontend trading action controls.
 
 Trading Lab is not financial advice and is not a live trading system. Version 1 is for simulation and Alpaca paper trading only.
 
@@ -114,8 +113,10 @@ historical Buy-and-Hold or Moving Average experiment by one step per tick.
 Paper trading uses a separate disabled-by-default scheduler. When
 `PAPER_TRADING_SCHEDULER_ENABLED=true` and Alpaca paper trading is enabled, the
 paper scheduler evaluates eligible running daily `BUY_AND_HOLD`,
-`MOVING_AVERAGE`, and `AGENTIC_AI` single-agent SPY paper experiments at or after
+`MOVING_AVERAGE`, and `AGENTIC_AI` SPY paper experiments at or after
 `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York. It also evaluates
+eligible hourly `AGENTIC_AI` SPY paper experiments on completed regular-session
+hourly bars, and it evaluates
 scheduled `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY` paper experiments
 on completed regular-session 5-minute bars. A separate broker-sync job continues polling submitted
 paper orders until terminal broker status, including for paused or stopped
@@ -155,14 +156,15 @@ historical `5Min` SPY bars when `alpaca`.
 Paper trading is disabled by default and only accepts the Alpaca paper trading
 base URL. It supports SPY Buy-and-Hold daily paper trading, SPY Moving Average
 daily paper trading, scheduled SPY Opening Range Breakout 5-minute paper
-trading, gated smoke-test diagnostics, and SPY Agentic-AI single-agent daily
-paper trading when ScaDS.AI is enabled. Manual `run-next-step` remains supported
-for Buy-and-Hold, Moving Average, and Agentic-AI paper debugging. Opening Range
-Breakout paper trading is scheduled-only and skips before step creation if the
-expected completed 5-minute bar is not available. Scheduled paper execution is available only when
+trading, gated smoke-test diagnostics, and SPY Agentic-AI paper trading with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is
+enabled. Manual `run-next-step` remains supported for Buy-and-Hold, Moving
+Average, and Agentic-AI paper debugging. Opening Range Breakout paper trading
+is scheduled-only and skips before step creation if the expected completed
+5-minute bar is not available. Scheduled paper execution is available only when
 `PAPER_TRADING_SCHEDULER_ENABLED=true`. Real-money Alpaca trading URLs are
-rejected by configuration validation and by the broker adapter. M20 adds
-order-status polling for submitted paper orders. Full broker
+rejected by configuration validation and by the broker adapter. Broker
+order-status polling exists for submitted paper orders. Full broker
 reconciliation, outbox processing, account sync, position sync, and automatic
 order cancellation are not implemented.
 
@@ -180,15 +182,15 @@ can show paper scheduler status, persisted orders, trades, and broker sync logs.
 These views are audit/inspection surfaces only; they do not submit, cancel,
 retry, or sync broker orders on demand.
 
-Agentic AI historical execution remains deterministic. `AGENTIC_AI` historical
-manual `run-next-step` supports `HISTORICAL_SIMULATION` + `DAILY` + `SPY` with
-fake single-agent or pipeline providers configured through strategy parameters.
-Paper-trading `AGENTIC_AI` supports only `SINGLE_AGENT` + `DAILY` + `SPY` and
-uses the ScaDS.AI OpenAI-compatible API only when `SCADSAI_LLM_ENABLED=true`,
-`SCADSAI_API_KEY` is configured, and the selected model is listed in
-`SCADSAI_ALLOWED_MODELS`. Pipeline-agent paper trading, prompt editing, tool
-calling, and direct agent access to broker, market data, scheduler, persistence,
-or secrets remain out of scope.
+Frontend and create-time validation treat Agentic AI as paper-trading only.
+User-createable `AGENTIC_AI` experiments support `PAPER_TRADING` + `SPY` with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence. ScaDS.AI is used
+only when `SCADSAI_LLM_ENABLED=true`, `SCADSAI_API_KEY` is configured, and the
+selected model is listed in `SCADSAI_ALLOWED_MODELS`. Internal deterministic
+fake-agent implementations remain in the codebase for regression coverage, but
+they are not exposed as a normal historical create-flow feature. Prompt
+editing, tool calling, ORB/intraday agent execution, and direct agent access to
+broker, market data, scheduler, persistence, or secrets remain out of scope.
 
 Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
 authoritative and determines the executable whole-share quantity from the
@@ -242,7 +244,7 @@ Implemented frontend routes:
 
 - `/dashboard`
 - `/experiments`
-- `/experiments/new`
+- `/experiments/new` (compatibility route; not a primary sidebar destination)
 - `/experiments/:experimentId`
 - `/compare`
 - `/events`
@@ -288,13 +290,13 @@ After migrations and local services are running:
 1. Create a `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
 2. Create a `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
 3. Create an `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` experiment and start it.
-4. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, start it, then call `run-next-step`.
-5. Create an `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY` experiment with `agentMode=PIPELINE`, start it, then call `run-next-step`.
+4. Create an `AGENTIC_AI` + `PAPER_TRADING` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, verify `/start` stays lifecycle-only, then use `run-next-step` for debugging or wait for the paper scheduler.
+5. Create an `AGENTIC_AI` + `PAPER_TRADING` + `HOURLY` + `SPY` experiment with `agentMode=PIPELINE`, verify paper status shows hourly due metadata and that execution still persists `TradingDecision` then `RiskCheck` before any paper order.
 6. Verify metrics and portfolio snapshot charts on experiment detail.
 7. Open `/compare`, select at least two experiments, and compare persisted metrics.
 8. Open `/events` and verify lifecycle/system events are visible.
 9. Validate paper-trading safety by confirming `ALPACA_PAPER_TRADING_ENABLED=false` rejects paper `run-next-step`, and that only the paper Alpaca base URL is accepted when enabled.
-10. If ScaDS.AI is enabled, create an `AGENTIC_AI` + `PAPER_TRADING` + `SINGLE_AGENT` + `DAILY` + `SPY` experiment and verify that execution still persists `TradingDecision` then `RiskCheck` before any paper order.
+10. If ScaDS.AI is enabled, verify both `SINGLE_AGENT` and `PIPELINE` paper-agent executions keep the advisory-only invariant: `TradingDecision` then `RiskCheck` before any paper order.
 
 ## Known Limitations
 
@@ -307,8 +309,9 @@ After migrations and local services are running:
 - Historical Opening Range Breakout runs through `/start` full-run only; manual `run-next-step` and historical scheduler-triggered ORB are deferred.
 - Paper trading supports only the SPY workflows listed above; European ETF/Xetra production support is not implemented.
 - Broker order-status polling exists for submitted paper orders. Full broker reconciliation, outbox processing, account sync, position sync, and automatic cancellation are deferred.
-- Historical Agentic AI uses deterministic fake providers only. ScaDS.AI is used only for paper single-agent execution when explicitly enabled.
-- Agentic AI pipeline paper trading, ORB/intraday agent trading, and real-money agent trading are not implemented.
+- Internal deterministic fake-agent implementations remain for regression coverage, but historical Agentic AI is not exposed as a supported create-flow feature.
+- ScaDS.AI is used only for paper Agentic AI execution when explicitly enabled.
+- ORB/intraday agent trading and real-money agent trading are not implemented.
 - Compare UI loads selected experiment chart time series after the user runs a comparison.
 - Public execution-step and agent-log list/detail APIs are deferred. Orders,
   trades, broker sync logs, and paper status are available as read-only

@@ -22,6 +22,7 @@ export type ExperimentStatus =
 
 export type TradingFrequency =
   | "DAILY"
+  | "HOURLY"
   | "WEEKLY"
   | "MONTHLY"
   | "INTRADAY_5_MIN"

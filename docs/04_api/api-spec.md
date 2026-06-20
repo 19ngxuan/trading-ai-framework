@@ -435,17 +435,16 @@ Triggers one manual execution step. In the current implementation this supports:
 
 - `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY`
 - `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
-- `AGENTIC_AI` + `HISTORICAL_SIMULATION` + `DAILY` + `SPY`, using deterministic fake single-agent or pipeline-agent providers only
 - `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
 - `MOVING_AVERAGE` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
-- `AGENTIC_AI` + `PAPER_TRADING` + `SINGLE_AGENT` + `DAILY` + `SPY`, only when Alpaca paper trading and ScaDS.AI are explicitly enabled
+- `AGENTIC_AI` + `PAPER_TRADING` + (`SINGLE_AGENT` or `PIPELINE`) + (`DAILY` or `HOURLY`) + `SPY`, only when Alpaca paper trading and ScaDS.AI are explicitly enabled
 
 `PAPER_TRADING_SMOKE_TEST` and paper-trading Opening Range Breakout are
 scheduled-only. Manual `run-next-step` is rejected for those experiments.
 
 Opening Range Breakout is not supported by manual `run-next-step` in M16.
-`/start` remains lifecycle-only for paper-trading and Agentic-AI experiments. It
-never submits broker orders and does not run full historical agent execution.
+`/start` remains lifecycle-only for paper-trading experiments. It never submits
+broker orders.
 
 Manual run-next-step creates exactly one execution step and is intended for deterministic debugging. It uses the same execution pipeline as scheduled/background execution.
 
@@ -652,15 +651,17 @@ Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
 `WAITING_FOR_REGULAR_MARKET_HOURS`, `CURRENT_TEST_SLOT_ALREADY_EXECUTED`, and
 `READY_FOR_NEXT_SCHEDULED_EVALUATION`. ORB paper trading may also report
 `WAITING_FOR_COMPLETED_INTRADAY_BAR` or
-`CURRENT_INTRADAY_SLOT_ALREADY_EXECUTED`.
+`CURRENT_INTRADAY_SLOT_ALREADY_EXECUTED`. Hourly Agentic-AI paper trading may
+report `WAITING_FOR_COMPLETED_HOURLY_BAR` or
+`CURRENT_HOURLY_SLOT_ALREADY_EXECUTED`.
 
 Scheduled paper trading supports `BUY_AND_HOLD` + `DAILY` + `SPY`,
-`MOVING_AVERAGE` + `DAILY` + `SPY`, `AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` +
-`SPY`, and `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average
-and Agentic-AI manual `run-next-step` are supported for debugging. ORB paper
+`MOVING_AVERAGE` + `DAILY` + `SPY`, `AGENTIC_AI` with `SINGLE_AGENT` or
+`PIPELINE` on `DAILY` or `HOURLY` cadence for `SPY`, and
+`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average and
+Agentic-AI manual `run-next-step` are supported for debugging. ORB paper
 trading is scheduled-only and skips before step creation if the expected
-completed 5-minute bar is unavailable. Agentic-AI pipeline paper trading is not
-implemented.
+completed 5-minute bar is unavailable.
 
 M22 adds a disabled-by-default diagnostics strategy,
 `PAPER_TRADING_SMOKE_TEST`. It is available in `/options` only when
@@ -704,7 +705,7 @@ Returns frontend-selectable enum values and supported options.
   "modes": ["HISTORICAL_SIMULATION", "PAPER_TRADING"],
   "strategies": ["BUY_AND_HOLD", "MOVING_AVERAGE", "AGENTIC_AI", "OPENING_RANGE_BREAKOUT"],
   "experimentStatuses": ["CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED", "FAILED"],
-  "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY", "INTRADAY_5_MIN"],
+  "tradingFrequencies": ["DAILY", "WEEKLY", "MONTHLY", "HOURLY", "INTRADAY_5_MIN"],
   "feeModelTypes": ["NONE", "FIXED", "PERCENTAGE"],
   "agentModes": ["SINGLE_AGENT", "PIPELINE"],
   "orderStatuses": ["CREATED", "SUBMITTED", "FILLED", "REJECTED", "FAILED", "CANCELLED"],
@@ -732,6 +733,10 @@ Returns frontend-selectable enum values and supported options.
 
 `PAPER_TRADING_SMOKE_TEST` and `TEST_1_MIN` are included only when
 `PAPER_TRADING_TEST_MODE_ENABLED=true`.
+
+Frontend create flows may still hide combinations that are technically listed in
+`/options` but not supported for the current mode/strategy selection UX. The
+backend remains authoritative for create-time and runtime validation.
 
 ---
 

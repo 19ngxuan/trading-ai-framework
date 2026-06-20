@@ -40,8 +40,9 @@ V1 is split into three implementation stages:
 - Integrate Alpaca Paper Trading.
 - Use Alpaca Market Data.
 - Place paper orders through Alpaca.
-- Synchronize broker state with local state.
-- Treat the broker as the source of truth in paper-trading mode.
+- Synchronize submitted-order status into local audit state.
+- Keep local experiment portfolio state as the execution source of truth until
+  fuller broker reconciliation is implemented.
 
 ### V1c: Agentic AI
 
@@ -209,12 +210,12 @@ The system must only use Alpaca paper-trading endpoints in V1.
 
 Used by the Agent Module to generate agentic-AI trading decisions.
 
-Historical agent execution uses deterministic fake providers. ScaDS.AI is
-available only for `PAPER_TRADING` + `AGENTIC_AI` + `SINGLE_AGENT` + `DAILY` +
-`SPY` when explicitly configured. LLM outputs must be parsed, validated, stored
-as TradingDecision input, and passed through the RiskEngine before execution.
-Agents must not access broker, Alpaca, persistence, scheduler, environment, or
-secret APIs directly.
+User-facing Agentic AI is currently exposed for paper trading only. ScaDS.AI is
+available only for `PAPER_TRADING` + `AGENTIC_AI` + `SPY` with `SINGLE_AGENT`
+or `PIPELINE` mode on `DAILY` or `HOURLY` cadence when explicitly configured.
+LLM outputs must be parsed, validated, stored as TradingDecision input, and
+passed through the RiskEngine before execution. Agents must not access broker,
+Alpaca, persistence, scheduler, environment, or secret APIs directly.
 
 ## 9. Out of Scope
 

@@ -7,6 +7,8 @@ from app.modules.agents.types import (
     AgentContext,
     AgentProviderResponse,
 )
+from app.modules.agents.pipeline_types import MarketAnalysisOutput
+from app.modules.agents.types import ParsedAgentOutput
 
 
 class ScadsAIAgentProvider:
@@ -117,3 +119,61 @@ class ScadsAIAgentProvider:
                 details={"payload": payload},
             )
         return message["content"]
+
+
+class ScadsAIPipelineProvider(ScadsAIAgentProvider):
+    provider_name = "scads-ai-pipeline"
+
+    def complete_market_analyst(
+        self, prompt: str, context: AgentContext
+    ) -> AgentProviderResponse:
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_market_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_trading_decision(
+        self,
+        prompt: str,
+        context: AgentContext,
+        market_analysis: MarketAnalysisOutput,
+    ) -> AgentProviderResponse:
+        _ = market_analysis
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_trading_decision(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_risk_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        market_analysis: MarketAnalysisOutput,
+        proposed_decision: ParsedAgentOutput,
+    ) -> AgentProviderResponse:
+        _ = (market_analysis, proposed_decision)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_risk_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
