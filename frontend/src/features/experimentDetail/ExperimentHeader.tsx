@@ -8,6 +8,14 @@ type ExperimentHeaderProps = {
 
 export function ExperimentHeader({ detail }: ExperimentHeaderProps) {
   const { experiment } = detail;
+  const agentMode =
+    experiment.strategyType === "AGENTIC_AI"
+      ? detail.strategyConfig.agentMode === "PIPELINE"
+        ? "Multi Agent"
+        : detail.strategyConfig.agentMode === "SINGLE_AGENT"
+          ? "Single Agent"
+          : null
+      : null;
 
   return (
     <div className="detail-header">
@@ -19,6 +27,7 @@ export function ExperimentHeader({ detail }: ExperimentHeaderProps) {
           <span>{experiment.strategyType}</span>
           <span>{experiment.mode}</span>
           <span>{experiment.assetSymbol}</span>
+          {agentMode ? <span>{agentMode}</span> : null}
         </div>
       </div>
       <ExperimentActions

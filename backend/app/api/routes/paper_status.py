@@ -193,7 +193,7 @@ def _status_reason(
         return (
             "UNSUPPORTED_PAPER_CONFIGURATION",
             "The paper scheduler supports BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
-            "AGENTIC_AI SINGLE_AGENT or PIPELINE with DAILY or HOURLY, "
+            "AGENTIC_AI SINGLE_AGENT or PIPELINE (Multi Agent) with DAILY or HOURLY, "
             "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN, "
             "and gated smoke-test SPY paper-trading experiments.",
         )

@@ -1,14 +1,26 @@
+from datetime import datetime
+
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.main import create_app
-from app.domain.enums import ExperimentStatus, SystemEventType
+from app.domain.enums import (
+    AgentMode,
+    AgentStepName,
+    ExecutionStepStatus,
+    ExperimentStatus,
+    ParsingStatus,
+    SystemEventType,
+    TriggerType,
+)
 from app.persistence.database import get_database_url
 from app.persistence.models import (
+    AgentDecisionLogModel,
     ExecutionStepModel,
     ExperimentModel,
+    StrategyConfigModel,
     SystemEventLogModel,
 )
 
@@ -329,6 +341,71 @@ def test_list_and_detail_experiments(client) -> None:
     assert detail_body["experiment"]["id"] == experiment_id
     assert detail_body["latestMetrics"] is None
     assert detail_body["latestAgentDecisions"] == []
+
+
+def test_detail_includes_latest_agent_decision_logs(client) -> None:
+    payload = _create_request_payload()
+    payload["mode"] = "PAPER_TRADING"
+    payload["strategyType"] = "AGENTIC_AI"
+    payload["tradingFrequency"] = "DAILY"
+    payload["strategyConfig"]["agentMode"] = "PIPELINE"
+    create_response = client.post("/api/v1/experiments", json=payload)
+    experiment_id = create_response.json()["experiment"]["id"]
+
+    engine = create_engine(_database_url(), pool_pre_ping=True)
+    now = datetime(2026, 1, 2, 15, 55, 0)
+    with Session(engine) as session:
+        config = session.scalar(
+            select(StrategyConfigModel).where(
+                StrategyConfigModel.experiment_id == experiment_id
+            )
+        )
+        assert config is not None
+        config.agent_mode = AgentMode.PIPELINE
+        step = ExecutionStepModel(
+            experiment_id=experiment_id,
+            scheduled_for=None,
+            started_at=now,
+            completed_at=now,
+            status=ExecutionStepStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
+            sequence_number=1,
+            error_message=None,
+            created_at=now,
+        )
+        session.add(step)
+        session.flush()
+        session.add(
+            AgentDecisionLogModel(
+                execution_step_id=step.id,
+                experiment_id=experiment_id,
+                trading_decision_id=None,
+                agent_mode=AgentMode.PIPELINE,
+                agent_step_name=AgentStepName.FUNDAMENTAL_ANALYST,
+                agent_name="MultiAgentDecisionGraph",
+                prompt_version="multi-agent-graph-v1",
+                model_name="meta-llama/Llama-3.3-70B-Instruct",
+                model_version=None,
+                input_json={"symbol": "SPY"},
+                prompt_text="prompt",
+                raw_output_text='{"signal":"BULLISH"}',
+                parsed_output_json={"signal": "BULLISH", "summary": "Healthy."},
+                parsing_status=ParsingStatus.SUCCESS,
+                repair_prompt_text=None,
+                repair_raw_output_text=None,
+                created_at=now,
+            )
+        )
+        session.commit()
+    engine.dispose()
+
+    detail_response = client.get(f"/api/v1/experiments/{experiment_id}")
+
+    assert detail_response.status_code == 200
+    logs = detail_response.json()["latestAgentDecisions"]
+    assert len(logs) == 1
+    assert logs[0]["agentStepName"] == "FUNDAMENTAL_ANALYST"
+    assert logs[0]["parsedOutputJson"]["signal"] == "BULLISH"
 
 
 def test_completed_experiment_list_and_detail_include_latest_metrics_and_trade(

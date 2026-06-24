@@ -7,7 +7,13 @@ from app.modules.agents.types import (
     AgentContext,
     AgentProviderResponse,
 )
-from app.modules.agents.pipeline_types import MarketAnalysisOutput
+from app.modules.agents.pipeline_types import (
+    FundamentalResearchSnapshot,
+    MarketAnalysisOutput,
+    RiskAssessmentOutput,
+    SentimentResearchSnapshot,
+    TechnicalAnalysisOutput,
+)
 from app.modules.agents.types import ParsedAgentOutput
 
 
@@ -169,6 +175,93 @@ class ScadsAIPipelineProvider(ScadsAIAgentProvider):
         return self._chat_completion(prompt=prompt, context=context)
 
     def repair_risk_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_fundamental_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        research_snapshot: FundamentalResearchSnapshot,
+    ) -> AgentProviderResponse:
+        _ = research_snapshot
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_fundamental_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_sentiment_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        research_snapshot: SentimentResearchSnapshot,
+        technical_analysis: TechnicalAnalysisOutput,
+    ) -> AgentProviderResponse:
+        _ = (research_snapshot, technical_analysis)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_sentiment_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_risk_assessment(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_analysis: TechnicalAnalysisOutput,
+        fundamental_analysis: object,
+        sentiment_analysis: object,
+    ) -> AgentProviderResponse:
+        _ = (technical_analysis, fundamental_analysis, sentiment_analysis)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_risk_assessment(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def complete_portfolio_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_analysis: TechnicalAnalysisOutput,
+        fundamental_analysis: object,
+        sentiment_analysis: object,
+        risk_assessment: RiskAssessmentOutput,
+    ) -> AgentProviderResponse:
+        _ = (
+            technical_analysis,
+            fundamental_analysis,
+            sentiment_analysis,
+            risk_assessment,
+        )
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_portfolio_manager(
         self,
         prompt: str,
         context: AgentContext,

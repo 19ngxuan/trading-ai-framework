@@ -858,7 +858,10 @@ class PaperTradingStepRunner:
         if agent_mode is AgentMode.PIPELINE:
             provider = create_scads_pipeline_provider(self.settings, model_name)
             return AgenticAIStrategy(
-                pipeline=AgentDecisionPipeline(provider=provider)
+                pipeline=AgentDecisionPipeline(
+                    provider=provider,
+                    market_data_provider=self.market_data_provider,
+                )
             )
         provider = create_scads_agent_provider(self.settings, model_name)
         return AgenticAIStrategy(agent=SingleAgent(provider=provider))

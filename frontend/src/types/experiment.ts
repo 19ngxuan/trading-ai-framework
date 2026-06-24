@@ -29,6 +29,7 @@ export type TradingFrequency =
   | "TEST_1_MIN";
 export type FeeModelType = "NONE" | "FIXED" | "PERCENTAGE";
 export type AgentMode = "SINGLE_AGENT" | "PIPELINE";
+export type AgentParsingStatus = "SUCCESS" | "FAILED" | "REPAIRED";
 export type OrderStatus =
   | "CREATED"
   | "SUBMITTED"
@@ -99,7 +100,7 @@ export type ExperimentSummary = {
   numberOfTrades: number | null;
   maxDrawdown: number | null;
   lastTrade: LastTrade | null;
-  latestAgentDecisions: Record<string, unknown>[];
+  latestAgentDecisions: AgentDecisionInsight[];
 };
 
 export type ExperimentDetail = {
@@ -107,7 +108,28 @@ export type ExperimentDetail = {
   strategyConfig: StrategyConfig;
   portfolio: Portfolio;
   latestMetrics: MetricSnapshot | null;
-  latestAgentDecisions: Record<string, unknown>[];
+  latestAgentDecisions: AgentDecisionInsight[];
+};
+
+export type AgentDecisionInsight = {
+  id: number;
+  executionStepId: number;
+  experimentId: number;
+  tradingDecisionId: number | null;
+  agentMode: AgentMode;
+  agentStepName: string;
+  agentName: string | null;
+  promptVersion: string | null;
+  modelName: string | null;
+  modelVersion: string | null;
+  inputJson: Record<string, unknown> | null;
+  promptText: string | null;
+  rawOutputText: string | null;
+  parsedOutputJson: Record<string, unknown> | null;
+  parsingStatus: AgentParsingStatus;
+  repairPromptText: string | null;
+  repairRawOutputText: string | null;
+  createdAt: string;
 };
 
 export type PaginatedExperiments = PaginatedResponse<ExperimentSummary>;

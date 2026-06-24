@@ -150,7 +150,7 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             agent_mode = request.strategy_config.agent_mode or AgentMode.SINGLE_AGENT
             if agent_mode not in {AgentMode.SINGLE_AGENT, AgentMode.PIPELINE}:
                 raise ValidationAppError(
-                    "Agentic AI paper trading supports SINGLE_AGENT or PIPELINE mode only.",
+                    "Agentic AI paper trading supports SINGLE_AGENT or PIPELINE (Multi Agent) mode only.",
                     details={
                         "field": "strategyConfig.agentMode",
                         "value": agent_mode.value,

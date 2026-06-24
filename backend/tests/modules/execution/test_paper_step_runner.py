@@ -327,7 +327,10 @@ def _pipeline_agent_runner(
         intraday_provider=intraday_provider,
         broker_adapter=broker,
         agent_strategy=AgenticAIStrategy(
-            pipeline=AgentDecisionPipeline(provider=FakePipelineProvider())
+            pipeline=AgentDecisionPipeline(
+                provider=FakePipelineProvider(),
+                market_data_provider=market_data_provider,
+            )
         ),
     )
 
@@ -1229,7 +1232,7 @@ def test_agentic_ai_paper_low_confidence_holds_without_broker_call(
         assert decision.raw_decision_json["fallbackReason"] == "CONFIDENCE_BELOW_THRESHOLD"
 
 
-def test_agentic_ai_pipeline_paper_creates_three_agent_logs(database_url: str) -> None:
+def test_agentic_ai_pipeline_paper_creates_six_agent_logs(database_url: str) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
         experiment_id = _create_experiment(
@@ -1271,7 +1274,7 @@ def test_agentic_ai_pipeline_paper_creates_three_agent_logs(database_url: str) -
     assert result.status is ExecutionStepStatus.COMPLETED
     assert broker.calls[0]["side"] is OrderSide.BUY
     with session_factory() as session:
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 3
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 6
 
 
 def test_agentic_ai_hourly_single_agent_uses_completed_hour_bar(
@@ -1380,4 +1383,4 @@ def test_agentic_ai_hourly_pipeline_uses_completed_hour_bar(
 
     assert step_result.status is ExecutionStepStatus.COMPLETED
     with session_factory() as session:
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 3
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 6

@@ -91,7 +91,8 @@ const AI_PATTERN_OPTIONS: Array<{
   {
     value: "MULTI_AGENT",
     label: "Multi Agent",
-    description: "Several specialized agents split analysis, decision, and critique.",
+    description:
+      "A staged workflow combines data, technical, fundamental, sentiment, risk, and portfolio agents.",
     enabled: true,
   },
 ];

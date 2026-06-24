@@ -98,6 +98,11 @@ a {
   color: #405069;
 }
 
+.nested-panel {
+  max-width: none;
+  padding: 18px;
+}
+
 .panel-header-row {
   display: flex;
   align-items: flex-start;

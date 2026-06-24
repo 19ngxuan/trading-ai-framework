@@ -2,18 +2,18 @@ import json
 from typing import Any
 
 from app.modules.agents.pipeline_types import (
+    FundamentalResearchSnapshot,
     MarketAnalysisOutput,
     PipelineProvider,
+    RiskAssessmentOutput,
+    SentimentResearchSnapshot,
+    TechnicalAnalysisOutput,
 )
-from app.modules.agents.types import (
-    AgentContext,
-    AgentProviderResponse,
-    ParsedAgentOutput,
-)
+from app.modules.agents.types import AgentContext, AgentProviderResponse, ParsedAgentOutput
 
 
 class FakePipelineProvider(PipelineProvider):
-    provider_name = "deterministic-fake-pipeline"
+    provider_name = "deterministic-fake-multi-agent"
     model_version = "v1"
 
     def complete_market_analyst(
@@ -24,7 +24,7 @@ class FakePipelineProvider(PipelineProvider):
             context,
             self._value(
                 context.parameters_json,
-                "marketAnalystOutput",
+                ("marketAnalystOutput",),
                 {
                     "marketBias": "NEUTRAL",
                     "confidence": 0,
@@ -41,7 +41,7 @@ class FakePipelineProvider(PipelineProvider):
         error_message: str,
     ) -> AgentProviderResponse | None:
         _ = (prompt, raw_output_text, error_message)
-        return self._optional_response(context, "marketAnalystRepairOutput")
+        return self._optional_response(context, ("marketAnalystRepairOutput",))
 
     def complete_trading_decision(
         self,
@@ -54,7 +54,7 @@ class FakePipelineProvider(PipelineProvider):
             context,
             self._value(
                 context.parameters_json,
-                "tradingDecisionOutput",
+                ("tradingDecisionOutput", "portfolioManagerOutput"),
                 {
                     "action": "HOLD",
                     "confidence": 0,
@@ -71,7 +71,10 @@ class FakePipelineProvider(PipelineProvider):
         error_message: str,
     ) -> AgentProviderResponse | None:
         _ = (prompt, raw_output_text, error_message)
-        return self._optional_response(context, "tradingDecisionRepairOutput")
+        return self._optional_response(
+            context,
+            ("tradingDecisionRepairOutput", "portfolioManagerRepairOutput"),
+        )
 
     def complete_risk_manager(
         self,
@@ -85,7 +88,7 @@ class FakePipelineProvider(PipelineProvider):
             context,
             self._value(
                 context.parameters_json,
-                "riskManagerOutput",
+                ("riskManagerOutput",),
                 {
                     "verdict": "APPROVE",
                     "confidence": 0,
@@ -102,15 +105,151 @@ class FakePipelineProvider(PipelineProvider):
         error_message: str,
     ) -> AgentProviderResponse | None:
         _ = (prompt, raw_output_text, error_message)
-        return self._optional_response(context, "riskManagerRepairOutput")
+        return self._optional_response(context, ("riskManagerRepairOutput",))
+
+    def complete_fundamental_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        research_snapshot: FundamentalResearchSnapshot,
+    ) -> AgentProviderResponse:
+        _ = (prompt, research_snapshot)
+        return self._response(
+            context,
+            self._value(
+                context.parameters_json,
+                ("fundamentalAnalystOutput",),
+                {
+                    "signal": "NEUTRAL",
+                    "confidence": 0,
+                    "summary": "Deterministic fake multi-agent defaulted to neutral fundamentals.",
+                },
+            ),
+        )
+
+    def repair_fundamental_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (prompt, raw_output_text, error_message)
+        return self._optional_response(context, ("fundamentalAnalystRepairOutput",))
+
+    def complete_sentiment_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        research_snapshot: SentimentResearchSnapshot,
+        technical_analysis: TechnicalAnalysisOutput,
+    ) -> AgentProviderResponse:
+        _ = (prompt, research_snapshot, technical_analysis)
+        return self._response(
+            context,
+            self._value(
+                context.parameters_json,
+                ("sentimentAnalystOutput",),
+                {
+                    "signal": "NEUTRAL",
+                    "confidence": 0,
+                    "summary": "Deterministic fake multi-agent defaulted to neutral sentiment.",
+                },
+            ),
+        )
+
+    def repair_sentiment_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (prompt, raw_output_text, error_message)
+        return self._optional_response(context, ("sentimentAnalystRepairOutput",))
+
+    def complete_risk_assessment(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_analysis: TechnicalAnalysisOutput,
+        fundamental_analysis,
+        sentiment_analysis,
+    ) -> AgentProviderResponse:
+        _ = (prompt, technical_analysis, fundamental_analysis, sentiment_analysis)
+        return self._response(
+            context,
+            self._value(
+                context.parameters_json,
+                ("riskAssessmentOutput",),
+                {
+                    "riskLevel": "MEDIUM",
+                    "confidence": 0,
+                    "summary": "Deterministic fake multi-agent defaulted to medium risk.",
+                },
+            ),
+        )
+
+    def repair_risk_assessment(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (prompt, raw_output_text, error_message)
+        return self._optional_response(context, ("riskAssessmentRepairOutput",))
+
+    def complete_portfolio_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_analysis: TechnicalAnalysisOutput,
+        fundamental_analysis,
+        sentiment_analysis,
+        risk_assessment: RiskAssessmentOutput,
+    ) -> AgentProviderResponse:
+        _ = (
+            prompt,
+            technical_analysis,
+            fundamental_analysis,
+            sentiment_analysis,
+            risk_assessment,
+        )
+        return self._response(
+            context,
+            self._value(
+                context.parameters_json,
+                ("portfolioManagerOutput", "tradingDecisionOutput"),
+                {
+                    "action": "HOLD",
+                    "confidence": 0,
+                    "rationale": "Deterministic fake multi-agent defaulted to HOLD.",
+                },
+            ),
+        )
+
+    def repair_portfolio_manager(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (prompt, raw_output_text, error_message)
+        return self._optional_response(
+            context,
+            ("portfolioManagerRepairOutput", "tradingDecisionRepairOutput"),
+        )
 
     def _optional_response(
-        self, context: AgentContext, key: str
+        self, context: AgentContext, keys: tuple[str, ...]
     ) -> AgentProviderResponse | None:
         parameters = self._pipeline_parameters(context.parameters_json)
-        if key not in parameters:
-            return None
-        return self._response(context, parameters[key])
+        for key in keys:
+            if key in parameters:
+                return self._response(context, parameters[key])
+        return None
 
     def _response(self, context: AgentContext, value: Any) -> AgentProviderResponse:
         return AgentProviderResponse(
@@ -120,17 +259,25 @@ class FakePipelineProvider(PipelineProvider):
         )
 
     def _value(
-        self, parameters_json: dict[str, Any] | None, key: str, default: Any
+        self,
+        parameters_json: dict[str, Any] | None,
+        keys: tuple[str, ...],
+        default: Any,
     ) -> Any:
-        return self._pipeline_parameters(parameters_json).get(key, default)
+        parameters = self._pipeline_parameters(parameters_json)
+        for key in keys:
+            if key in parameters:
+                return parameters[key]
+        return default
 
     def _pipeline_parameters(
         self, parameters_json: dict[str, Any] | None
     ) -> dict[str, Any]:
         parameters = parameters_json or {}
-        fake_pipeline = parameters.get("fakePipeline")
-        if isinstance(fake_pipeline, dict):
-            return fake_pipeline
+        for key in ("fakeMultiAgent", "fakePipeline"):
+            payload = parameters.get(key)
+            if isinstance(payload, dict):
+                return payload
         return {}
 
     def _to_text(self, value: Any) -> str:

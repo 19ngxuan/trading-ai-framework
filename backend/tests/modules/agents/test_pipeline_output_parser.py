@@ -1,61 +1,60 @@
-from decimal import Decimal
-
 import pytest
 
 from app.domain.enums import TradeAction
 from app.modules.agents.output_parser import AgentOutputParseError
 from app.modules.agents.pipeline_output_parser import PipelineOutputParser
-from app.modules.agents.pipeline_types import MarketBias, RiskManagerVerdict
+from app.modules.agents.pipeline_types import MarketBias, RiskLevel
 
 
-def test_pipeline_parser_accepts_valid_stage_outputs() -> None:
+def test_pipeline_parser_accepts_multi_agent_stage_outputs() -> None:
     parser = PipelineOutputParser()
 
-    market = parser.parse_market_analysis(
-        '{"marketBias": "BULLISH", "confidence": 0.8, "rationale": "Bullish."}'
+    fundamental = parser.parse_fundamental_analysis(
+        '{"signal": "BULLISH", "confidence": 0.8, "summary": "Healthy business."}'
     )
-    decision = parser.parse_trading_decision(
-        '{"action": "BUY", "confidence": 0.7, "rationale": "Buy."}'
+    sentiment = parser.parse_sentiment_analysis(
+        '{"signal": "NEUTRAL", "confidence": 0.4, "summary": "Mixed headlines."}'
     )
-    risk = parser.parse_risk_manager(
-        '{"verdict": "APPROVE", "confidence": 0.9, "rationale": "Approved."}'
+    risk = parser.parse_risk_assessment(
+        '{"riskLevel": "MEDIUM", "confidence": 0.9, "summary": "Manageable risk."}'
+    )
+    decision = parser.parse_portfolio_decision(
+        '{"action": "BUY", "confidence": 0.7, "rationale": "Net positive setup."}'
     )
 
-    assert market.market_bias is MarketBias.BULLISH
-    assert market.confidence == Decimal("0.8000")
+    assert fundamental.signal is MarketBias.BULLISH
+    assert sentiment.signal is MarketBias.NEUTRAL
+    assert risk.risk_level is RiskLevel.MEDIUM
     assert decision.action is TradeAction.BUY
-    assert decision.confidence == Decimal("0.7000")
-    assert risk.verdict is RiskManagerVerdict.APPROVE
-    assert risk.confidence == Decimal("0.9000")
 
 
 @pytest.mark.parametrize(
     "parse_method,raw_output",
     [
-        ("parse_market_analysis", "not json"),
+        ("parse_fundamental_analysis", "not json"),
         (
-            "parse_market_analysis",
-            '{"marketBias": "SIDEWAYS", "confidence": 0.8, "rationale": "Bad."}',
+            "parse_fundamental_analysis",
+            '{"signal": "SIDEWAYS", "confidence": 0.8, "summary": "Bad."}',
         ),
         (
-            "parse_trading_decision",
+            "parse_sentiment_analysis",
+            '{"signal": "BULLISH", "confidence": 2, "summary": "Bad."}',
+        ),
+        (
+            "parse_risk_assessment",
+            '{"riskLevel": "EXTREME", "confidence": 0.8, "summary": "Bad."}',
+        ),
+        (
+            "parse_portfolio_decision",
             '{"action": "WAIT", "confidence": 0.8, "rationale": "Bad."}',
         ),
         (
-            "parse_risk_manager",
-            '{"verdict": "MAYBE", "confidence": 0.8, "rationale": "Bad."}',
-        ),
-        (
-            "parse_risk_manager",
-            '{"verdict": "APPROVE", "confidence": 2, "rationale": "Bad."}',
-        ),
-        (
-            "parse_trading_decision",
+            "parse_portfolio_decision",
             '{"action": "HOLD", "confidence": 0.8, "rationale": ""}',
         ),
     ],
 )
-def test_pipeline_parser_rejects_invalid_stage_outputs(
+def test_pipeline_parser_rejects_invalid_multi_agent_outputs(
     parse_method: str, raw_output: str
 ) -> None:
     parser = PipelineOutputParser()

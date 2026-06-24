@@ -39,6 +39,7 @@ from app.modules.experiments.status_machine import validate_transition
 from app.modules.experiments.validators import validate_create_experiment_request
 from app.persistence.database import create_session_factory
 from app.persistence.models import (
+    AgentDecisionLogModel,
     ExperimentModel,
     PortfolioModel,
     StrategyConfigModel,
@@ -48,6 +49,7 @@ from app.persistence.models import (
 )
 from app.persistence.repositories import (
     ExperimentRepository,
+    AgentDecisionLogRepository,
     MetricSnapshotRepository,
     PortfolioRepository,
     StrategyConfigRepository,
@@ -96,6 +98,7 @@ def _build_summary(
     portfolio: PortfolioModel | None,
     latest_metric: MetricSnapshotModel | None,
     latest_trade: TradeModel | None,
+    latest_agent_decisions: list[dict[str, Any]],
 ) -> ExperimentSummaryResponse:
     return ExperimentSummaryResponse(
         id=experiment.id,
@@ -110,8 +113,31 @@ def _build_summary(
         numberOfTrades=latest_metric.number_of_trades if latest_metric else None,
         maxDrawdown=latest_metric.max_drawdown if latest_metric else None,
         lastTrade=_to_trade_summary_response(latest_trade),
-        latestAgentDecisions=[],
+        latestAgentDecisions=latest_agent_decisions,
     )
+
+
+def _agent_log_response(model: AgentDecisionLogModel) -> dict[str, Any]:
+    return {
+        "id": model.id,
+        "executionStepId": model.execution_step_id,
+        "experimentId": model.experiment_id,
+        "tradingDecisionId": model.trading_decision_id,
+        "agentMode": model.agent_mode.value,
+        "agentStepName": model.agent_step_name.value,
+        "agentName": model.agent_name,
+        "promptVersion": model.prompt_version,
+        "modelName": model.model_name,
+        "modelVersion": model.model_version,
+        "inputJson": model.input_json,
+        "promptText": model.prompt_text,
+        "rawOutputText": model.raw_output_text,
+        "parsedOutputJson": model.parsed_output_json,
+        "parsingStatus": model.parsing_status.value,
+        "repairPromptText": model.repair_prompt_text,
+        "repairRawOutputText": model.repair_raw_output_text,
+        "createdAt": model.created_at,
+    }
 
 
 class ExperimentService:
@@ -123,6 +149,7 @@ class ExperimentService:
         self.event_repository = SystemEventLogRepository(session)
         self.metric_snapshot_repository = MetricSnapshotRepository(session)
         self.trade_repository = TradeRepository(session)
+        self.agent_decision_log_repository = AgentDecisionLogRepository(session)
 
     def create_experiment(self, request: CreateExperimentRequest) -> dict[str, Any]:
         validate_create_experiment_request(request)
@@ -228,6 +255,12 @@ class ExperimentService:
                 portfolios_by_experiment_id.get(experiment.id),
                 self.metric_snapshot_repository.latest_by_experiment(experiment.id),
                 self.trade_repository.latest_by_experiment(experiment.id),
+                [
+                    _agent_log_response(log)
+                    for log in self.agent_decision_log_repository.latest_for_experiment(
+                        experiment.id
+                    )
+                ],
             )
             for experiment in experiments
         ]
@@ -264,7 +297,12 @@ class ExperimentService:
             latestMetrics=_to_metric_snapshot_response(
                 self.metric_snapshot_repository.latest_by_experiment(experiment_id)
             ),
-            latestAgentDecisions=[],
+            latestAgentDecisions=[
+                _agent_log_response(log)
+                for log in self.agent_decision_log_repository.latest_for_experiment(
+                    experiment_id
+                )
+            ],
         )
 
     def apply_lifecycle_action(self, experiment_id: int, action: str) -> ExperimentActionResponse:

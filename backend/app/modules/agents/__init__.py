@@ -4,6 +4,7 @@ from app.modules.agents.single_agent import SingleAgent
 from app.modules.agents.provider_factory import (
     create_historical_agent_provider,
     create_scads_agent_provider,
+    create_scads_pipeline_provider,
 )
 from app.modules.agents.types import (
     AgentDecision,
@@ -20,4 +21,5 @@ __all__ = [
     "SingleAgent",
     "create_historical_agent_provider",
     "create_scads_agent_provider",
+    "create_scads_pipeline_provider",
 ]

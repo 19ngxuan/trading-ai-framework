@@ -1,6 +1,9 @@
 import { useState } from "react";
 
-import type { ExperimentDetail } from "../../types/experiment";
+import type {
+  AgentDecisionInsight,
+  ExperimentDetail,
+} from "../../types/experiment";
 import type { BrokerSyncLog } from "../../types/brokerSync";
 import type { SystemEvent } from "../../types/event";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
@@ -19,6 +22,7 @@ type ExperimentTabsProps = {
 
 type Tab =
   | "overview"
+  | "aiInsights"
   | "metrics"
   | "portfolio"
   | "orders"
@@ -31,6 +35,31 @@ function formatValue(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") return Number.isInteger(value) ? value : value.toFixed(4);
   return value;
+}
+
+function agentModeLabel(agentMode: ExperimentDetail["strategyConfig"]["agentMode"]) {
+  if (agentMode === "PIPELINE") return "Multi Agent";
+  if (agentMode === "SINGLE_AGENT") return "Single Agent";
+  return "-";
+}
+
+function insightSummary(insight: AgentDecisionInsight) {
+  const payload = insight.parsedOutputJson ?? {};
+  const summaryKeys = ["summary", "rationale", "reason"];
+  for (const key of summaryKeys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return insight.rawOutputText ?? "No summary available.";
+}
+
+function insightPrimarySignal(insight: AgentDecisionInsight) {
+  const payload = insight.parsedOutputJson ?? {};
+  for (const key of ["action", "signal", "riskLevel"]) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "-";
 }
 
 export function ExperimentTabs({
@@ -53,6 +82,14 @@ export function ExperimentTabs({
         >
           Overview
         </button>
+        {detail.experiment.strategyType === "AGENTIC_AI" && (
+          <button
+            className={tab === "aiInsights" ? "tab-active" : undefined}
+            onClick={() => setTab("aiInsights")}
+          >
+            AI Insights
+          </button>
+        )}
         <button
           className={tab === "metrics" ? "tab-active" : undefined}
           onClick={() => setTab("metrics")}
@@ -124,7 +161,49 @@ export function ExperimentTabs({
               {detail.portfolio.positionQuantity ?? 0}
             </dd>
           </div>
+          {detail.experiment.strategyType === "AGENTIC_AI" && (
+            <>
+              <div>
+                <dt>AI Mode</dt>
+                <dd>{agentModeLabel(detail.strategyConfig.agentMode)}</dd>
+              </div>
+              <div>
+                <dt>Model</dt>
+                <dd>{detail.strategyConfig.modelName ?? "-"}</dd>
+              </div>
+              <div>
+                <dt>Confidence Threshold</dt>
+                <dd>{formatValue(detail.strategyConfig.confidenceThreshold)}</dd>
+              </div>
+            </>
+          )}
         </dl>
+      )}
+
+      {tab === "aiInsights" && (
+        <div className="page-stack">
+          {detail.latestAgentDecisions.length === 0 ? (
+            <p className="muted">No AI insight logs available yet.</p>
+          ) : (
+            detail.latestAgentDecisions.map((insight) => (
+              <article key={insight.id} className="panel nested-panel">
+                <div className="panel-header-row">
+                  <div>
+                    <h3>{insight.agentStepName.replace(/_/g, " ")}</h3>
+                    <p className="muted">
+                      {insight.agentName ?? "Agent"} · {insight.parsingStatus} ·{" "}
+                      {new Date(insight.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="status-pill">
+                    {insightPrimarySignal(insight)}
+                  </span>
+                </div>
+                <p>{insightSummary(insight)}</p>
+              </article>
+            ))
+          )}
+        </div>
       )}
 
       {tab === "metrics" && (
@@ -196,6 +275,18 @@ export function ExperimentTabs({
           <div>
             <dt>Moving Average Window</dt>
             <dd>{detail.strategyConfig.movingAverageWindow ?? "-"}</dd>
+          </div>
+          <div>
+            <dt>Agent Mode</dt>
+            <dd>{agentModeLabel(detail.strategyConfig.agentMode)}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{detail.strategyConfig.modelName ?? "-"}</dd>
+          </div>
+          <div>
+            <dt>Confidence Threshold</dt>
+            <dd>{formatValue(detail.strategyConfig.confidenceThreshold)}</dd>
           </div>
           <div>
             <dt>Fee Model</dt>

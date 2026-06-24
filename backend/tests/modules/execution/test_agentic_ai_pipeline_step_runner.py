@@ -221,7 +221,7 @@ def test_pipeline_paper_trading_persists_artifacts_and_uses_broker_path(
     assert result.status.value == "COMPLETED"
 
     with session_factory() as session:
-        assert _count(session, AgentDecisionLogModel, experiment_id) == 3
+        assert _count(session, AgentDecisionLogModel, experiment_id) == 6
         assert _count(session, TradingDecisionModel, experiment_id) == 1
         assert _count(session, RiskCheckModel, experiment_id) == 1
         assert _count(session, OrderModel, experiment_id) == 1
