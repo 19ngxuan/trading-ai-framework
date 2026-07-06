@@ -73,14 +73,17 @@ class FakeMarketDataProvider:
         self.price = price
         self.range_bars = range_bars
         self.error = error
+        self.latest_symbols: list[str] = []
+        self.range_symbols: list[str | None] = []
 
     def load_range(self, *args, **kwargs) -> list[DailyBar]:
+        self.range_symbols.append(kwargs.get("symbol"))
         if self.range_bars is not None:
             return self.range_bars
         return [self.get_latest_bar()]
 
     def get_latest_bar(self, symbol: str = "SPY") -> DailyBar:
-        assert symbol == "SPY"
+        self.latest_symbols.append(symbol)
         if self.error is not None:
             raise self.error
         if self.range_bars is not None:
@@ -166,11 +169,12 @@ def _broker_result(
     average_fill_price: str | None = "100.00",
     side: OrderSide = OrderSide.BUY,
     quantity: str = "100",
+    symbol: str = "SPY",
 ) -> BrokerOrderResult:
     return BrokerOrderResult(
         broker_order_id=f"alpaca-{status}",
         status=status,
-        symbol="SPY",
+        symbol=symbol,
         side=side,
         quantity=Decimal(quantity),
         filled_quantity=Decimal(filled_quantity),
@@ -236,7 +240,7 @@ def _create_experiment(
         PortfolioModel(
             experiment_id=experiment.id,
             cash=cash,
-            position_symbol="SPY" if position_quantity > 0 else None,
+            position_symbol=asset_symbol if position_quantity > 0 else None,
             position_quantity=position_quantity,
             current_price=None,
             current_position_value=Decimal("0"),
@@ -407,6 +411,102 @@ def test_filled_buy_creates_paper_order_trade_and_updates_portfolio(
         assert _count(session, RiskCheckModel, experiment_id) == 1
         assert _count(session, PortfolioSnapshotModel, experiment_id) == 1
         assert _count(session, MetricSnapshotModel, experiment_id) == 1
+
+
+def test_paper_buy_and_hold_uses_selected_symbol(database_url: str) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(session, asset_symbol="AAPL")
+
+    market_data_provider = FakeMarketDataProvider(price=Decimal("100"))
+    broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="filled",
+            filled_quantity="100",
+            quantity="100",
+            symbol="AAPL",
+        )
+    )
+    result = _runner_with_market_data(
+        database_url,
+        broker,
+        market_data_provider,
+    ).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert market_data_provider.latest_symbols == ["AAPL"]
+    assert broker.calls[0]["symbol"] == "AAPL"
+    with session_factory() as session:
+        snapshot = session.scalar(
+            select(MarketDataSnapshotModel).where(
+                MarketDataSnapshotModel.experiment_id == experiment_id
+            )
+        )
+        decision = session.scalar(
+            select(TradingDecisionModel).where(
+                TradingDecisionModel.experiment_id == experiment_id
+            )
+        )
+        order = session.scalar(
+            select(OrderModel).where(OrderModel.experiment_id == experiment_id)
+        )
+        trade = session.scalar(
+            select(TradeModel).where(TradeModel.experiment_id == experiment_id)
+        )
+        portfolio = session.scalar(
+            select(PortfolioModel).where(PortfolioModel.experiment_id == experiment_id)
+        )
+        assert snapshot is not None
+        assert snapshot.symbol == "AAPL"
+        assert decision is not None
+        assert decision.symbol == "AAPL"
+        assert order is not None
+        assert order.symbol == "AAPL"
+        assert trade is not None
+        assert trade.symbol == "AAPL"
+        assert portfolio is not None
+        assert portfolio.position_symbol == "AAPL"
+
+
+def test_paper_moving_average_uses_selected_symbol_for_lookback_and_order(
+    database_url: str,
+) -> None:
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        experiment_id = _create_experiment(
+            session,
+            strategy_type=StrategyType.MOVING_AVERAGE,
+            asset_symbol="MSFT",
+            moving_average_window=3,
+        )
+
+    market_data_provider = FakeMarketDataProvider(
+        range_bars=[
+            _daily_bar(1, "100"),
+            _daily_bar(2, "100"),
+            _daily_bar(3, "120"),
+        ]
+    )
+    broker = FakeBrokerAdapter(
+        result=_broker_result(
+            status="filled",
+            filled_quantity="83",
+            average_fill_price="120.00",
+            quantity="83",
+            symbol="MSFT",
+        )
+    )
+
+    result = _runner_with_market_data(
+        database_url,
+        broker,
+        market_data_provider,
+    ).run_next_step(experiment_id)
+
+    assert result.status is ExecutionStepStatus.COMPLETED
+    assert market_data_provider.latest_symbols == ["MSFT"]
+    assert market_data_provider.range_symbols == ["MSFT"]
+    assert broker.calls[0]["symbol"] == "MSFT"
 
 
 def test_scheduled_paper_step_uses_scheduled_trigger_and_slot(
@@ -1146,6 +1246,7 @@ def test_agentic_ai_paper_single_agent_buy_creates_agent_log_and_order(
         experiment_id = _create_experiment(
             session,
             strategy_type=StrategyType.AGENTIC_AI,
+            asset_symbol="NVDA",
             agent_mode=AgentMode.SINGLE_AGENT,
             model_name="meta-llama/Llama-3.3-70B-Instruct",
             parameters_json={
@@ -1161,15 +1262,23 @@ def test_agentic_ai_paper_single_agent_buy_creates_agent_log_and_order(
         )
 
     broker = FakeBrokerAdapter(
-        result=_broker_result(status="filled", filled_quantity="100", quantity="100")
+        result=_broker_result(
+            status="filled",
+            filled_quantity="100",
+            quantity="100",
+            symbol="NVDA",
+        )
     )
+    market_data_provider = FakeMarketDataProvider(price=Decimal("100"))
     result = _agent_runner(
         database_url,
         broker,
-        FakeMarketDataProvider(price=Decimal("100")),
+        market_data_provider,
     ).run_next_step(experiment_id, trigger_type=TriggerType.MANUAL)
 
     assert result.status is ExecutionStepStatus.COMPLETED
+    assert market_data_provider.latest_symbols == ["NVDA"]
+    assert broker.calls[0]["symbol"] == "NVDA"
     assert broker.calls[0]["side"] is OrderSide.BUY
     with session_factory() as session:
         decision = session.scalar(
@@ -1183,6 +1292,7 @@ def test_agentic_ai_paper_single_agent_buy_creates_agent_log_and_order(
         )
         assert decision is not None
         assert decision.source_type is DecisionSourceType.AGENT
+        assert decision.symbol == "NVDA"
         assert decision.action is TradeAction.BUY
         assert agent_log_count == 1
         assert risk is not None

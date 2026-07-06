@@ -130,13 +130,14 @@ def _create_experiment(
     start_date: date = date(2024, 1, 2),
     end_date: date = date(2024, 1, 5),
     agent_mode: AgentMode | None = None,
+    asset_symbol: str = "SPY",
 ) -> int:
     now = datetime(2026, 1, 1, 12, 0, 0)
     experiment = ExperimentModel(
         name="M7b scheduled experiment",
         mode=mode,
         strategy_type=strategy_type,
-        asset_symbol="SPY",
+        asset_symbol=asset_symbol,
         status=status,
         initial_capital=Decimal("10000.0000"),
         start_date=start_date,
@@ -348,7 +349,11 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
 ) -> None:
     session_factory = create_session_factory(database_url)
     with session_factory() as session:
-        paper_id = _create_experiment(session, mode=ExperimentMode.PAPER_TRADING)
+        paper_id = _create_experiment(
+            session,
+            mode=ExperimentMode.PAPER_TRADING,
+            asset_symbol="AAPL",
+        )
         _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
@@ -364,18 +369,21 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             session,
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.MOVING_AVERAGE,
+            asset_symbol="MSFT",
         )
         agentic_ai_id = _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.AGENTIC_AI,
             agent_mode=AgentMode.SINGLE_AGENT,
+            asset_symbol="NVDA",
         )
         pipeline_daily_id = _create_experiment(
             session,
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.AGENTIC_AI,
             agent_mode=AgentMode.PIPELINE,
+            asset_symbol="AMZN",
         )
         hourly_single_id = _create_experiment(
             session,
@@ -383,6 +391,7 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             strategy_type=StrategyType.AGENTIC_AI,
             trading_frequency=TradingFrequency.HOURLY,
             agent_mode=AgentMode.SINGLE_AGENT,
+            asset_symbol="META",
         )
         hourly_pipeline_id = _create_experiment(
             session,
@@ -390,6 +399,7 @@ def test_paper_scheduler_job_selects_only_due_running_paper_experiments(
             strategy_type=StrategyType.AGENTIC_AI,
             trading_frequency=TradingFrequency.HOURLY,
             agent_mode=AgentMode.PIPELINE,
+            asset_symbol="GOOGL",
         )
         _create_experiment(
             session,

@@ -4,6 +4,9 @@ from typing import Any
 from app.api.schemas.experiment_schemas import CreateExperimentRequest
 from app.core.config import get_settings
 from app.core.errors import ValidationAppError
+from app.domain.assets import SPY_SYMBOL
+from app.domain.assets import is_supported_equity_symbol
+from app.domain.assets import normalize_symbol
 from app.domain.enums import AgentMode
 from app.domain.enums import ExperimentMode, StrategyType, TradingFrequency
 
@@ -19,9 +22,18 @@ def _validate_risk_config(risk_config: dict[str, Any]) -> None:
 
 def validate_create_experiment_request(request: CreateExperimentRequest) -> None:
     settings = get_settings()
-    if request.asset_symbol != "SPY":
+    asset_symbol = normalize_symbol(request.asset_symbol)
+    if not is_supported_equity_symbol(asset_symbol):
         raise ValidationAppError(
-            "assetSymbol must be SPY in V1.",
+            "assetSymbol is not supported.",
+            details={"field": "assetSymbol", "value": request.asset_symbol},
+        )
+    if (
+        request.mode is ExperimentMode.HISTORICAL_SIMULATION
+        and asset_symbol != SPY_SYMBOL
+    ):
+        raise ValidationAppError(
+            "Historical simulation supports SPY only in this release.",
             details={"field": "assetSymbol", "value": request.asset_symbol},
         )
 
@@ -57,6 +69,11 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
         )
 
     if request.strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
+        if asset_symbol != SPY_SYMBOL:
+            raise ValidationAppError(
+                "Paper trading smoke-test supports SPY only.",
+                details={"field": "assetSymbol", "value": request.asset_symbol},
+            )
         if not settings.paper_trading_test_mode_enabled:
             raise ValidationAppError(
                 "Paper trading smoke-test strategy is disabled.",
@@ -79,6 +96,11 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 },
             )
     elif request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
+        if asset_symbol != SPY_SYMBOL:
+            raise ValidationAppError(
+                "Opening Range Breakout supports SPY only.",
+                details={"field": "assetSymbol", "value": request.asset_symbol},
+            )
         if request.mode not in {
             ExperimentMode.HISTORICAL_SIMULATION,
             ExperimentMode.PAPER_TRADING,
@@ -136,7 +158,7 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
             request.trading_frequency,
         ) not in supported_paper_configs:
             raise ValidationAppError(
-                "Paper trading supports SPY strategies with these combinations: "
+                "Paper trading supports configured equity assets with these combinations: "
                 "BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
                 "AGENTIC_AI DAILY/HOURLY, or "
                 "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN.",

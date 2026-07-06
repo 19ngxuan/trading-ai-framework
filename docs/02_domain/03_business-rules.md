@@ -12,11 +12,21 @@ Business rules in this document are binding for implementation. Developers and A
 
 ## 2. Version 1 Scope Rules
 
-### BR-001: SPY is the only tradable asset in V1
+### BR-001: Asset support is intentionally allowlisted
 
-Version 1 supports only `SPY` as `asset_symbol`.
+Historical CSV simulations and Opening Range Breakout remain `SPY`-only.
 
-Any attempt to configure another asset must be rejected or explicitly treated as unsupported.
+Paper-trading Buy-and-Hold, Moving Average, and Agentic-AI strategies may use
+only the curated US equity allowlist:
+
+```text
+SPY, AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA
+```
+
+Opening Range Breakout and paper smoke-test diagnostics remain `SPY`-only.
+Any attempt to configure an asset outside the supported scope must be rejected
+or explicitly treated as unsupported. `/options` must not perform live Alpaca
+asset discovery.
 
 ---
 
@@ -55,7 +65,8 @@ Strategy comparisons must be represented as multiple experiments, not as multipl
 
 An experiment must have exactly one current `Portfolio`.
 
-In V1, the portfolio may hold at most one position, expected to be SPY.
+In V1, the portfolio may hold at most one position for the experiment's
+configured supported symbol.
 
 ---
 
@@ -135,7 +146,7 @@ actions to `HOLD`, and missing market data may fail safely.
 
 `HOURLY` frequency means completed regular-session hourly bar evaluation
 cadence. In the current implementation it is supported only for
-`PAPER_TRADING` + `AGENTIC_AI` + `SPY`.
+`PAPER_TRADING` + `AGENTIC_AI` on the curated paper-trading equity allowlist.
 
 `INTRADAY_5_MIN` frequency means five-minute bar evaluation cadence. In the
 current implementation it is supported only by Opening Range Breakout historical
@@ -213,7 +224,8 @@ Unsupported actions must be rejected or converted to safe fallback behavior.
 
 ### BR-020: Buy and Hold buys once, then holds
 
-The Buy-and-Hold strategy should buy SPY at the start of the experiment if no position exists.
+The Buy-and-Hold strategy should buy the configured supported symbol if no
+position exists.
 
 After entering the position, it should hold.
 
@@ -339,10 +351,10 @@ Fallback details must be auditable in `AgentDecisionLog`. A dedicated
 
 ### BR-027A: ScaDS.AI paper agent scope
 
-ScaDS.AI may be used only for `PAPER_TRADING` + `AGENTIC_AI` + `SPY` with
-`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when
-`SCADSAI_LLM_ENABLED=true`, an API key is configured, and the selected model is
-in `SCADSAI_ALLOWED_MODELS`.
+ScaDS.AI may be used only for `PAPER_TRADING` + `AGENTIC_AI` with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence for the curated
+paper-trading equity allowlist when `SCADSAI_LLM_ENABLED=true`, an API key is
+configured, and the selected model is in `SCADSAI_ALLOWED_MODELS`.
 
 Historical Agentic-AI execution remains deterministic and uses fake providers.
 Pipeline-agent paper trading, ORB/intraday agent trading, prompt editing, tool

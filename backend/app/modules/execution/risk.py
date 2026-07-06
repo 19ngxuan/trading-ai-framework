@@ -61,7 +61,9 @@ class HistoricalSimulationRiskValidator:
                     final_action=FinalAction.HOLD,
                     final_quantity=None,
                     final_notional=None,
-                    rejection_reason="No SPY position exists to sell.",
+                    rejection_reason=(
+                        f"No {decision.symbol} position exists to sell."
+                    ),
                     rules_triggered_json={"reason": "NO_POSITION_TO_SELL"},
                 )
 
@@ -81,7 +83,10 @@ class HistoricalSimulationRiskValidator:
                 final_action=FinalAction.HOLD,
                 final_quantity=None,
                 final_notional=None,
-                rejection_reason="Insufficient cash to buy at least one whole SPY share.",
+                rejection_reason=(
+                    "Insufficient cash to buy at least one whole "
+                    f"{decision.symbol} share."
+                ),
                 rules_triggered_json={"reason": "INSUFFICIENT_CASH_FOR_ONE_SHARE"},
             )
 

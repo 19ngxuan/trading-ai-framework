@@ -268,7 +268,7 @@ def _apply_fill_delta_to_portfolio(
     fill_value = (fill_quantity * fill_price).quantize(Decimal("0.0001"))
     if order.side is OrderSide.BUY:
         portfolio.cash = (portfolio.cash - fill_value).quantize(Decimal("0.0001"))
-        portfolio.position_symbol = "SPY"
+        portfolio.position_symbol = order.symbol
         portfolio.position_quantity = (portfolio.position_quantity or Decimal("0")) + fill_quantity
     else:
         portfolio.cash = (portfolio.cash + fill_value).quantize(Decimal("0.0001"))
@@ -278,7 +278,7 @@ def _apply_fill_delta_to_portfolio(
             portfolio.position_quantity = Decimal("0")
             portfolio.current_position_value = Decimal("0.0000")
         else:
-            portfolio.position_symbol = "SPY"
+            portfolio.position_symbol = order.symbol
             portfolio.position_quantity = remaining_quantity
     portfolio.current_price = fill_price
     portfolio.current_position_value = (

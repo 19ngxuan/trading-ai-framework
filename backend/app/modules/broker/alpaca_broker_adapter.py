@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import httpx
 
 from app.domain.enums import OrderSide, OrderType
+from app.domain.assets import is_supported_equity_symbol
+from app.domain.assets import normalize_symbol
 from app.modules.broker.broker_adapter import (
     BrokerAccountState,
     BrokerOrderResult,
@@ -14,7 +16,6 @@ from app.modules.broker.broker_adapter import (
 from app.modules.broker.errors import BrokerConfigurationError, BrokerProviderError
 
 PAPER_TRADING_BASE_URL = "https://paper-api.alpaca.markets"
-SUPPORTED_SYMBOL = "SPY"
 
 
 class AlpacaPaperTradingAdapter:
@@ -43,6 +44,7 @@ class AlpacaPaperTradingAdapter:
         order_type: OrderType,
         client_order_id: str,
     ) -> BrokerOrderResult:
+        symbol = normalize_symbol(symbol)
         self._validate_order(symbol, order_type)
         response = self._request(
             "POST",
@@ -163,9 +165,9 @@ class AlpacaPaperTradingAdapter:
             ) from exc
 
     def _validate_order(self, symbol: str, order_type: OrderType) -> None:
-        if symbol != SUPPORTED_SYMBOL:
+        if not is_supported_equity_symbol(symbol):
             raise BrokerProviderError(
-                "Alpaca paper trading adapter supports SPY only.",
+                "Alpaca paper trading adapter supports configured equity symbols only.",
                 details={"symbol": symbol},
             )
         if order_type is not OrderType.MARKET:

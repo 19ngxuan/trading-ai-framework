@@ -163,6 +163,41 @@ def test_create_experiment_validation_error_is_normalized(client) -> None:
     assert "details" in body
 
 
+def test_create_experiment_rejects_non_spy_historical_simulation(client) -> None:
+    payload = _create_request_payload()
+    payload["assetSymbol"] = "AAPL"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
+def test_create_experiment_accepts_big_tech_assets_for_paper_strategies(
+    client,
+) -> None:
+    cases = [
+        ("BUY_AND_HOLD", "DAILY", "AAPL", None),
+        ("MOVING_AVERAGE", "DAILY", "MSFT", 3),
+        ("AGENTIC_AI", "DAILY", "NVDA", None),
+        ("AGENTIC_AI", "HOURLY", "AMZN", None),
+    ]
+    for strategy_type, frequency, asset_symbol, moving_average_window in cases:
+        payload = _create_request_payload()
+        payload["mode"] = "PAPER_TRADING"
+        payload["strategyType"] = strategy_type
+        payload["tradingFrequency"] = frequency
+        payload["assetSymbol"] = asset_symbol
+        payload["strategyConfig"]["movingAverageWindow"] = moving_average_window
+        if strategy_type == "AGENTIC_AI":
+            payload["strategyConfig"]["agentMode"] = "SINGLE_AGENT"
+
+        response = client.post("/api/v1/experiments", json=payload)
+
+        assert response.status_code == 201
+        assert response.json()["experiment"]["assetSymbol"] == asset_symbol
+
+
 def test_create_experiment_accepts_opening_range_breakout_intraday(client) -> None:
     response = client.post(
         "/api/v1/experiments",
@@ -276,6 +311,16 @@ def test_create_experiment_rejects_unsupported_orb_configuration(client) -> None
     assert response.json()["errorCode"] == "VALIDATION_ERROR"
 
 
+def test_create_experiment_rejects_non_spy_opening_range_breakout(client) -> None:
+    payload = _create_opening_range_breakout_payload()
+    payload["assetSymbol"] = "AAPL"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+
+
 def test_create_experiment_rejects_smoke_test_when_disabled(monkeypatch) -> None:
     monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "false")
     get_settings.cache_clear()
@@ -315,6 +360,22 @@ def test_create_experiment_rejects_unsupported_smoke_test_configuration(
     get_settings.cache_clear()
     payload = _create_paper_smoke_test_payload()
     payload["tradingFrequency"] = "DAILY"
+
+    with TestClient(create_app()) as client:
+        response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["errorCode"] == "VALIDATION_ERROR"
+    get_settings.cache_clear()
+
+
+def test_create_experiment_rejects_non_spy_smoke_test_when_enabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_TEST_MODE_ENABLED", "true")
+    get_settings.cache_clear()
+    payload = _create_paper_smoke_test_payload()
+    payload["assetSymbol"] = "AAPL"
 
     with TestClient(create_app()) as client:
         response = client.post("/api/v1/experiments", json=payload)

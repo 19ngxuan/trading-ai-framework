@@ -39,6 +39,7 @@ class PaperExecutionProvider:
         experiment_id: int,
         execution_step_id: int,
         risk_check_id: int,
+        symbol: str,
         timestamp: datetime,
         now: datetime,
     ) -> PaperExecutionResult:
@@ -70,7 +71,7 @@ class PaperExecutionProvider:
 
         side = _side_for_action(risk_result.final_action)
         broker_result = self.broker_adapter.place_order(
-            symbol="SPY",
+            symbol=symbol,
             side=side,
             quantity=risk_result.final_quantity,
             order_type=OrderType.MARKET,
@@ -155,7 +156,7 @@ def _apply_fill_to_portfolio(
     ).quantize(Decimal("0.0001"))
     if broker_result.side is OrderSide.BUY:
         portfolio.cash = (portfolio.cash - fill_value).quantize(Decimal("0.0001"))
-        portfolio.position_symbol = "SPY"
+        portfolio.position_symbol = broker_result.symbol
         portfolio.position_quantity = (
             (portfolio.position_quantity or Decimal("0")) + broker_result.filled_quantity
         )
@@ -169,7 +170,7 @@ def _apply_fill_to_portfolio(
             portfolio.position_quantity = Decimal("0")
             portfolio.current_position_value = Decimal("0.0000")
         else:
-            portfolio.position_symbol = "SPY"
+            portfolio.position_symbol = broker_result.symbol
             portfolio.position_quantity = remaining_quantity
 
     return TradeModel(

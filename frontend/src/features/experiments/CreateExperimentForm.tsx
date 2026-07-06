@@ -62,9 +62,10 @@ const initialState: FormState = {
 };
 
 const RECOMMENDED_CONFIDENCE_THRESHOLD = "0.60";
+const DEFAULT_ASSET_SYMBOL = "SPY";
 
 const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
-  BUY_AND_HOLD: "Buy once, then hold the SPY position.",
+  BUY_AND_HOLD: "Buy once, then hold the selected asset.",
   MOVING_AVERAGE: "Use a daily moving average signal.",
   AGENTIC_AI: "Use ScaDS.AI-backed paper trading with agent guardrails.",
   OPENING_RANGE_BREAKOUT: "Use 5-minute opening range breakout rules.",
@@ -142,6 +143,25 @@ function strategySupportedForMode(
   return true;
 }
 
+function isSpyOnlySelection(mode: ExperimentMode, strategyType: StrategyType) {
+  return (
+    mode === "HISTORICAL_SIMULATION"
+    || strategyType === "OPENING_RANGE_BREAKOUT"
+    || strategyType === "PAPER_TRADING_SMOKE_TEST"
+  );
+}
+
+function assetsForSelection(
+  mode: ExperimentMode,
+  strategyType: StrategyType,
+  assets: string[],
+) {
+  if (isSpyOnlySelection(mode, strategyType)) {
+    return assets.filter((asset) => asset === DEFAULT_ASSET_SYMBOL);
+  }
+  return assets;
+}
+
 function strategiesForMode(mode: ExperimentMode, strategies: StrategyType[]) {
   return strategies.filter((strategy) => strategySupportedForMode(mode, strategy));
 }
@@ -166,6 +186,9 @@ function modeChangeState(
         ? "AI_STRATEGY"
         : "RULE_BASED",
     strategyType: nextStrategy,
+    assetSymbol: isSpyOnlySelection(nextMode, nextStrategy)
+      ? DEFAULT_ASSET_SYMBOL
+      : current.assetSymbol,
     aiDecisionPattern: "SINGLE_AGENT",
     movingAverageWindow:
       nextStrategy === "MOVING_AVERAGE" ? current.movingAverageWindow || "3" : "",
@@ -260,6 +283,14 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
     state.strategyType,
     optionsQuery.data?.tradingFrequencies ?? [],
   );
+  const availableAssets = assetsForSelection(
+    state.mode,
+    state.strategyType,
+    optionsQuery.data?.assets ?? [DEFAULT_ASSET_SYMBOL],
+  );
+  const assetSelectValue = availableAssets.includes(state.assetSymbol)
+    ? state.assetSymbol
+    : DEFAULT_ASSET_SYMBOL;
 
   const riskConfig = useMemo(
     () => ({
@@ -312,6 +343,9 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
         movingAverageWindow:
           nextStrategy === "MOVING_AVERAGE" ? current.movingAverageWindow || "3" : "",
         tradingFrequency: defaultFrequencyFor(nextStrategy),
+        assetSymbol: isSpyOnlySelection(current.mode, nextStrategy)
+          ? DEFAULT_ASSET_SYMBOL
+          : current.assetSymbol,
       };
     });
   };
@@ -324,6 +358,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       aiDecisionPattern: "SINGLE_AGENT",
       movingAverageWindow: "",
       tradingFrequency: "DAILY",
+      assetSymbol: current.assetSymbol,
       agentMode: agentModeForPattern("SINGLE_AGENT"),
       modelName: current.modelName || defaultScadsaiModel,
       confidenceThreshold:
@@ -341,7 +376,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
       name: state.name.trim(),
       mode: state.mode,
       strategyType: state.strategyType,
-      assetSymbol: state.assetSymbol,
+      assetSymbol: assetSelectValue,
       initialCapital: Number(state.initialCapital),
       startDate: state.startDate,
       endDate: state.endDate,
@@ -386,7 +421,7 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
         </div>
         <div>
           <span className="summary-label">Asset</span>
-          <strong>{state.assetSymbol}</strong>
+          <strong>{assetSelectValue}</strong>
         </div>
       </div>
 
@@ -481,6 +516,9 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
                   movingAverageWindow:
                     nextStrategy === "MOVING_AVERAGE" ? "3" : "",
                   tradingFrequency: defaultFrequencyFor(nextStrategy),
+                  assetSymbol: isSpyOnlySelection(current.mode, nextStrategy)
+                    ? DEFAULT_ASSET_SYMBOL
+                    : current.assetSymbol,
                   mode:
                     nextStrategy === "PAPER_TRADING_SMOKE_TEST"
                       ? "PAPER_TRADING"
@@ -566,15 +604,26 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
         <label>
           Asset
           <select
-            value={state.assetSymbol}
+            disabled={availableAssets.length === 1}
+            value={assetSelectValue}
             onChange={(event) => update("assetSymbol", event.target.value)}
           >
-            {optionsQuery.data.assets.map((asset) => (
+            {availableAssets.map((asset) => (
               <option key={asset} value={asset}>
                 {asset}
               </option>
             ))}
           </select>
+          {availableAssets.length === 1 ? (
+            <small>
+              This mode/strategy currently supports {DEFAULT_ASSET_SYMBOL} only.
+            </small>
+          ) : (
+            <small>
+              Paper Buy-and-Hold, Moving Average, and AI strategies support the
+              configured US large-cap allowlist.
+            </small>
+          )}
         </label>
         <label>
           Initial Capital

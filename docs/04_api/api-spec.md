@@ -435,9 +435,9 @@ Triggers one manual execution step. In the current implementation this supports:
 
 - `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY`
 - `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY`
-- `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
-- `MOVING_AVERAGE` + `PAPER_TRADING` + `DAILY` + `SPY`, only when Alpaca paper trading is explicitly enabled
-- `AGENTIC_AI` + `PAPER_TRADING` + (`SINGLE_AGENT` or `PIPELINE`) + (`DAILY` or `HOURLY`) + `SPY`, only when Alpaca paper trading and ScaDS.AI are explicitly enabled
+- `BUY_AND_HOLD` + `PAPER_TRADING` + `DAILY` for the supported paper-trading equity allowlist, only when Alpaca paper trading is explicitly enabled
+- `MOVING_AVERAGE` + `PAPER_TRADING` + `DAILY` for the supported paper-trading equity allowlist, only when Alpaca paper trading is explicitly enabled
+- `AGENTIC_AI` + `PAPER_TRADING` + (`SINGLE_AGENT` or `PIPELINE`) + (`DAILY` or `HOURLY`) for the supported paper-trading equity allowlist, only when Alpaca paper trading and ScaDS.AI are explicitly enabled
 
 `PAPER_TRADING_SMOKE_TEST` and paper-trading Opening Range Breakout are
 scheduled-only. Manual `run-next-step` is rejected for those experiments.
@@ -655,9 +655,10 @@ Example reason codes include `PAPER_TRADING_SCHEDULER_DISABLED`,
 report `WAITING_FOR_COMPLETED_HOURLY_BAR` or
 `CURRENT_HOURLY_SLOT_ALREADY_EXECUTED`.
 
-Scheduled paper trading supports `BUY_AND_HOLD` + `DAILY` + `SPY`,
-`MOVING_AVERAGE` + `DAILY` + `SPY`, `AGENTIC_AI` with `SINGLE_AGENT` or
-`PIPELINE` on `DAILY` or `HOURLY` cadence for `SPY`, and
+Scheduled paper trading supports `BUY_AND_HOLD` + `DAILY`,
+`MOVING_AVERAGE` + `DAILY`, and `AGENTIC_AI` with `SINGLE_AGENT` or
+`PIPELINE` on `DAILY` or `HOURLY` cadence for the supported paper-trading
+equity allowlist, plus
 `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average and
 Agentic-AI manual `run-next-step` are supported for debugging. ORB paper
 trading is scheduled-only and skips before step creation if the expected
@@ -701,7 +702,7 @@ Returns frontend-selectable enum values and supported options.
 
 ```json
 {
-  "assets": ["SPY"],
+  "assets": ["SPY", "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"],
   "modes": ["HISTORICAL_SIMULATION", "PAPER_TRADING"],
   "strategies": ["BUY_AND_HOLD", "MOVING_AVERAGE", "AGENTIC_AI", "OPENING_RANGE_BREAKOUT"],
   "experimentStatuses": ["CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED", "FAILED"],

@@ -21,10 +21,12 @@ class BuyAndHoldStrategy:
             return StrategyDecision(
                 action=TradeAction.BUY,
                 symbol=symbol,
-                reason="No current SPY position exists; buy and hold enters once.",
+                reason=(
+                    f"No current {symbol} position exists; buy and hold enters once."
+                ),
             )
         return StrategyDecision(
             action=TradeAction.HOLD,
             symbol=symbol,
-            reason="Existing SPY position is already held.",
+            reason=f"Existing {symbol} position is already held.",
         )

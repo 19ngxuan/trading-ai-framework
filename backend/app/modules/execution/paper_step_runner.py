@@ -13,6 +13,8 @@ from app.core.errors import (
     InvalidStatusAppError,
     NotFoundAppError,
 )
+from app.domain.assets import SPY_SYMBOL
+from app.domain.assets import is_supported_equity_symbol
 from app.domain.enums import (
     AgentMode,
     DecisionSourceType,
@@ -282,10 +284,10 @@ class PaperTradingStepRunner:
                 )
             if not self._is_supported_experiment(experiment, trigger_type):
                 raise InvalidExperimentConfigurationAppError(
-                    "Paper trading supports only SPY Buy-and-Hold daily, Moving "
-                    "Average daily, Agentic AI daily/hourly, scheduled Opening "
-                    "Range Breakout intraday, or scheduled smoke-test experiments "
-                    "when test mode is enabled.",
+                    "Paper trading supports configured equity symbols for "
+                    "Buy-and-Hold daily, Moving Average daily, and Agentic AI "
+                    "daily/hourly; Opening Range Breakout and smoke-test remain "
+                    "SPY-only.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,
@@ -346,35 +348,37 @@ class PaperTradingStepRunner:
     def _is_supported_experiment(self, experiment, trigger_type: TriggerType) -> bool:
         if experiment.mode is not ExperimentMode.PAPER_TRADING:
             return False
-        if experiment.asset_symbol != "SPY":
-            return False
         if (
             experiment.strategy_type is StrategyType.BUY_AND_HOLD
             and experiment.trading_frequency is TradingFrequency.DAILY
         ):
-            return True
+            return is_supported_equity_symbol(experiment.asset_symbol)
         if (
             experiment.strategy_type is StrategyType.MOVING_AVERAGE
             and experiment.trading_frequency is TradingFrequency.DAILY
         ):
-            return True
+            return is_supported_equity_symbol(experiment.asset_symbol)
         if (
             experiment.strategy_type is StrategyType.AGENTIC_AI
             and experiment.trading_frequency
             in {TradingFrequency.DAILY, TradingFrequency.HOURLY}
         ):
-            return True
+            return is_supported_equity_symbol(experiment.asset_symbol)
         if (
             experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
             and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
         ):
-            return trigger_type is TriggerType.SCHEDULED
+            return (
+                experiment.asset_symbol == SPY_SYMBOL
+                and trigger_type is TriggerType.SCHEDULED
+            )
         if experiment.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST:
             return False
         return (
             self.settings.paper_trading_test_mode_enabled
             and trigger_type is TriggerType.SCHEDULED
             and experiment.trading_frequency is TradingFrequency.TEST_1_MIN
+            and experiment.asset_symbol == SPY_SYMBOL
         )
 
     def _run_step_artifacts(
@@ -412,7 +416,6 @@ class PaperTradingStepRunner:
         execution_step_id: int,
         broker_adapter: BrokerAdapter,
     ) -> PaperStepFailure | None:
-        bar = self.market_data_provider.get_latest_bar("SPY")
         with self.session_factory() as session:
             now = _utcnow()
             experiment = ExperimentRepository(session).get_by_id(experiment_id)
@@ -428,6 +431,8 @@ class PaperTradingStepRunner:
                 or execution_step is None
             ):
                 raise RuntimeError(f"Experiment {experiment_id} is missing state.")
+            symbol = experiment.asset_symbol
+            bar = self.market_data_provider.get_latest_bar(symbol)
 
             moving_average = self._moving_average_for_step(experiment, strategy_config, bar)
             market_data = MarketDataSnapshotRepository(session).add(
@@ -435,7 +440,7 @@ class PaperTradingStepRunner:
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
                     timestamp=now,
-                    symbol="SPY",
+                    symbol=symbol,
                     price=bar.adjusted_close,
                     open=bar.open,
                     high=bar.high,
@@ -453,6 +458,7 @@ class PaperTradingStepRunner:
             strategy_decision = self._decide(
                 experiment.strategy_type,
                 portfolio,
+                symbol=symbol,
                 price=bar.adjusted_close,
                 moving_average=moving_average,
                 moving_average_window=(
@@ -524,6 +530,7 @@ class PaperTradingStepRunner:
                     risk_result=risk_result,
                     risk_check_id=risk_check_id,
                     price=bar.adjusted_close,
+                    symbol=symbol,
                 )
 
             self._persist_snapshot_and_metrics(
@@ -555,7 +562,7 @@ class PaperTradingStepRunner:
         bars = self.intraday_provider.load_session_until(
             scheduled_for.date(),
             scheduled_for,
-            symbol="SPY",
+            symbol=SPY_SYMBOL,
             frequency=TradingFrequency.INTRADAY_5_MIN,
         )
         bar = bars[-1]
@@ -582,7 +589,7 @@ class PaperTradingStepRunner:
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
                     timestamp=bar.timestamp,
-                    symbol="SPY",
+                    symbol=SPY_SYMBOL,
                     price=bar.close,
                     open=bar.open,
                     high=bar.high,
@@ -598,7 +605,7 @@ class PaperTradingStepRunner:
             session.flush()
 
             strategy_decision = self.orb_strategy.decide(
-                symbol="SPY",
+                symbol=SPY_SYMBOL,
                 close=bar.close,
                 position_quantity=portfolio.position_quantity,
                 state=state,
@@ -653,6 +660,7 @@ class PaperTradingStepRunner:
                     risk_result=risk_result,
                     risk_check_id=risk_check_id,
                     price=bar.close,
+                    symbol=SPY_SYMBOL,
                 )
 
             self._persist_snapshot_and_metrics(
@@ -694,6 +702,7 @@ class PaperTradingStepRunner:
 
             selected_model = strategy_config.model_name or self.settings.scadsai_default_model
             agent_mode = strategy_config.agent_mode or AgentMode.SINGLE_AGENT
+            symbol = experiment.asset_symbol
             bar = self._agent_market_bar(experiment, execution_step)
             agent_strategy = self._paper_agent_strategy(selected_model, agent_mode)
             market_data = MarketDataSnapshotRepository(session).add(
@@ -701,7 +710,7 @@ class PaperTradingStepRunner:
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
                     timestamp=bar.timestamp or now,
-                    symbol="SPY",
+                    symbol=symbol,
                     price=bar.adjusted_close,
                     open=bar.open,
                     high=bar.high,
@@ -719,7 +728,7 @@ class PaperTradingStepRunner:
             agent_context = AgentContext(
                 experiment_id=experiment_id,
                 execution_step_id=execution_step_id,
-                symbol="SPY",
+                symbol=symbol,
                 bar=bar,
                 cash=portfolio.cash,
                 position_quantity=portfolio.position_quantity,
@@ -806,6 +815,7 @@ class PaperTradingStepRunner:
                     risk_result=risk_result,
                     risk_check_id=risk_check_id,
                     price=bar.adjusted_close,
+                    symbol=symbol,
                 )
 
             self._persist_snapshot_and_metrics(
@@ -828,25 +838,26 @@ class PaperTradingStepRunner:
         strategy_type: StrategyType,
         portfolio: PortfolioModel,
         *,
+        symbol: str,
         price: Decimal,
         moving_average: Decimal | None,
         moving_average_window: int,
     ):
         if strategy_type is StrategyType.PAPER_TRADING_SMOKE_TEST:
             return self.smoke_test_strategy.decide(
-                symbol="SPY",
+                symbol=SPY_SYMBOL,
                 position_quantity=portfolio.position_quantity,
             )
         if strategy_type is StrategyType.MOVING_AVERAGE:
             return self.moving_average_strategy.decide(
-                symbol="SPY",
+                symbol=symbol,
                 price=price,
                 moving_average=moving_average,
                 position_quantity=portfolio.position_quantity,
                 window=moving_average_window,
             )
         return self.buy_and_hold_strategy.decide(
-            symbol="SPY",
+            symbol=symbol,
             position_quantity=portfolio.position_quantity,
         )
 
@@ -872,10 +883,10 @@ class PaperTradingStepRunner:
         execution_step: ExecutionStepModel,
     ):
         if experiment.trading_frequency is TradingFrequency.HOURLY:
-            return self._load_hourly_agent_bar(execution_step)
-        return self.market_data_provider.get_latest_bar("SPY")
+            return self._load_hourly_agent_bar(experiment.asset_symbol, execution_step)
+        return self.market_data_provider.get_latest_bar(experiment.asset_symbol)
 
-    def _load_hourly_agent_bar(self, execution_step: ExecutionStepModel):
+    def _load_hourly_agent_bar(self, symbol: str, execution_step: ExecutionStepModel):
         scheduled_for = execution_step.scheduled_for or _utcnow()
         local_slot = scheduled_for.replace(tzinfo=timezone.utc).astimezone(NEW_YORK_TZ)
         sessions = UsEquitiesTradingCalendar().sessions_between(
@@ -891,13 +902,13 @@ class PaperTradingStepRunner:
         bars = self.intraday_provider.load_session_until(
             local_slot.date(),
             local_slot.replace(tzinfo=None) + timedelta(minutes=55),
-            symbol="SPY",
+            symbol=symbol,
         )
         return aggregate_hourly_bar(
             session=session,
             bars=bars,
             window_start=local_slot.replace(tzinfo=None),
-            symbol="SPY",
+            symbol=symbol,
         )
 
     def _source_name(self, strategy_type: StrategyType) -> str:
@@ -952,7 +963,7 @@ class PaperTradingStepRunner:
         bars = self.market_data_provider.load_range(
             lookback_start,
             latest_bar.date,
-            symbol="SPY",
+            symbol=experiment.asset_symbol,
             frequency=TradingFrequency.DAILY,
         )
         eligible = sorted(
@@ -1062,6 +1073,7 @@ class PaperTradingStepRunner:
         risk_result: RiskResult,
         risk_check_id: int,
         price: Decimal,
+        symbol: str,
     ) -> PaperStepFailure | None:
         with self.session_factory() as session:
             now = _utcnow()
@@ -1078,6 +1090,7 @@ class PaperTradingStepRunner:
                 experiment_id=experiment_id,
                 execution_step_id=execution_step_id,
                 risk_check_id=risk_check_id,
+                symbol=symbol,
                 timestamp=now,
                 now=now,
             )

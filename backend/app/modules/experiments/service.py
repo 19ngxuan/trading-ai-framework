@@ -19,6 +19,8 @@ from app.api.schemas.experiment_schemas import (
 from app.api.schemas.metrics_schemas import MetricSnapshotResponse, TradeSummaryResponse
 from app.api.schemas.options_schemas import OptionsResponse
 from app.core.errors import InvalidExperimentConfigurationAppError, NotFoundAppError
+from app.domain.assets import SUPPORTED_EQUITY_SYMBOLS
+from app.domain.assets import normalize_symbol
 from app.domain.enums import (
     AgentMode,
     EventLevel,
@@ -159,7 +161,7 @@ class ExperimentService:
             name=request.name,
             mode=request.mode,
             strategy_type=request.strategy_type,
-            asset_symbol=request.asset_symbol,
+            asset_symbol=normalize_symbol(request.asset_symbol),
             status=ExperimentStatus.CREATED,
             initial_capital=request.initial_capital,
             start_date=request.start_date,
@@ -462,7 +464,7 @@ class ExperimentService:
                 if frequency is not TradingFrequency.TEST_1_MIN
             ]
         return OptionsResponse(
-            assets=["SPY"],
+            assets=list(SUPPORTED_EQUITY_SYMBOLS),
             modes=list(ExperimentMode),
             strategies=strategies,
             experimentStatuses=list(ExperimentStatus),

@@ -5,6 +5,9 @@ from typing import Any
 import httpx
 
 from app.domain.enums import TradingFrequency
+from app.domain.assets import SPY_SYMBOL
+from app.domain.assets import is_supported_equity_symbol
+from app.domain.assets import normalize_symbol
 from app.modules.market_data.errors import (
     MarketDataProviderError,
     MarketDataUnavailableError,
@@ -21,9 +24,6 @@ from app.modules.market_data.trading_calendar import (
     TradingCalendar,
     UsEquitiesTradingCalendar,
 )
-
-SUPPORTED_SYMBOL = "SPY"
-
 
 class AlpacaIntradayMarketDataProvider:
     def __init__(
@@ -51,9 +51,10 @@ class AlpacaIntradayMarketDataProvider:
         self,
         start_date: date,
         end_date: date,
-        symbol: str = SUPPORTED_SYMBOL,
+        symbol: str = SPY_SYMBOL,
         frequency: TradingFrequency = TradingFrequency.INTRADAY_5_MIN,
     ) -> list[IntradayBar]:
+        symbol = normalize_symbol(symbol)
         self._validate_request(symbol, frequency)
         if start_date > end_date:
             raise MarketDataProviderError(
@@ -107,9 +108,10 @@ class AlpacaIntradayMarketDataProvider:
         self,
         session_date: date,
         through_timestamp: datetime,
-        symbol: str = SUPPORTED_SYMBOL,
+        symbol: str = SPY_SYMBOL,
         frequency: TradingFrequency = TradingFrequency.INTRADAY_5_MIN,
     ) -> list[IntradayBar]:
+        symbol = normalize_symbol(symbol)
         self._validate_request(symbol, frequency)
         sessions = self.trading_calendar.sessions_between(session_date, session_date)
         if not sessions:
@@ -294,9 +296,9 @@ class AlpacaIntradayMarketDataProvider:
     def _validate_request(
         self, symbol: str, frequency: TradingFrequency
     ) -> None:
-        if symbol != SUPPORTED_SYMBOL:
+        if not is_supported_equity_symbol(symbol):
             raise MarketDataProviderError(
-                "Alpaca intraday market data provider supports SPY only.",
+                "Alpaca intraday market data provider supports configured equity symbols only.",
                 details={"symbol": symbol},
             )
         if frequency is not TradingFrequency.INTRADAY_5_MIN:

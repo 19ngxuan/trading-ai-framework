@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
+from app.domain.assets import SUPPORTED_EQUITY_SYMBOLS
 from app.main import create_app
 
 
@@ -20,7 +21,7 @@ def test_options_endpoint_returns_documented_enums(monkeypatch) -> None:
     assert response.status_code == 200
 
     body = response.json()
-    assert body["assets"] == ["SPY"]
+    assert body["assets"] == list(SUPPORTED_EQUITY_SYMBOLS)
     assert "HISTORICAL_SIMULATION" in body["modes"]
     assert "PAPER_TRADING" in body["modes"]
     assert "AGENTIC_AI" in body["strategies"]

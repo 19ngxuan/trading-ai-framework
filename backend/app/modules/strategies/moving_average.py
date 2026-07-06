@@ -40,28 +40,30 @@ class MovingAverageStrategy:
             return MovingAverageDecision(
                 action=TradeAction.BUY,
                 symbol=symbol,
-                reason="SPY price is above moving average and no position exists.",
+                reason=f"{symbol} price is above moving average and no position exists.",
             )
         if price > moving_average and has_position:
             return MovingAverageDecision(
                 action=TradeAction.HOLD,
                 symbol=symbol,
-                reason="SPY price is above moving average and position already exists.",
+                reason=(
+                    f"{symbol} price is above moving average and position already exists."
+                ),
             )
         if price < moving_average and has_position:
             return MovingAverageDecision(
                 action=TradeAction.SELL,
                 symbol=symbol,
-                reason="SPY price is below moving average and position exists.",
+                reason=f"{symbol} price is below moving average and position exists.",
             )
         if price < moving_average:
             return MovingAverageDecision(
                 action=TradeAction.HOLD,
                 symbol=symbol,
-                reason="SPY price is below moving average and no position exists.",
+                reason=f"{symbol} price is below moving average and no position exists.",
             )
         return MovingAverageDecision(
             action=TradeAction.HOLD,
             symbol=symbol,
-            reason="SPY price is equal to moving average.",
+            reason=f"{symbol} price is equal to moving average.",
         )

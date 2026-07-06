@@ -1,5 +1,7 @@
 from sqlalchemy import func, select
 
+from app.domain.assets import SPY_SYMBOL
+from app.domain.assets import SUPPORTED_EQUITY_SYMBOLS
 from app.domain.enums import (
     AgentMode,
     ExperimentMode,
@@ -103,7 +105,7 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
                         )
                     )
                 ),
-                self.model.asset_symbol == "SPY",
+                self.model.asset_symbol.in_(SUPPORTED_EQUITY_SYMBOLS),
             )
             .order_by(self.model.id.asc())
         )
@@ -126,7 +128,7 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
                     | (StrategyConfigModel.agent_mode == AgentMode.SINGLE_AGENT)
                     | (StrategyConfigModel.agent_mode == AgentMode.PIPELINE)
                 ),
-                self.model.asset_symbol == "SPY",
+                self.model.asset_symbol.in_(SUPPORTED_EQUITY_SYMBOLS),
             )
             .order_by(self.model.id.asc())
         )
@@ -140,7 +142,7 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
                 self.model.mode == ExperimentMode.PAPER_TRADING,
                 self.model.trading_frequency == TradingFrequency.INTRADAY_5_MIN,
                 self.model.strategy_type == StrategyType.OPENING_RANGE_BREAKOUT,
-                self.model.asset_symbol == "SPY",
+                self.model.asset_symbol == SPY_SYMBOL,
             )
             .order_by(self.model.id.asc())
         )
@@ -154,7 +156,7 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
                 self.model.mode == ExperimentMode.PAPER_TRADING,
                 self.model.trading_frequency == TradingFrequency.TEST_1_MIN,
                 self.model.strategy_type == StrategyType.PAPER_TRADING_SMOKE_TEST,
-                self.model.asset_symbol == "SPY",
+                self.model.asset_symbol == SPY_SYMBOL,
             )
             .order_by(self.model.id.asc())
         )

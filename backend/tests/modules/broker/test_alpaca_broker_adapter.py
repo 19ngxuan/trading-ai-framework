@@ -22,7 +22,7 @@ def _order_payload(**overrides) -> dict:
     payload = {
         "id": "alpaca-order-1",
         "status": "filled",
-        "symbol": "SPY",
+        "symbol": "AAPL",
         "side": "buy",
         "qty": "10",
         "filled_qty": "10",
@@ -43,7 +43,7 @@ def test_place_order_uses_paper_endpoint_headers_and_payload() -> None:
         return httpx.Response(200, json=_order_payload())
 
     result = _adapter(handler).place_order(
-        symbol="SPY",
+        symbol="AAPL",
         side=OrderSide.BUY,
         quantity=Decimal("10"),
         order_type=OrderType.MARKET,
@@ -57,7 +57,7 @@ def test_place_order_uses_paper_endpoint_headers_and_payload() -> None:
     assert seen_request.headers["APCA-API-SECRET-KEY"] == "secret"
     request_json = json.loads(seen_request.content)
     assert request_json["client_order_id"] == "experiment-1-step-2-risk-3"
-    assert request_json["symbol"] == "SPY"
+    assert request_json["symbol"] == "AAPL"
     assert request_json["type"] == "market"
     assert request_json["time_in_force"] == "day"
     assert result.broker_order_id == "alpaca-order-1"
@@ -108,7 +108,7 @@ def test_get_order_status_maps_response() -> None:
     result = _adapter(handler).get_order_status("alpaca-order-1")
 
     assert result.status == "accepted"
-    assert result.symbol == "SPY"
+    assert result.symbol == "AAPL"
 
 
 @pytest.mark.parametrize("status_code", [401, 403, 429, 500])

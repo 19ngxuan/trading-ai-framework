@@ -4,15 +4,15 @@ from typing import Any
 import httpx
 
 from app.domain.enums import TradingFrequency
+from app.domain.assets import SPY_SYMBOL
+from app.domain.assets import is_supported_equity_symbol
+from app.domain.assets import normalize_symbol
 from app.modules.market_data.errors import (
     MarketDataProviderError,
     MarketDataUnavailableError,
 )
 from app.modules.market_data.mapper import alpaca_bar_to_daily_bar
 from app.modules.market_data.provider import DailyBar
-
-SUPPORTED_SYMBOL = "SPY"
-
 
 class AlpacaMarketDataProvider:
     def __init__(
@@ -38,9 +38,10 @@ class AlpacaMarketDataProvider:
         self,
         start_date: date,
         end_date: date,
-        symbol: str = SUPPORTED_SYMBOL,
+        symbol: str = SPY_SYMBOL,
         frequency: TradingFrequency = TradingFrequency.DAILY,
     ) -> list[DailyBar]:
+        symbol = normalize_symbol(symbol)
         self._validate_request(symbol, frequency)
         response = self._get(
             f"/v2/stocks/{symbol}/bars",
@@ -81,7 +82,8 @@ class AlpacaMarketDataProvider:
         self._validate_bars(bars, start_date, end_date, symbol)
         return sorted(bars, key=lambda bar: bar.date)
 
-    def get_latest_bar(self, symbol: str = SUPPORTED_SYMBOL) -> DailyBar:
+    def get_latest_bar(self, symbol: str = SPY_SYMBOL) -> DailyBar:
+        symbol = normalize_symbol(symbol)
         self._validate_request(symbol, TradingFrequency.DAILY)
         response = self._get(
             "/v2/stocks/bars/latest",
@@ -147,9 +149,9 @@ class AlpacaMarketDataProvider:
     def _validate_request(
         self, symbol: str, frequency: TradingFrequency
     ) -> None:
-        if symbol != SUPPORTED_SYMBOL:
+        if not is_supported_equity_symbol(symbol):
             raise MarketDataProviderError(
-                "Alpaca market data provider supports SPY only.",
+                "Alpaca market data provider supports configured equity symbols only.",
                 details={"symbol": symbol},
             )
         if frequency is not TradingFrequency.DAILY:

@@ -53,10 +53,14 @@ def test_alpaca_provider_maps_historical_response_and_request() -> None:
             },
         )
 
-    rows = _provider(handler).load_range(date(2024, 1, 2), date(2024, 1, 3))
+    rows = _provider(handler).load_range(
+        date(2024, 1, 2),
+        date(2024, 1, 3),
+        symbol="AAPL",
+    )
 
     assert seen_request is not None
-    assert seen_request.url.path == "/v2/stocks/SPY/bars"
+    assert seen_request.url.path == "/v2/stocks/AAPL/bars"
     assert seen_request.headers["APCA-API-KEY-ID"] == "key"
     assert seen_request.headers["APCA-API-SECRET-KEY"] == "secret"
     params = dict(seen_request.url.params)
@@ -77,12 +81,12 @@ def test_alpaca_provider_maps_historical_response_and_request() -> None:
 def test_alpaca_provider_maps_latest_bar() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v2/stocks/bars/latest"
-        assert dict(request.url.params)["symbols"] == "SPY"
+        assert dict(request.url.params)["symbols"] == "MSFT"
         return httpx.Response(
             200,
             json={
                 "bars": {
-                    "SPY": {
+                    "MSFT": {
                         "t": "2024-01-05T05:00:00Z",
                         "o": "473.00",
                         "h": "475.00",
@@ -94,7 +98,7 @@ def test_alpaca_provider_maps_latest_bar() -> None:
             },
         )
 
-    row = _provider(handler).get_latest_bar()
+    row = _provider(handler).get_latest_bar("MSFT")
 
     assert row.date == date(2024, 1, 5)
     assert row.adjusted_close == Decimal("474.00")

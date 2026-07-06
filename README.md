@@ -1,6 +1,6 @@
 # Trading Lab
 
-Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and paper trading.
+Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and curated US large-cap paper trading.
 
 This repository currently contains the M0-M24 backend/frontend foundation:
 
@@ -19,7 +19,7 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
-- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` SPY experiments, manual/scheduled `MOVING_AVERAGE` daily SPY paper experiments, scheduled `OPENING_RANGE_BREAKOUT` 5-minute SPY paper experiments, scheduled smoke-test diagnostics, and `AGENTIC_AI` paper experiments with `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is explicitly enabled
+- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`, and `AGENTIC_AI` + `DAILY`/`HOURLY` experiments on a curated allowlist (`SPY`, `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `TSLA`); Opening Range Breakout and smoke-test diagnostics remain SPY-only
 - Deterministic fake single-agent and pipeline-agent implementations retained for internal regression coverage
 - Optional ScaDS.AI provider for paper-trading `AGENTIC_AI`
 - RiskCheck-controlled whole-share execution sizing
@@ -113,12 +113,13 @@ historical Buy-and-Hold or Moving Average experiment by one step per tick.
 Paper trading uses a separate disabled-by-default scheduler. When
 `PAPER_TRADING_SCHEDULER_ENABLED=true` and Alpaca paper trading is enabled, the
 paper scheduler evaluates eligible running daily `BUY_AND_HOLD`,
-`MOVING_AVERAGE`, and `AGENTIC_AI` SPY paper experiments at or after
+`MOVING_AVERAGE`, and `AGENTIC_AI` paper experiments for the supported equity
+allowlist at or after
 `PAPER_TRADING_DAILY_EVALUATION_TIME` in America/New_York. It also evaluates
-eligible hourly `AGENTIC_AI` SPY paper experiments on completed regular-session
-hourly bars, and it evaluates
-scheduled `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY` paper experiments
-on completed regular-session 5-minute bars. A separate broker-sync job continues polling submitted
+eligible hourly `AGENTIC_AI` paper experiments for the same allowlist on completed regular-session
+hourly bars, and it evaluates scheduled `OPENING_RANGE_BREAKOUT` +
+`INTRADAY_5_MIN` + `SPY` paper experiments on completed regular-session
+5-minute bars. A separate broker-sync job continues polling submitted
 paper orders until terminal broker status, including for paused or stopped
 experiments. Scheduler-enabled mode assumes a single backend instance. In
 multi-instance deployments, enable scheduler jobs on at most one backend
@@ -154,9 +155,11 @@ the same provider selection: local `spy_5min.csv` when `csv`, or Alpaca
 historical `5Min` SPY bars when `alpaca`.
 
 Paper trading is disabled by default and only accepts the Alpaca paper trading
-base URL. It supports SPY Buy-and-Hold daily paper trading, SPY Moving Average
-daily paper trading, scheduled SPY Opening Range Breakout 5-minute paper
-trading, gated smoke-test diagnostics, and SPY Agentic-AI paper trading with
+base URL. It supports Buy-and-Hold daily, Moving Average daily, and Agentic-AI
+daily/hourly paper trading for the curated equity allowlist: `SPY`, `AAPL`,
+`MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, and `TSLA`. Scheduled Opening Range
+Breakout 5-minute paper trading and gated smoke-test diagnostics remain
+`SPY`-only. Agentic-AI paper trading supports
 `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is
 enabled. Manual `run-next-step` remains supported for Buy-and-Hold, Moving
 Average, and Agentic-AI paper debugging. Opening Range Breakout paper trading
@@ -183,8 +186,9 @@ These views are audit/inspection surfaces only; they do not submit, cancel,
 retry, or sync broker orders on demand.
 
 Frontend and create-time validation treat Agentic AI as paper-trading only.
-User-createable `AGENTIC_AI` experiments support `PAPER_TRADING` + `SPY` with
-`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence. ScaDS.AI is used
+User-createable `AGENTIC_AI` experiments support `PAPER_TRADING` with
+`SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence for the supported
+paper-trading equity allowlist. ScaDS.AI is used
 only when `SCADSAI_LLM_ENABLED=true`, `SCADSAI_API_KEY` is configured, and the
 selected model is listed in `SCADSAI_ALLOWED_MODELS`. Internal deterministic
 fake-agent implementations remain in the codebase for regression coverage, but
@@ -195,9 +199,9 @@ broker, market data, scheduler, persistence, or secrets remain out of scope.
 Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
 authoritative and determines the executable whole-share quantity from the
 current portfolio state. BUY uses available cash, SELL liquidates the existing
-long SPY position, and the system never opens short positions. If available cash
-cannot buy one whole share, the final action becomes HOLD with an auditable
-reason.
+long position for the experiment's configured symbol, and the system never
+opens short positions. If available cash cannot buy one whole share, the final
+action becomes HOLD with an auditable reason.
 
 ## Database Migrations
 
@@ -290,8 +294,8 @@ After migrations and local services are running:
 1. Create a `BUY_AND_HOLD` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
 2. Create a `MOVING_AVERAGE` + `HISTORICAL_SIMULATION` + `DAILY` experiment and start it.
 3. Create an `OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` experiment and start it.
-4. Create an `AGENTIC_AI` + `PAPER_TRADING` + `DAILY` + `SPY` experiment with `agentMode=SINGLE_AGENT`, verify `/start` stays lifecycle-only, then use `run-next-step` for debugging or wait for the paper scheduler.
-5. Create an `AGENTIC_AI` + `PAPER_TRADING` + `HOURLY` + `SPY` experiment with `agentMode=PIPELINE`, verify paper status shows hourly due metadata and that execution still persists `TradingDecision` then `RiskCheck` before any paper order.
+4. Create an `AGENTIC_AI` + `PAPER_TRADING` + `DAILY` experiment for `SPY` or another supported paper symbol with `agentMode=SINGLE_AGENT`, verify `/start` stays lifecycle-only, then use `run-next-step` for debugging or wait for the paper scheduler.
+5. Create an `AGENTIC_AI` + `PAPER_TRADING` + `HOURLY` experiment for `SPY` or another supported paper symbol with `agentMode=PIPELINE`, verify paper status shows hourly due metadata and that execution still persists `TradingDecision` then `RiskCheck` before any paper order.
 6. Verify metrics and portfolio snapshot charts on experiment detail.
 7. Open `/compare`, select at least two experiments, and compare persisted metrics.
 8. Open `/events` and verify lifecycle/system events are visible.
@@ -307,7 +311,7 @@ After migrations and local services are running:
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Historical scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.
 - Historical Opening Range Breakout runs through `/start` full-run only; manual `run-next-step` and historical scheduler-triggered ORB are deferred.
-- Paper trading supports only the SPY workflows listed above; European ETF/Xetra production support is not implemented.
+- Paper trading for Buy-and-Hold, Moving Average, and Agentic AI is limited to the curated US equity allowlist; Opening Range Breakout and smoke-test diagnostics remain SPY-only. European ETF/Xetra production support is not implemented.
 - Broker order-status polling exists for submitted paper orders. Full broker reconciliation, outbox processing, account sync, position sync, and automatic cancellation are deferred.
 - Internal deterministic fake-agent implementations remain for regression coverage, but historical Agentic AI is not exposed as a supported create-flow feature.
 - ScaDS.AI is used only for paper Agentic AI execution when explicitly enabled.
@@ -316,5 +320,3 @@ After migrations and local services are running:
 - Public execution-step and agent-log list/detail APIs are deferred. Orders,
   trades, broker sync logs, and paper status are available as read-only
   experiment-scoped operations endpoints.
-
-
