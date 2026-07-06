@@ -14,6 +14,11 @@ from app.persistence.repositories.market_data_repository import (
     MarketDataSnapshotRepository,
 )
 from app.persistence.repositories.metric_repository import MetricSnapshotRepository
+from app.persistence.repositories.news_event_repository import (
+    EventAssetImpactRepository,
+    EventDecisionRepository,
+    NewsEventRepository,
+)
 from app.persistence.repositories.order_repository import OrderRepository
 from app.persistence.repositories.portfolio_repository import PortfolioRepository
 from app.persistence.repositories.portfolio_snapshot_repository import (
@@ -33,9 +38,12 @@ __all__ = [
     "BaseRepository",
     "BrokerSyncLogRepository",
     "ExecutionStepRepository",
+    "EventAssetImpactRepository",
+    "EventDecisionRepository",
     "ExperimentRepository",
     "MarketDataSnapshotRepository",
     "MetricSnapshotRepository",
+    "NewsEventRepository",
     "OrderRepository",
     "PortfolioRepository",
     "PortfolioSnapshotRepository",

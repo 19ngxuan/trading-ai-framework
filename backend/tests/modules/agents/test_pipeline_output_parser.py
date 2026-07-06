@@ -19,7 +19,10 @@ def test_pipeline_parser_accepts_multi_agent_stage_outputs() -> None:
         '{"riskLevel": "MEDIUM", "confidence": 0.9, "summary": "Manageable risk."}'
     )
     decision = parser.parse_portfolio_decision(
-        '{"action": "BUY", "confidence": 0.7, "rationale": "Net positive setup."}'
+        '{"action": "BUY", "tradeIntent": "OPEN_LONG", '
+        '"targetExposurePct": 0.35, "confidence": 0.7, '
+        '"primaryDriver": "TECHNICAL", "newInformation": true, '
+        '"rationale": "Net positive setup."}'
     )
 
     assert fundamental.signal is MarketBias.BULLISH
@@ -46,11 +49,17 @@ def test_pipeline_parser_accepts_multi_agent_stage_outputs() -> None:
         ),
         (
             "parse_portfolio_decision",
-            '{"action": "WAIT", "confidence": 0.8, "rationale": "Bad."}',
+            '{"action": "WAIT", "tradeIntent": "OPEN_LONG", '
+            '"targetExposurePct": 0.4, "confidence": 0.8, '
+            '"primaryDriver": "TECHNICAL", "newInformation": true, '
+            '"rationale": "Bad."}',
         ),
         (
             "parse_portfolio_decision",
-            '{"action": "HOLD", "confidence": 0.8, "rationale": ""}',
+            '{"action": "HOLD", "tradeIntent": "STAY_OUT", '
+            '"targetExposurePct": 0, "confidence": 0.8, '
+            '"primaryDriver": "PORTFOLIO", "newInformation": false, '
+            '"rationale": ""}',
         ),
     ],
 )

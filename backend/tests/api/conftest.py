@@ -61,7 +61,9 @@ def clean_tables(migrated_database: str) -> Generator[None, None, None]:
     with engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE system_event_logs, portfolios, strategy_configs, experiments RESTART IDENTITY CASCADE"
+                "TRUNCATE TABLE event_decisions, event_asset_impacts, news_events, "
+                "system_event_logs, portfolios, strategy_configs, experiments "
+                "RESTART IDENTITY CASCADE"
             )
         )
     engine.dispose()

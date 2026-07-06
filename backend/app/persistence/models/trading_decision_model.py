@@ -2,13 +2,18 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.enums import DecisionSourceType, TradeAction
+from app.domain.enums import DecisionSourceType, PrimaryDriver, TradeAction, TradeIntent
 from app.persistence.database import Base
-from app.persistence.models.types import decision_source_type_enum, trade_action_enum
+from app.persistence.models.types import (
+    decision_source_type_enum,
+    primary_driver_enum,
+    trade_action_enum,
+    trade_intent_enum,
+)
 
 
 class TradingDecisionModel(Base):
@@ -33,6 +38,10 @@ class TradingDecisionModel(Base):
     suggested_quantity: Mapped[Decimal | None] = mapped_column(Numeric(19, 8))
     suggested_notional: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    trade_intent: Mapped[TradeIntent | None] = mapped_column(trade_intent_enum)
+    target_exposure_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 6))
+    primary_driver: Mapped[PrimaryDriver | None] = mapped_column(primary_driver_enum)
+    new_information: Mapped[bool | None] = mapped_column(Boolean)
     reason: Mapped[str | None] = mapped_column(Text)
     raw_decision_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -45,4 +54,6 @@ class TradingDecisionModel(Base):
         ),
         Index("ix_trading_decisions_source_type", "source_type"),
         Index("ix_trading_decisions_action", "action"),
+        Index("ix_trading_decisions_trade_intent", "trade_intent"),
+        Index("ix_trading_decisions_primary_driver", "primary_driver"),
     )

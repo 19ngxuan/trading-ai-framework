@@ -22,6 +22,8 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`, and `AGENTIC_AI` + `DAILY`/`HOURLY` experiments on a curated allowlist (`SPY`, `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `TSLA`); Opening Range Breakout and smoke-test diagnostics remain SPY-only
 - Deterministic fake single-agent and pipeline-agent implementations retained for internal regression coverage
 - Optional ScaDS.AI provider for paper-trading `AGENTIC_AI`
+- Optional disabled-by-default Alpaca News event scanner for event-triggered
+  `PAPER_TRADING` + `AGENTIC_AI` runs
 - RiskCheck-controlled whole-share execution sizing
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
@@ -106,6 +108,12 @@ PAPER_TRADING_SCHEDULER_INTERVAL_SECONDS=60
 PAPER_TRADING_SCHEDULER_JOB_ID=paper_trading_scheduler
 PAPER_TRADING_DAILY_EVALUATION_TIME=15:55
 PAPER_TRADING_TEST_MODE_ENABLED=false
+EVENT_SCANNER_ENABLED=false
+EVENT_SCANNER_INTERVAL_SECONDS=900
+EVENT_NEWS_PROVIDER=alpaca
+EVENT_LOOKBACK_MINUTES=30
+EVENT_RELEVANCE_THRESHOLD=0.65
+EVENT_NEWS_LIMIT=50
 ```
 
 When enabled, the in-process historical scheduler advances each eligible running
@@ -144,6 +152,12 @@ SCADSAI_BASE_URL=https://llm.scads.ai/v1
 SCADSAI_REQUEST_TIMEOUT_SECONDS=30
 SCADSAI_ALLOWED_MODELS=alias-ha,meta-llama/Llama-3.3-70B-Instruct,meta-llama/Llama-3.1-8B-Instruct,alias-reasoning,alias-huge,alias-huge-no-thinking,Qwen/Qwen3-VL-8B-Instruct,alias-vision,openGPT-X/Teuken-7B-instruct-v0.6,Qwen/Qwen3-Coder-30B-A3B-Instruct,alias-code,google/gemma-4-31B-it,openai/gpt-oss-120b,moonshotai/Kimi-K2.6,MiniMaxAI/MiniMax-M2.7
 SCADSAI_DEFAULT_MODEL=meta-llama/Llama-3.3-70B-Instruct
+EVENT_SCANNER_ENABLED=false
+EVENT_SCANNER_INTERVAL_SECONDS=900
+EVENT_NEWS_PROVIDER=alpaca
+EVENT_LOOKBACK_MINUTES=30
+EVENT_RELEVANCE_THRESHOLD=0.65
+EVENT_NEWS_LIMIT=50
 ```
 
 Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured.
@@ -197,11 +211,24 @@ editing, tool calling, ORB/intraday agent execution, and direct agent access to
 broker, market data, scheduler, persistence, or secrets remain out of scope.
 
 Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
-authoritative and determines the executable whole-share quantity from the
-current portfolio state. BUY uses available cash, SELL liquidates the existing
-long position for the experiment's configured symbol, and the system never
-opens short positions. If available cash cannot buy one whole share, the final
-action becomes HOLD with an auditable reason.
+authoritative. Rule-based strategies keep their existing sizing behavior.
+Agentic AI uses the V2 advisory schema: `action`, `tradeIntent`,
+`targetExposurePct`, `primaryDriver`, `newInformation`, `confidence`, and
+`rationale`. The decision gate converts unsafe or low-confidence outputs to
+HOLD before RiskCheck. RiskCheck then converts target exposure into final
+whole-share BUY/SELL quantities from the current portfolio state, never opens
+short positions, and never calls the broker before a persisted approved
+RiskCheck exists.
+
+Event-driven paper trading is disabled by default. When
+`EVENT_SCANNER_ENABLED=true`, the backend scans Alpaca News for symbols used by
+running `PAPER_TRADING` + `AGENTIC_AI` experiments, stores deduplicated
+`news_events`, evaluates deterministic symbol relevance, and triggers at most
+one `TriggerType.EVENT` paper run per `event_id + experiment_id`. The scanner
+does not run historical event backtests and does not expose submit/retry/cancel
+actions. Read-only endpoints are available at `/api/v1/news-events`,
+`/api/v1/news-events/{id}`, `/api/v1/experiments/{id}/news-events`, and
+`/api/v1/experiments/{id}/event-decisions`.
 
 ## Database Migrations
 

@@ -41,6 +41,7 @@ def test_agentic_ai_strategy_returns_agent_decision_without_side_effects() -> No
 
     result = AgenticAIStrategy().decide(context)
 
-    assert result.decision.action is TradeAction.SELL
+    assert result.decision.action is TradeAction.HOLD
     assert result.decision.symbol == "SPY"
+    assert result.decision.raw_decision_json["fallbackReason"] == "SELL_WITHOUT_POSITION"
     assert result.log_payload.input_json["symbol"] == "SPY"

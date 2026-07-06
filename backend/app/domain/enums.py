@@ -49,6 +49,7 @@ class TriggerType(str, Enum):
     HISTORICAL = "HISTORICAL"
     SCHEDULED = "SCHEDULED"
     MANUAL = "MANUAL"
+    EVENT = "EVENT"
 
 
 class DecisionSourceType(str, Enum):
@@ -60,6 +61,24 @@ class TradeAction(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"
+
+
+class TradeIntent(str, Enum):
+    OPEN_LONG = "OPEN_LONG"
+    ADD_TO_LONG = "ADD_TO_LONG"
+    HOLD_POSITION = "HOLD_POSITION"
+    REDUCE_LONG = "REDUCE_LONG"
+    CLOSE_LONG = "CLOSE_LONG"
+    STAY_OUT = "STAY_OUT"
+
+
+class PrimaryDriver(str, Enum):
+    TECHNICAL = "TECHNICAL"
+    FUNDAMENTAL = "FUNDAMENTAL"
+    SENTIMENT = "SENTIMENT"
+    RISK = "RISK"
+    PORTFOLIO = "PORTFOLIO"
+    EVENT_RISK = "EVENT_RISK"
 
 
 class FinalAction(str, Enum):
@@ -123,6 +142,42 @@ class BrokerSyncStatus(str, Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     MISMATCH = "MISMATCH"
+
+
+class NewsEventType(str, Enum):
+    GEOPOLITICAL_RISK = "GEOPOLITICAL_RISK"
+    FED_RATE_DECISION = "FED_RATE_DECISION"
+    INFLATION_CPI = "INFLATION_CPI"
+    EARNINGS_BEAT = "EARNINGS_BEAT"
+    EARNINGS_MISS = "EARNINGS_MISS"
+    GUIDANCE_CUT = "GUIDANCE_CUT"
+    ANALYST_UPGRADE = "ANALYST_UPGRADE"
+    ANALYST_DOWNGRADE = "ANALYST_DOWNGRADE"
+    LEGAL_REGULATORY_RISK = "LEGAL_REGULATORY_RISK"
+    M_AND_A = "M_AND_A"
+    PRODUCT_LAUNCH = "PRODUCT_LAUNCH"
+    SUPPLY_CHAIN_SHOCK = "SUPPLY_CHAIN_SHOCK"
+    CYBERSECURITY_INCIDENT = "CYBERSECURITY_INCIDENT"
+    CEO_CHANGE = "CEO_CHANGE"
+    GENERAL_MARKET_NEWS = "GENERAL_MARKET_NEWS"
+
+
+class NewsEventSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class ImpactDirection(str, Enum):
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
+    NEUTRAL = "NEUTRAL"
+
+
+class EventDecisionStatus(str, Enum):
+    TRIGGERED = "TRIGGERED"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
 
 
 class EventLevel(str, Enum):

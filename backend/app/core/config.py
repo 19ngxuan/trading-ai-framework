@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     scadsai_request_timeout_seconds: int = 30
     scadsai_allowed_models: str = "alias-ha,meta-llama/Llama-3.3-70B-Instruct,meta-llama/Llama-3.1-8B-Instruct,alias-reasoning,alias-huge,alias-huge-no-thinking,Qwen/Qwen3-VL-8B-Instruct,alias-vision,openGPT-X/Teuken-7B-instruct-v0.6,Qwen/Qwen3-Coder-30B-A3B-Instruct,alias-code,google/gemma-4-31B-it,openai/gpt-oss-120b,moonshotai/Kimi-K2.6,MiniMaxAI/MiniMax-M2.7"
     scadsai_default_model: str = "meta-llama/Llama-3.3-70B-Instruct"
+    event_scanner_enabled: bool = False
+    event_scanner_interval_seconds: int = 900
+    event_news_provider: str = "alpaca"
+    event_lookback_minutes: int = 30
+    event_relevance_threshold: float = 0.65
+    event_news_limit: int = 50
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -93,6 +99,24 @@ class Settings(BaseSettings):
         if self.scadsai_default_model not in self.scadsai_allowed_model_list:
             raise ValueError(
                 "SCADSAI_DEFAULT_MODEL must be included in SCADSAI_ALLOWED_MODELS."
+            )
+        if self.event_scanner_interval_seconds <= 0:
+            raise ValueError("EVENT_SCANNER_INTERVAL_SECONDS must be greater than 0.")
+        if self.event_news_provider != "alpaca":
+            raise ValueError("EVENT_NEWS_PROVIDER must be 'alpaca'.")
+        if self.event_lookback_minutes <= 0:
+            raise ValueError("EVENT_LOOKBACK_MINUTES must be greater than 0.")
+        if not 0 <= self.event_relevance_threshold <= 1:
+            raise ValueError(
+                "EVENT_RELEVANCE_THRESHOLD must be between 0 and 1."
+            )
+        if not 1 <= self.event_news_limit <= 50:
+            raise ValueError("EVENT_NEWS_LIMIT must be between 1 and 50.")
+        if self.event_scanner_enabled and (
+            not self.alpaca_api_key_id or not self.alpaca_api_secret_key
+        ):
+            raise ValueError(
+                "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required when EVENT_SCANNER_ENABLED=true."
             )
         return self
 

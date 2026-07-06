@@ -391,6 +391,14 @@ Before merging a database-related change, verify:
 - Audit chain is preserved.
 - RiskCheck still sits between TradingDecision and Order.
 
+Current V2 agent/event migration:
+
+- `0008_agentic_trading_v2_events`
+- adds `TriggerType.EVENT`
+- adds nullable Agentic Trading V2 fields to `trading_decisions`
+- adds `news_events`, `event_asset_impacts`, and `event_decisions`
+- does not alter rule-based strategy semantics
+
 ---
 
 ## 14. Critical Invariants
@@ -409,6 +417,8 @@ The database schema must preserve these invariants:
 10. Agent decision logs are tied to execution steps.
 11. Broker sync logs are tied to paper-trading execution steps.
 12. System events are tied to experiments and optionally execution steps.
+13. News events are deduplicated by provider and external event id.
+14. Event-triggered agent runs are deduplicated by event and experiment.
 
 These invariants support auditability and must not be weakened without an architecture review.
 

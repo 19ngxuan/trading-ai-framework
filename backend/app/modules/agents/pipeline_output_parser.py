@@ -2,7 +2,7 @@ import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from app.domain.enums import TradeAction
+from app.domain.enums import PrimaryDriver, TradeAction, TradeIntent
 from app.modules.agents.output_parser import AgentOutputParseError
 from app.modules.agents.pipeline_types import (
     FundamentalAnalysisOutput,
@@ -32,8 +32,21 @@ class PipelineOutputParser:
         action = self._parse_enum(payload.get("action"), TradeAction, "action")
         return ParsedAgentOutput(
             action=action,
+            trade_intent=self._parse_enum(
+                payload.get("tradeIntent"), TradeIntent, "tradeIntent"
+            ),
+            target_exposure_pct=self._parse_exposure(
+                payload.get("targetExposurePct")
+            ),
             confidence=self._parse_confidence(payload.get("confidence")),
+            primary_driver=self._parse_enum(
+                payload.get("primaryDriver"), PrimaryDriver, "primaryDriver"
+            ),
+            new_information=self._parse_bool(
+                payload.get("newInformation"), "newInformation"
+            ),
             rationale=self._parse_text(payload.get("rationale"), "rationale"),
+            event_id=self._parse_optional_text(payload.get("eventId"), "eventId"),
         )
 
     def parse_risk_manager(self, raw_output_text: str) -> RiskManagerOutput:
@@ -110,7 +123,32 @@ class PipelineOutputParser:
             raise AgentOutputParseError("Pipeline confidence must be between 0 and 1.")
         return confidence.quantize(Decimal("0.0001"))
 
+    def _parse_exposure(self, value: Any) -> Decimal:
+        try:
+            exposure = Decimal(str(value))
+        except (InvalidOperation, TypeError) as exc:
+            raise AgentOutputParseError(
+                "Pipeline targetExposurePct is required."
+            ) from exc
+        if exposure < 0 or exposure > 1:
+            raise AgentOutputParseError(
+                "Pipeline targetExposurePct must be between 0 and 1."
+            )
+        return exposure.quantize(Decimal("0.0001"))
+
+    def _parse_bool(self, value: Any, field_name: str) -> bool:
+        if not isinstance(value, bool):
+            raise AgentOutputParseError(f"Pipeline field {field_name} is required.")
+        return value
+
     def _parse_text(self, value: Any, field_name: str) -> str:
         if not isinstance(value, str) or not value.strip():
             raise AgentOutputParseError(f"Pipeline field {field_name} is required.")
+        return value.strip()
+
+    def _parse_optional_text(self, value: Any, field_name: str) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise AgentOutputParseError(f"Pipeline field {field_name} must be text.")
         return value.strip()

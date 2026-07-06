@@ -15,7 +15,7 @@ from app.modules.agents.research_providers import (
 from app.modules.agents.types import ParsedAgentOutput
 
 
-PIPELINE_PROMPT_VERSION = "multi-agent-graph-v1"
+PIPELINE_PROMPT_VERSION = "multi-agent-graph-v2-target-exposure"
 
 
 class PipelinePromptBuilder(PromptBuilder):
@@ -109,9 +109,13 @@ class PipelinePromptBuilder(PromptBuilder):
         return self._guarded_prompt(
             "PortfolioManagerAgent",
             (
-                "Return strict JSON with action BUY, SELL, or HOLD, confidence, and "
-                "rationale. You are advisory only; RiskCheck will make the final "
-                "execution determination."
+                "Return strict JSON with action BUY, SELL, or HOLD; tradeIntent "
+                "OPEN_LONG, ADD_TO_LONG, HOLD_POSITION, REDUCE_LONG, CLOSE_LONG, "
+                "or STAY_OUT; targetExposurePct between 0 and 1; confidence; "
+                "primaryDriver TECHNICAL, FUNDAMENTAL, SENTIMENT, RISK, PORTFOLIO, "
+                "or EVENT_RISK; newInformation boolean; rationale; optional eventId. "
+                "BUY increases exposure, SELL reduces exposure. You are advisory "
+                "only; RiskCheck will make the final execution determination."
             ),
             enriched,
         )
@@ -179,8 +183,13 @@ class PipelinePromptBuilder(PromptBuilder):
     def trading_decision_json(self, output: ParsedAgentOutput) -> dict[str, Any]:
         return {
             "action": output.action.value,
+            "tradeIntent": output.trade_intent.value,
+            "targetExposurePct": float(output.target_exposure_pct),
             "confidence": float(output.confidence),
+            "primaryDriver": output.primary_driver.value,
+            "newInformation": output.new_information,
             "rationale": output.rationale,
+            "eventId": output.event_id,
         }
 
     def fundamental_research_json(

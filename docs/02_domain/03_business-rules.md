@@ -363,6 +363,47 @@ environment, or secret APIs are out of scope.
 
 ---
 
+### BR-027B: Agentic Trading V2 target exposure output
+
+Single-agent and pipeline-agent paper decisions use the V2 advisory output
+schema:
+
+- `action`: `BUY`, `SELL`, or `HOLD`
+- `tradeIntent`: `OPEN_LONG`, `ADD_TO_LONG`, `HOLD_POSITION`, `REDUCE_LONG`,
+  `CLOSE_LONG`, or `STAY_OUT`
+- `targetExposurePct`: decimal between `0` and `1`
+- `primaryDriver`: `TECHNICAL`, `FUNDAMENTAL`, `SENTIMENT`, `RISK`,
+  `PORTFOLIO`, or `EVENT_RISK`
+- `newInformation`: boolean
+- `confidence`
+- `rationale`
+
+The agent output remains advisory. The decision gate may convert unsafe,
+low-confidence, stale, or internally inconsistent outputs to HOLD before
+RiskCheck. RiskCheck converts target exposure into final whole-share BUY/SELL
+quantities and remains authoritative.
+
+---
+
+### BR-027C: Event-driven agent paper trading
+
+Event-driven paper trading is disabled by default and applies only to
+`PAPER_TRADING` + `AGENTIC_AI`. The event scanner may ingest Alpaca News,
+deduplicate events by `provider + external_event_id`, evaluate symbol relevance,
+and trigger at most one `TriggerType.EVENT` step for each `event_id +
+experiment_id`.
+
+Event-triggered execution still follows:
+
+```text
+ExecutionStep(EVENT) -> TradingDecision -> RiskCheck -> optional Order/Trade
+```
+
+The event API is read-only. No event endpoint may submit, retry, cancel, or
+force broker orders.
+
+---
+
 ### BR-028: Agent Risk Manager is not the system Risk Engine
 
 A pipeline agent may include an agent step named `RISK_MANAGER`.

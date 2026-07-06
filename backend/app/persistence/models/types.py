@@ -7,19 +7,25 @@ from app.domain.enums import (
     BrokerSyncStatus,
     DecisionSourceType,
     EventLevel,
+    EventDecisionStatus,
     ExecutionStepStatus,
     ExperimentMode,
     ExperimentStatus,
     FeeModelType,
     FinalAction,
+    ImpactDirection,
+    NewsEventSeverity,
+    NewsEventType,
     OrderMode,
     OrderSide,
     OrderStatus,
     OrderType,
     ParsingStatus,
+    PrimaryDriver,
     StrategyType,
     SystemEventType,
     TradeAction,
+    TradeIntent,
     TradingFrequency,
     TriggerType,
 )
@@ -56,6 +62,12 @@ decision_source_type_enum = SqlEnum(
 trade_action_enum = SqlEnum(
     TradeAction, name="trade_action", values_callable=enum_values
 )
+trade_intent_enum = SqlEnum(
+    TradeIntent, name="trade_intent", values_callable=enum_values
+)
+primary_driver_enum = SqlEnum(
+    PrimaryDriver, name="primary_driver", values_callable=enum_values
+)
 final_action_enum = SqlEnum(
     FinalAction, name="final_action", values_callable=enum_values
 )
@@ -79,4 +91,16 @@ broker_sync_status_enum = SqlEnum(
 event_level_enum = SqlEnum(EventLevel, name="event_level", values_callable=enum_values)
 system_event_type_enum = SqlEnum(
     SystemEventType, name="system_event_type", values_callable=enum_values
+)
+news_event_type_enum = SqlEnum(
+    NewsEventType, name="news_event_type", values_callable=enum_values
+)
+news_event_severity_enum = SqlEnum(
+    NewsEventSeverity, name="news_event_severity", values_callable=enum_values
+)
+impact_direction_enum = SqlEnum(
+    ImpactDirection, name="impact_direction", values_callable=enum_values
+)
+event_decision_status_enum = SqlEnum(
+    EventDecisionStatus, name="event_decision_status", values_callable=enum_values
 )

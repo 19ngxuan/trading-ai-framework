@@ -673,7 +673,48 @@ the normal RiskCheck path. It is not an investment strategy.
 
 ---
 
-## 11. Not Yet Implemented As Public APIs
+## 11. Event-Driven Agent News API
+
+M24 introduces disabled-by-default event-driven paper trading for
+`PAPER_TRADING` + `AGENTIC_AI`. The scanner uses Alpaca News internally and
+persists deduplicated events. The public API is read-only.
+
+```http
+GET /api/v1/news-events
+GET /api/v1/news-events/{id}
+GET /api/v1/experiments/{experiment_id}/news-events
+GET /api/v1/experiments/{experiment_id}/event-decisions
+```
+
+Supported filters:
+
+| Endpoint | Filters |
+|---|---|
+| `/news-events` | `symbol`, `eventType`, `severity`, `limit`, `offset` |
+| `/experiments/{id}/news-events` | `eventType`, `severity`, `limit`, `offset` |
+| `/experiments/{id}/event-decisions` | `status`, `limit`, `offset` |
+
+News events expose provider metadata, headline, source, URL, summary,
+`eventType`, `severity`, affected symbols, raw provider payload, and first/last
+seen timestamps. Experiment event decisions expose dedup/audit state for
+`event_id + experiment_id`, including linked `executionStepId` and
+`tradingDecisionId` when an event-triggered run was created.
+
+The API does not submit, retry, cancel, or force event trades. Event-triggered
+execution still follows:
+
+```text
+ExecutionStep(triggerType=EVENT)
+→ MarketDataSnapshot
+→ AgentDecisionLog
+→ TradingDecision
+→ RiskCheck
+→ optional Alpaca Paper Order/Trade
+```
+
+---
+
+## 12. Not Yet Implemented As Public APIs
 
 The current implementation persists execution steps, orders, trades, agent log
 tables, and broker sync tables where applicable. Public list/detail endpoints
@@ -690,7 +731,7 @@ endpoint is implemented.
 
 ---
 
-## 12. Options API
+## 13. Options API
 
 ```http
 GET /api/v1/options
@@ -741,7 +782,7 @@ backend remains authoritative for create-time and runtime validation.
 
 ---
 
-## 12. API Rules
+## 14. API Rules
 
 1. The API must not expose direct Alpaca access to the frontend.
 2. The API must not expose direct LLM provider access to the frontend.
@@ -768,7 +809,7 @@ ExecutionStep
 
 ---
 
-## 13. Related Documents
+## 15. Related Documents
 
 - `../01_architecture/system-overview.md`
 - `../01_architecture/01_c4-model/c4-container.md`

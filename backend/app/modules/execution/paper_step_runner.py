@@ -20,6 +20,7 @@ from app.domain.enums import (
     DecisionSourceType,
     BrokerName,
     BrokerSyncStatus,
+    EventDecisionStatus,
     EventLevel,
     ExecutionStepStatus,
     ExperimentMode,
@@ -78,8 +79,10 @@ from app.persistence.models import (
     AgentDecisionLogModel,
     ExecutionStepModel,
     BrokerSyncLogModel,
+    EventDecisionModel,
     MarketDataSnapshotModel,
     MetricSnapshotModel,
+    NewsEventModel,
     PortfolioModel,
     PortfolioSnapshotModel,
     RiskCheckModel,
@@ -237,6 +240,35 @@ class PaperTradingStepRunner:
             )
             raise
 
+    def run_event_step(
+        self,
+        experiment_id: int,
+        event_id: int,
+        scheduled_for: datetime | None = None,
+    ) -> StepRunResult:
+        broker_adapter = self.broker_adapter or self._create_broker_adapter()
+        execution_step_id = self._validate_and_create_step(
+            experiment_id,
+            TriggerType.EVENT,
+            scheduled_for,
+        )
+        failure = self._run_step_artifacts(
+            experiment_id,
+            execution_step_id,
+            broker_adapter,
+            event_id=event_id,
+        )
+        return StepRunResult(
+            experiment_id=experiment_id,
+            execution_step_id=execution_step_id,
+            status=ExecutionStepStatus.FAILED
+            if failure is not None
+            else ExecutionStepStatus.COMPLETED,
+            message=failure.message
+            if failure is not None
+            else "Event-triggered paper trading step completed.",
+        )
+
     def _create_broker_adapter(self) -> BrokerAdapter:
         try:
             return create_broker_adapter(self.settings)
@@ -252,9 +284,13 @@ class PaperTradingStepRunner:
         trigger_type: TriggerType,
         scheduled_for: datetime | None,
     ) -> int:
-        if trigger_type not in {TriggerType.MANUAL, TriggerType.SCHEDULED}:
+        if trigger_type not in {
+            TriggerType.MANUAL,
+            TriggerType.SCHEDULED,
+            TriggerType.EVENT,
+        }:
             raise InvalidExperimentConfigurationAppError(
-                "Paper trading supports manual and scheduled execution only.",
+                "Paper trading supports manual, scheduled, and event execution only.",
                 details={"triggerType": trigger_type.value},
             )
         with self.session_factory() as session:
@@ -386,6 +422,7 @@ class PaperTradingStepRunner:
         experiment_id: int,
         execution_step_id: int,
         broker_adapter: BrokerAdapter,
+        event_id: int | None = None,
     ) -> PaperStepFailure | None:
         with self.session_factory() as session:
             experiment = ExperimentRepository(session).get_by_id(experiment_id)
@@ -403,6 +440,7 @@ class PaperTradingStepRunner:
                 experiment_id,
                 execution_step_id,
                 broker_adapter,
+                event_id=event_id,
             )
         return self._run_daily_step_artifacts(
             experiment_id,
@@ -683,6 +721,7 @@ class PaperTradingStepRunner:
         experiment_id: int,
         execution_step_id: int,
         broker_adapter: BrokerAdapter,
+        event_id: int | None = None,
     ) -> PaperStepFailure | None:
         with self.session_factory() as session:
             now = _utcnow()
@@ -737,6 +776,7 @@ class PaperTradingStepRunner:
                 parameters_json=strategy_config.parameters_json,
                 agent_mode=agent_mode,
                 model_name=selected_model,
+                event_context=self._event_context(session, event_id),
             )
             agent_result = agent_strategy.decide(agent_context)
             agent_decision = agent_result.decision
@@ -752,6 +792,10 @@ class PaperTradingStepRunner:
                     suggested_quantity=None,
                     suggested_notional=None,
                     confidence=agent_decision.confidence,
+                    trade_intent=agent_decision.trade_intent,
+                    target_exposure_pct=agent_decision.target_exposure_pct,
+                    primary_driver=agent_decision.primary_driver,
+                    new_information=agent_decision.new_information,
                     reason=agent_decision.reason,
                     raw_decision_json=agent_decision.raw_decision_json,
                     created_at=now,
@@ -783,8 +827,16 @@ class PaperTradingStepRunner:
                     )
                 )
             session.flush()
+            self._mark_event_decision_triggered(
+                session=session,
+                event_id=event_id,
+                experiment_id=experiment_id,
+                execution_step_id=execution_step_id,
+                trading_decision_id=trading_decision.id,
+                now=now,
+            )
 
-            risk_result = self.risk_validator.evaluate(
+            risk_result = self.risk_validator.evaluate_target_exposure(
                 agent_decision,
                 portfolio,
                 bar.adjusted_close,
@@ -885,6 +937,64 @@ class PaperTradingStepRunner:
         if experiment.trading_frequency is TradingFrequency.HOURLY:
             return self._load_hourly_agent_bar(experiment.asset_symbol, execution_step)
         return self.market_data_provider.get_latest_bar(experiment.asset_symbol)
+
+    def _event_context(self, session: Session, event_id: int | None) -> dict | None:
+        if event_id is None:
+            return None
+        event = session.get(NewsEventModel, event_id)
+        if event is None:
+            return None
+        return {
+            "eventId": event.id,
+            "externalEventId": event.external_event_id,
+            "provider": event.provider,
+            "timestamp": event.timestamp.isoformat(),
+            "headline": event.headline,
+            "summary": event.summary,
+            "source": event.source,
+            "eventType": event.event_type.value,
+            "severity": event.severity.value,
+            "affectedSymbols": event.affected_symbols_json,
+        }
+
+    def _mark_event_decision_triggered(
+        self,
+        *,
+        session: Session,
+        event_id: int | None,
+        experiment_id: int,
+        execution_step_id: int,
+        trading_decision_id: int,
+        now: datetime,
+    ) -> None:
+        if event_id is None:
+            return
+        event_decision = (
+            session.query(EventDecisionModel)
+            .filter(
+                EventDecisionModel.event_id == event_id,
+                EventDecisionModel.experiment_id == experiment_id,
+            )
+            .one_or_none()
+        )
+        if event_decision is None:
+            event_decision = EventDecisionModel(
+                event_id=event_id,
+                experiment_id=experiment_id,
+                execution_step_id=execution_step_id,
+                trading_decision_id=trading_decision_id,
+                status=EventDecisionStatus.TRIGGERED,
+                reason="Event-triggered agent run executed.",
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(event_decision)
+            return
+        event_decision.execution_step_id = execution_step_id
+        event_decision.trading_decision_id = trading_decision_id
+        event_decision.status = EventDecisionStatus.TRIGGERED
+        event_decision.reason = "Event-triggered agent run executed."
+        event_decision.updated_at = now
 
     def _load_hourly_agent_bar(self, symbol: str, execution_step: ExecutionStepModel):
         scheduled_for = execution_step.scheduled_for or _utcnow()

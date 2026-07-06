@@ -161,3 +161,28 @@ class ExperimentRepository(BaseRepository[ExperimentModel]):
             .order_by(self.model.id.asc())
         )
         return list(self.session.scalars(statement))
+
+    def list_event_agent_paper_experiments(self) -> list[ExperimentModel]:
+        statement = (
+            select(self.model)
+            .join(
+                StrategyConfigModel,
+                StrategyConfigModel.experiment_id == self.model.id,
+            )
+            .where(
+                self.model.status == ExperimentStatus.RUNNING,
+                self.model.mode == ExperimentMode.PAPER_TRADING,
+                self.model.strategy_type == StrategyType.AGENTIC_AI,
+                self.model.trading_frequency.in_(
+                    [TradingFrequency.DAILY, TradingFrequency.HOURLY]
+                ),
+                (
+                    StrategyConfigModel.agent_mode.is_(None)
+                    | (StrategyConfigModel.agent_mode == AgentMode.SINGLE_AGENT)
+                    | (StrategyConfigModel.agent_mode == AgentMode.PIPELINE)
+                ),
+                self.model.asset_symbol.in_(SUPPORTED_EQUITY_SYMBOLS),
+            )
+            .order_by(self.model.id.asc())
+        )
+        return list(self.session.scalars(statement))

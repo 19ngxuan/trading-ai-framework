@@ -1,6 +1,13 @@
 from decimal import Decimal
 
-from app.domain.enums import AgentStepName, ParsingStatus, TradeAction
+from app.domain.enums import (
+    AgentStepName,
+    ParsingStatus,
+    PrimaryDriver,
+    TradeAction,
+    TradeIntent,
+)
+from app.modules.agents.decision_gate import AgentDecisionGate
 from app.modules.agents.fake_provider import FakeAgentProvider
 from app.modules.agents.output_parser import AgentOutputParseError, AgentOutputParser
 from app.modules.agents.prompt_builder import PromptBuilder
@@ -23,10 +30,12 @@ class SingleAgent:
         provider: AgentProvider | None = None,
         prompt_builder: PromptBuilder | None = None,
         output_parser: AgentOutputParser | None = None,
+        decision_gate: AgentDecisionGate | None = None,
     ) -> None:
         self.provider = provider or FakeAgentProvider()
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.output_parser = output_parser or AgentOutputParser()
+        self.decision_gate = decision_gate or AgentDecisionGate()
 
     def run(self, context: AgentContext) -> AgentRunResult:
         input_json = self.prompt_builder.build_input(context)
@@ -87,25 +96,24 @@ class SingleAgent:
                         fallback_used = True
                         fallback_reason = "REPAIR_UNAVAILABLE"
 
-        original_action = parsed.action
-        original_confidence = parsed.confidence
-        final_parsed, threshold_applied = self._apply_confidence_threshold(
-            parsed, context.confidence_threshold
-        )
-        if threshold_applied:
+        gate_result = self.decision_gate.apply(parsed, context)
+        final_parsed = gate_result.decision
+        if gate_result.audit_json["fallbackUsed"]:
             fallback_used = True
-            fallback_reason = "CONFIDENCE_BELOW_THRESHOLD"
+            fallback_reason = gate_result.audit_json["fallbackReason"]
         decision_json = {
             "action": final_parsed.action.value,
+            "tradeIntent": final_parsed.trade_intent.value,
+            "targetExposurePct": float(final_parsed.target_exposure_pct),
             "confidence": float(final_parsed.confidence),
+            "primaryDriver": final_parsed.primary_driver.value,
+            "newInformation": final_parsed.new_information,
             "rationale": final_parsed.rationale,
-            "originalAction": original_action.value,
-            "originalConfidence": float(original_confidence),
-            "finalAction": final_parsed.action.value,
+            "eventId": final_parsed.event_id,
+            **gate_result.audit_json,
             "parseError": parse_error,
             "fallbackUsed": fallback_used,
             "fallbackReason": fallback_reason,
-            "confidenceThresholdApplied": threshold_applied,
         }
         decision = AgentDecision(
             action=final_parsed.action,
@@ -114,10 +122,15 @@ class SingleAgent:
             reason=final_parsed.rationale,
             raw_decision_json={
                 "agent": self.agent_name,
+                "agentVersion": "SINGLE_AGENT_V2_TRADING",
                 "provider": response.model_name,
                 "promptVersion": self.prompt_builder.prompt_version,
                 **decision_json,
             },
+            trade_intent=final_parsed.trade_intent,
+            target_exposure_pct=final_parsed.target_exposure_pct,
+            primary_driver=final_parsed.primary_driver,
+            new_information=final_parsed.new_information,
         )
         log_payload = AgentDecisionLogPayload(
             agent_step_name=AgentStepName.SINGLE_DECISION_AGENT,
@@ -145,29 +158,10 @@ class SingleAgent:
     def _fallback_output(self, reason: str) -> ParsedAgentOutput:
         return ParsedAgentOutput(
             action=TradeAction.HOLD,
+            trade_intent=TradeIntent.STAY_OUT,
+            target_exposure_pct=Decimal("0.0000"),
             confidence=Decimal("0.0000"),
+            primary_driver=PrimaryDriver.PORTFOLIO,
+            new_information=False,
             rationale=f"Agent output could not be parsed or repaired; fallback HOLD used. {reason}",
-        )
-
-    def _apply_confidence_threshold(
-        self,
-        parsed: ParsedAgentOutput,
-        threshold: Decimal | None,
-    ) -> tuple[ParsedAgentOutput, bool]:
-        if (
-            threshold is None
-            or parsed.action is TradeAction.HOLD
-            or parsed.confidence >= threshold
-        ):
-            return parsed, False
-        return (
-            ParsedAgentOutput(
-                action=TradeAction.HOLD,
-                confidence=parsed.confidence,
-                rationale=(
-                    f"Agent confidence {parsed.confidence} is below configured "
-                    f"threshold {threshold}; converted to HOLD before RiskCheck."
-                ),
-            ),
-            True,
         )

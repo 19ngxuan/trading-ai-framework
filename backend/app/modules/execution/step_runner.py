@@ -363,6 +363,10 @@ class HistoricalStepRunner:
                     suggested_quantity=None,
                     suggested_notional=None,
                     confidence=agent_decision.confidence,
+                    trade_intent=agent_decision.trade_intent,
+                    target_exposure_pct=agent_decision.target_exposure_pct,
+                    primary_driver=agent_decision.primary_driver,
+                    new_information=agent_decision.new_information,
                     reason=agent_decision.reason,
                     raw_decision_json=agent_decision.raw_decision_json,
                     created_at=now,
@@ -395,7 +399,7 @@ class HistoricalStepRunner:
                 )
             session.flush()
 
-            risk_result = self.risk_validator.evaluate(
+            risk_result = self.risk_validator.evaluate_target_exposure(
                 agent_decision,
                 portfolio,
                 bar.adjusted_close,

@@ -2,7 +2,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Protocol
 
-from app.domain.enums import AgentMode, AgentStepName, ParsingStatus, TradeAction
+from app.domain.enums import (
+    AgentMode,
+    AgentStepName,
+    ParsingStatus,
+    PrimaryDriver,
+    TradeAction,
+    TradeIntent,
+)
 from app.modules.market_data.provider import DailyBar
 
 
@@ -19,6 +26,7 @@ class AgentContext:
     parameters_json: dict[str, Any] | None
     agent_mode: AgentMode
     model_name: str | None
+    event_context: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -45,8 +53,13 @@ class AgentProvider(Protocol):
 @dataclass(frozen=True)
 class ParsedAgentOutput:
     action: TradeAction
+    trade_intent: TradeIntent
+    target_exposure_pct: Decimal
     confidence: Decimal
+    primary_driver: PrimaryDriver
+    new_information: bool
     rationale: str
+    event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +69,10 @@ class AgentDecision:
     confidence: Decimal
     reason: str
     raw_decision_json: dict[str, Any]
+    trade_intent: TradeIntent | None = None
+    target_exposure_pct: Decimal | None = None
+    primary_driver: PrimaryDriver | None = None
+    new_information: bool | None = None
 
 
 @dataclass(frozen=True)

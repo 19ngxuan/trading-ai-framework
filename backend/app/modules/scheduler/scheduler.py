@@ -7,6 +7,7 @@ from app.modules.scheduler.jobs import (
     BrokerSyncRunResult,
     PaperSchedulerTickResult,
     SchedulerTickResult,
+    scan_news_events_and_trigger_agent_runs,
     sync_open_paper_broker_orders,
     trigger_due_experiments,
     trigger_due_paper_trading_experiments,
@@ -18,6 +19,7 @@ def create_scheduler(
     job_func: Callable[[], SchedulerTickResult] = trigger_due_experiments,
     paper_job_func: Callable[[], PaperSchedulerTickResult] | None = None,
     broker_sync_job_func: Callable[[], BrokerSyncRunResult] = sync_open_paper_broker_orders,
+    event_scanner_job_func: Callable[[], dict] = scan_news_events_and_trigger_agent_runs,
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
     if settings.scheduler_enabled:
@@ -53,6 +55,16 @@ def create_scheduler(
             trigger="interval",
             seconds=settings.paper_trading_scheduler_interval_seconds,
             id=f"{settings.paper_trading_scheduler_job_id}_broker_sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+    if settings.event_scanner_enabled:
+        scheduler.add_job(
+            event_scanner_job_func,
+            trigger="interval",
+            seconds=settings.event_scanner_interval_seconds,
+            id="event_news_scanner",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

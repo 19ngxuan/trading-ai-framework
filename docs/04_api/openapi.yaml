@@ -399,6 +399,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /news-events:
+    get:
+      summary: List external news events
+      operationId: listNewsEvents
+      parameters:
+        - in: query
+          name: symbol
+          schema:
+            type: string
+        - in: query
+          name: eventType
+          schema:
+            $ref: '#/components/schemas/NewsEventType'
+        - in: query
+          name: severity
+          schema:
+            $ref: '#/components/schemas/NewsEventSeverity'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: External news events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNewsEventResponse'
+  /news-events/{eventId}:
+    get:
+      summary: Get external news event
+      operationId: getNewsEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: External news event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsEventDetail'
+        '404':
+          description: News event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/news-events:
+    get:
+      summary: List experiment external news events
+      operationId: listExperimentNewsEvents
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - in: query
+          name: eventType
+          schema:
+            $ref: '#/components/schemas/NewsEventType'
+        - in: query
+          name: severity
+          schema:
+            $ref: '#/components/schemas/NewsEventSeverity'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment external news events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNewsEventResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/event-decisions:
+    get:
+      summary: List experiment event decisions
+      operationId: listExperimentEventDecisions
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/EventDecisionStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment event decisions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEventDecisionResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   parameters:
     ExperimentId:
@@ -471,13 +575,19 @@ components:
       enum: [RUNNING, COMPLETED, SKIPPED, FAILED]
     TriggerType:
       type: string
-      enum: [HISTORICAL, SCHEDULED, MANUAL]
+      enum: [HISTORICAL, SCHEDULED, MANUAL, EVENT]
     DecisionSourceType:
       type: string
       enum: [STRATEGY, AGENT]
     TradeAction:
       type: string
       enum: [BUY, SELL, HOLD]
+    TradeIntent:
+      type: string
+      enum: [OPEN_LONG, ADD_TO_LONG, HOLD_POSITION, REDUCE_LONG, CLOSE_LONG, STAY_OUT]
+    PrimaryDriver:
+      type: string
+      enum: [TECHNICAL, FUNDAMENTAL, SENTIMENT, RISK, PORTFOLIO, EVENT_RISK]
     FinalAction:
       type: string
       enum: [BUY, SELL, HOLD]
@@ -511,6 +621,33 @@ components:
     EventLevel:
       type: string
       enum: [INFO, WARNING, ERROR]
+    NewsEventType:
+      type: string
+      enum:
+        - GEOPOLITICAL_RISK
+        - FED_RATE_DECISION
+        - INFLATION_CPI
+        - EARNINGS_BEAT
+        - EARNINGS_MISS
+        - GUIDANCE_CUT
+        - ANALYST_UPGRADE
+        - ANALYST_DOWNGRADE
+        - LEGAL_REGULATORY_RISK
+        - M_AND_A
+        - PRODUCT_LAUNCH
+        - SUPPLY_CHAIN_SHOCK
+        - CYBERSECURITY_INCIDENT
+        - CEO_CHANGE
+        - GENERAL_MARKET_NEWS
+    NewsEventSeverity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    ImpactDirection:
+      type: string
+      enum: [POSITIVE, NEGATIVE, NEUTRAL]
+    EventDecisionStatus:
+      type: string
+      enum: [TRIGGERED, SKIPPED, FAILED]
     SystemEventType:
       type: string
       enum:
@@ -899,6 +1036,21 @@ components:
           type: number
           format: double
           nullable: true
+        tradeIntent:
+          allOf:
+            - $ref: '#/components/schemas/TradeIntent'
+          nullable: true
+        targetExposurePct:
+          type: number
+          format: double
+          nullable: true
+        primaryDriver:
+          allOf:
+            - $ref: '#/components/schemas/PrimaryDriver'
+          nullable: true
+        newInformation:
+          type: boolean
+          nullable: true
         reason:
           type: string
           nullable: true
@@ -1199,6 +1351,147 @@ components:
         createdAt:
           type: string
           format: date-time
+    EventAssetImpact:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        eventId:
+          type: integer
+          format: int64
+        symbol:
+          type: string
+        impactDirection:
+          $ref: '#/components/schemas/ImpactDirection'
+        relevanceScore:
+          type: number
+          format: double
+        rationale:
+          type: string
+          nullable: true
+        rawImpactJson:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    NewsEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        provider:
+          type: string
+        externalEventId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        headline:
+          type: string
+        source:
+          type: string
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        eventType:
+          $ref: '#/components/schemas/NewsEventType'
+        severity:
+          $ref: '#/components/schemas/NewsEventSeverity'
+        affectedSymbols:
+          type: array
+          items:
+            type: string
+        rawPayloadJson:
+          type: object
+          additionalProperties: true
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    NewsEventDetail:
+      allOf:
+        - $ref: '#/components/schemas/NewsEvent'
+        - type: object
+          properties:
+            impacts:
+              type: array
+              items:
+                $ref: '#/components/schemas/EventAssetImpact'
+    EventDecision:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        eventId:
+          type: integer
+          format: int64
+        experimentId:
+          type: integer
+          format: int64
+        executionStepId:
+          type: integer
+          format: int64
+          nullable: true
+        tradingDecisionId:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          $ref: '#/components/schemas/EventDecisionStatus'
+        reason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedNewsEventResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewsEvent'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+    PaginatedEventDecisionResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventDecision'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
     BrokerSyncLog:
       type: object
       properties:

@@ -3,7 +3,15 @@ from collections.abc import Callable, Sequence
 from datetime import timedelta
 from decimal import Decimal
 
-from app.domain.enums import AgentStepName, ParsingStatus, TradeAction, TradingFrequency
+from app.domain.enums import (
+    AgentStepName,
+    ParsingStatus,
+    PrimaryDriver,
+    TradeAction,
+    TradeIntent,
+    TradingFrequency,
+)
+from app.modules.agents.decision_gate import AgentDecisionGate
 from app.modules.agents.fake_pipeline_provider import FakePipelineProvider
 from app.modules.agents.output_parser import AgentOutputParseError
 from app.modules.agents.pipeline_output_parser import PipelineOutputParser
@@ -56,6 +64,7 @@ class AgentDecisionPipeline:
         market_data_provider: MarketDataProvider | None = None,
         fundamental_provider: FundamentalResearchProvider | None = None,
         sentiment_provider: SentimentResearchProvider | None = None,
+        decision_gate: AgentDecisionGate | None = None,
     ) -> None:
         self.provider = provider or FakePipelineProvider()
         self.prompt_builder = prompt_builder or PipelinePromptBuilder()
@@ -65,6 +74,7 @@ class AgentDecisionPipeline:
             fundamental_provider or ParameterFundamentalResearchProvider()
         )
         self.sentiment_provider = sentiment_provider or ParameterSentimentResearchProvider()
+        self.decision_gate = decision_gate or AgentDecisionGate()
 
     def run(self, context: AgentContext) -> AgentRunResult:
         input_json = self.prompt_builder.build_input(context)
@@ -158,9 +168,14 @@ class AgentDecisionPipeline:
             reason=final_decision.rationale,
             raw_decision_json={
                 "agent": self.agent_name,
+                "agentVersion": "MULTI_AGENT_V2_TRADING",
                 "promptVersion": self.prompt_builder.prompt_version,
                 **final_json,
             },
+            trade_intent=final_decision.trade_intent,
+            target_exposure_pct=final_decision.target_exposure_pct,
+            primary_driver=final_decision.primary_driver,
+            new_information=final_decision.new_information,
         )
         return AgentRunResult(
             decision=decision,
@@ -739,31 +754,22 @@ class AgentDecisionPipeline:
         stage_results: Sequence[PipelineStageResult],
     ) -> tuple[ParsedAgentOutput, dict]:
         fallback_reason: str | None = None
-        final_decision = proposed_decision
+        gate_input = proposed_decision
 
         if stage_results[-1].parsing_failed:
-            final_decision = self._fallback_portfolio_decision(
+            gate_input = self._fallback_portfolio_decision(
                 "Portfolio manager stage failed parse or repair."
             )
             fallback_reason = "PORTFOLIO_MANAGER_STAGE_FAILED"
 
-        threshold_applied = False
-        if (
-            context.confidence_threshold is not None
-            and final_decision.action is not TradeAction.HOLD
-            and final_decision.confidence < context.confidence_threshold
-        ):
-            threshold_applied = True
-            final_decision = ParsedAgentOutput(
-                action=TradeAction.HOLD,
-                confidence=final_decision.confidence,
-                rationale=(
-                    f"Multi-agent confidence {final_decision.confidence} is below "
-                    f"configured threshold {context.confidence_threshold}; converted "
-                    "to HOLD before RiskCheck."
-                ),
-            )
-            fallback_reason = "CONFIDENCE_BELOW_THRESHOLD"
+        gate_result = self.decision_gate.apply(
+            gate_input,
+            context,
+            risk_level=risk_assessment.risk_level.value,
+        )
+        final_decision = gate_result.decision
+        if gate_result.audit_json["fallbackUsed"]:
+            fallback_reason = gate_result.audit_json["fallbackReason"]
 
         degraded_stages = [
             stage.step_name.value for stage in stage_results if stage.parsing_failed
@@ -772,11 +778,14 @@ class AgentDecisionPipeline:
             "pipeline": self.agent_name,
             "graphVersion": self.prompt_builder.prompt_version,
             "action": final_decision.action.value,
+            "tradeIntent": final_decision.trade_intent.value,
+            "targetExposurePct": float(final_decision.target_exposure_pct),
             "confidence": float(final_decision.confidence),
+            "primaryDriver": final_decision.primary_driver.value,
+            "newInformation": final_decision.new_information,
             "rationale": final_decision.rationale,
-            "originalAction": proposed_decision.action.value,
-            "originalConfidence": float(proposed_decision.confidence),
-            "finalAction": final_decision.action.value,
+            "eventId": final_decision.event_id,
+            **gate_result.audit_json,
             "fallbackUsed": fallback_reason is not None or bool(degraded_stages),
             "fallbackReason": fallback_reason,
             "degradedStages": degraded_stages,
@@ -784,7 +793,6 @@ class AgentDecisionPipeline:
             "pipelineStageSummary": [
                 self._stage_summary(stage_result) for stage_result in stage_results
             ],
-            "confidenceThresholdApplied": threshold_applied,
             "technicalSignal": technical_analysis.signal.value,
             "fundamentalSignal": fundamental_analysis.signal.value,
             "sentimentSignal": sentiment_analysis.signal.value,
@@ -846,6 +854,10 @@ class AgentDecisionPipeline:
     def _fallback_portfolio_decision(self, reason: str) -> ParsedAgentOutput:
         return ParsedAgentOutput(
             action=TradeAction.HOLD,
+            trade_intent=TradeIntent.STAY_OUT,
+            target_exposure_pct=Decimal("0.0000"),
             confidence=Decimal("0.0000"),
+            primary_driver=PrimaryDriver.PORTFOLIO,
+            new_information=False,
             rationale=f"Multi-agent fallback HOLD used. {reason}",
         )

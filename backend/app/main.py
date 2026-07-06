@@ -12,6 +12,7 @@ from app.api.routes.events import router as events_router
 from app.api.routes.experiments import router as experiments_router
 from app.api.routes.health import router as health_router
 from app.api.routes.metrics import router as metrics_router
+from app.api.routes.news_events import router as news_events_router
 from app.api.routes.orders import router as orders_router
 from app.api.routes.options import router as options_router
 from app.api.routes.paper_status import router as paper_status_router
@@ -33,7 +34,11 @@ def _error_response(error_code: str, message: str, details: dict) -> dict:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     scheduler = None
-    if settings.scheduler_enabled or settings.paper_trading_scheduler_enabled:
+    if (
+        settings.scheduler_enabled
+        or settings.paper_trading_scheduler_enabled
+        or settings.event_scanner_enabled
+    ):
         scheduler = create_scheduler(settings)
         scheduler.start()
         app.state.scheduler = scheduler
@@ -86,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(broker_sync_router, prefix="/api/v1")
     app.include_router(paper_status_router, prefix="/api/v1")
     app.include_router(events_router, prefix="/api/v1")
+    app.include_router(news_events_router, prefix="/api/v1")
     app.include_router(metrics_router, prefix="/api/v1")
     app.include_router(options_router, prefix="/api/v1")
     return app

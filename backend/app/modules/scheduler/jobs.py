@@ -10,6 +10,7 @@ from app.domain.enums import TriggerType
 from app.modules.execution.broker_sync import BrokerSyncRunResult, PaperBrokerSyncService
 from app.modules.execution.paper_step_runner import PaperTradingStepRunner
 from app.modules.execution.step_runner import HistoricalStepRunner, StepRunResult
+from app.modules.events.service import EventScannerService
 from app.modules.market_data.errors import MarketDataProviderError, MarketDataUnavailableError
 from app.modules.market_data.factory import create_intraday_market_data_provider
 from app.modules.market_data.hourly_bars import latest_completed_hourly_window
@@ -279,6 +280,14 @@ def sync_open_paper_broker_orders(
 ) -> BrokerSyncRunResult:
     sync_service = sync_service or PaperBrokerSyncService()
     return sync_service.sync_open_orders()
+
+
+def scan_news_events_and_trigger_agent_runs(
+    *,
+    event_service: EventScannerService | None = None,
+) -> dict:
+    event_service = event_service or EventScannerService()
+    return event_service.scan_once()
 
 
 def _paper_daily_due_slot(

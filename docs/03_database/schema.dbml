@@ -14,6 +14,8 @@ Enum strategy_type {
   BUY_AND_HOLD
   MOVING_AVERAGE
   AGENTIC_AI
+  OPENING_RANGE_BREAKOUT
+  PAPER_TRADING_SMOKE_TEST
 }
 
 Enum experiment_status {
@@ -27,8 +29,11 @@ Enum experiment_status {
 
 Enum trading_frequency {
   DAILY
+  HOURLY
   WEEKLY
   MONTHLY
+  INTRADAY_5_MIN
+  TEST_1_MIN
 }
 
 Enum fee_model_type {
@@ -48,6 +53,7 @@ Enum trigger_type {
   HISTORICAL
   SCHEDULED
   MANUAL
+  EVENT
 }
 
 Enum decision_source_type {
@@ -59,6 +65,24 @@ Enum trade_action {
   BUY
   SELL
   HOLD
+}
+
+Enum trade_intent {
+  OPEN_LONG
+  ADD_TO_LONG
+  HOLD_POSITION
+  REDUCE_LONG
+  CLOSE_LONG
+  STAY_OUT
+}
+
+Enum primary_driver {
+  TECHNICAL
+  FUNDAMENTAL
+  SENTIMENT
+  RISK
+  PORTFOLIO
+  EVENT_RISK
 }
 
 Enum final_action {
@@ -102,9 +126,14 @@ Enum agent_mode {
 
 Enum agent_step_name {
   SINGLE_DECISION_AGENT
+  FETCH_DATA
+  TECHNICAL_ANALYST
+  FUNDAMENTAL_ANALYST
+  SENTIMENT_ANALYST
   MARKET_ANALYST
   TRADING_DECISION
   RISK_MANAGER
+  PORTFOLIO_MANAGER
 }
 
 Enum parsing_status {
@@ -142,6 +171,42 @@ Enum system_event_type {
   LLM_OUTPUT_INVALID
   LLM_REPAIR_ATTEMPTED
   FALLBACK_HOLD_USED
+}
+
+Enum news_event_type {
+  GEOPOLITICAL_RISK
+  FED_RATE_DECISION
+  INFLATION_CPI
+  EARNINGS_BEAT
+  EARNINGS_MISS
+  GUIDANCE_CUT
+  ANALYST_UPGRADE
+  ANALYST_DOWNGRADE
+  LEGAL_REGULATORY_RISK
+  M_AND_A
+  PRODUCT_LAUNCH
+  SUPPLY_CHAIN_SHOCK
+  CYBERSECURITY_INCIDENT
+  CEO_CHANGE
+  GENERAL_MARKET_NEWS
+}
+
+Enum news_event_severity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+Enum impact_direction {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+Enum event_decision_status {
+  TRIGGERED
+  SKIPPED
+  FAILED
 }
 
 // =======================================================
@@ -304,6 +369,10 @@ Table trading_decisions {
   suggested_notional decimal(19, 4)
 
   confidence decimal(5, 4)
+  trade_intent trade_intent
+  target_exposure_pct decimal(7, 6)
+  primary_driver primary_driver
+  new_information boolean
   reason text
 
   raw_decision_json json
@@ -315,6 +384,75 @@ Table trading_decisions {
     market_data_snapshot_id
     source_type
     action
+    trade_intent
+    primary_driver
+  }
+}
+
+// =======================================================
+// External News/Event Memory
+// =======================================================
+
+Table news_events {
+  id bigint [pk, increment]
+  provider varchar [not null]
+  external_event_id varchar [not null]
+  timestamp timestamp [not null]
+  updated_at timestamp
+  headline text [not null]
+  source varchar
+  url text
+  summary text
+  event_type news_event_type [not null]
+  severity news_event_severity [not null]
+  affected_symbols_json json [not null]
+  raw_payload_json json
+  first_seen_at timestamp [not null]
+  last_seen_at timestamp [not null]
+  created_at timestamp [not null]
+
+  indexes {
+    (provider, external_event_id) [unique]
+    timestamp
+    event_type
+    severity
+  }
+}
+
+Table event_asset_impacts {
+  id bigint [pk, increment]
+  event_id bigint [not null, ref: > news_events.id]
+  symbol varchar [not null]
+  impact_direction impact_direction [not null]
+  relevance_score decimal(5, 4) [not null]
+  rationale text
+  raw_impact_json json
+  created_at timestamp [not null]
+
+  indexes {
+    (event_id, symbol) [unique]
+    event_id
+    symbol
+    relevance_score
+  }
+}
+
+Table event_decisions {
+  id bigint [pk, increment]
+  event_id bigint [not null, ref: > news_events.id]
+  experiment_id bigint [not null, ref: > experiments.id]
+  execution_step_id bigint [ref: > execution_steps.id]
+  trading_decision_id bigint [ref: > trading_decisions.id]
+  status event_decision_status [not null]
+  reason text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (event_id, experiment_id) [unique]
+    event_id
+    experiment_id
+    status
   }
 }
 
