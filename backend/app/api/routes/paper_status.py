@@ -160,7 +160,7 @@ def _supported_by_paper_scheduler(experiment: ExperimentModel, strategy_config) 
         experiment.mode is ExperimentMode.PAPER_TRADING
         and experiment.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT
         and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
-        and experiment.asset_symbol == SPY_SYMBOL
+        and is_supported_equity_symbol(experiment.asset_symbol)
     ):
         return True
     return (
@@ -196,7 +196,7 @@ def _status_reason(
             "UNSUPPORTED_PAPER_CONFIGURATION",
             "The paper scheduler supports BUY_AND_HOLD DAILY, MOVING_AVERAGE DAILY, "
             "AGENTIC_AI SINGLE_AGENT or PIPELINE (Multi Agent) with DAILY or HOURLY, "
-            "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN for SPY, "
+            "OPENING_RANGE_BREAKOUT INTRADAY_5_MIN for supported equity assets, "
             "and gated smoke-test SPY paper-trading experiments.",
         )
     if not settings.paper_trading_scheduler_enabled:

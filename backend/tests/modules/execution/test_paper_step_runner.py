@@ -103,11 +103,13 @@ class FakeMarketDataProvider:
 class FakeIntradayProvider:
     def __init__(self, bars: list[IntradayBar]) -> None:
         self.bars = bars
+        self.session_symbols: list[str | None] = []
 
     def load_range(self, *args, **kwargs) -> list[IntradayBar]:
         return self.bars
 
     def load_session_until(self, session_date, through_timestamp, *args, **kwargs):
+        self.session_symbols.append(kwargs.get("symbol"))
         return [
             bar
             for bar in self.bars
@@ -1176,6 +1178,7 @@ def test_scheduled_orb_paper_breakout_buys_after_risk_check(
             session,
             strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
             trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+            asset_symbol="AAPL",
         )
 
     bars = [
@@ -1190,11 +1193,12 @@ def test_scheduled_orb_paper_breakout_buys_after_risk_check(
     broker = FakeBrokerAdapter(
         result=_broker_result(status="filled", filled_quantity="90", quantity="90")
     )
+    intraday_provider = FakeIntradayProvider(bars)
     result = _runner_with_providers(
         database_url,
         broker,
         FakeMarketDataProvider(),
-        FakeIntradayProvider(bars),
+        intraday_provider,
     ).run_next_step(
         experiment_id,
         trigger_type=TriggerType.SCHEDULED,
@@ -1202,6 +1206,8 @@ def test_scheduled_orb_paper_breakout_buys_after_risk_check(
     )
 
     assert result.status is ExecutionStepStatus.COMPLETED
+    assert intraday_provider.session_symbols == ["AAPL"]
+    assert broker.calls[0]["symbol"] == "AAPL"
     assert broker.calls[0]["side"] is OrderSide.BUY
     with session_factory() as session:
         decision = session.scalar(
@@ -1214,6 +1220,7 @@ def test_scheduled_orb_paper_breakout_buys_after_risk_check(
         )
         assert decision is not None
         assert decision.source_name == "OpeningRangeBreakoutStrategy"
+        assert decision.symbol == "AAPL"
         assert decision.raw_decision_json["openingRangeComplete"] is True
         assert decision.raw_decision_json["breakoutDirection"] == "UP"
         assert risk is not None

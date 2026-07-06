@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.schemas.error_schemas import ErrorResponse
+from app.api.routes.agent_decision_logs import router as agent_decision_logs_router
 from app.api.routes.comparison import router as comparison_router
 from app.api.routes.broker_sync import router as broker_sync_router
 from app.api.routes.events import router as events_router
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(trades_router, prefix="/api/v1")
     app.include_router(broker_sync_router, prefix="/api/v1")
     app.include_router(paper_status_router, prefix="/api/v1")
+    app.include_router(agent_decision_logs_router, prefix="/api/v1")
     app.include_router(events_router, prefix="/api/v1")
     app.include_router(news_events_router, prefix="/api/v1")
     app.include_router(metrics_router, prefix="/api/v1")

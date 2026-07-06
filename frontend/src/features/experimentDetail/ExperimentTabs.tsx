@@ -1,9 +1,8 @@
 import { useState } from "react";
 
-import type {
-  AgentDecisionInsight,
-  ExperimentDetail,
-} from "../../types/experiment";
+import { AgentDecisionLogPanel } from "./AgentDecisionLogPanel";
+import type { AgentDecisionLog } from "../../types/agentDecisionLog";
+import type { ExperimentDetail } from "../../types/experiment";
 import type { BrokerSyncLog } from "../../types/brokerSync";
 import type { SystemEvent } from "../../types/event";
 import type { MetricSnapshot, PortfolioSnapshot } from "../../types/metrics";
@@ -18,6 +17,9 @@ type ExperimentTabsProps = {
   orders: Order[];
   trades: Trade[];
   brokerSyncLogs: BrokerSyncLog[];
+  agentDecisionLogs: AgentDecisionLog[];
+  agentDecisionLogsLoading: boolean;
+  agentDecisionLogsError: Error | null;
 };
 
 type Tab =
@@ -43,25 +45,6 @@ function agentModeLabel(agentMode: ExperimentDetail["strategyConfig"]["agentMode
   return "-";
 }
 
-function insightSummary(insight: AgentDecisionInsight) {
-  const payload = insight.parsedOutputJson ?? {};
-  const summaryKeys = ["summary", "rationale", "reason"];
-  for (const key of summaryKeys) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  return insight.rawOutputText ?? "No summary available.";
-}
-
-function insightPrimarySignal(insight: AgentDecisionInsight) {
-  const payload = insight.parsedOutputJson ?? {};
-  for (const key of ["action", "signal", "riskLevel"]) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  return "-";
-}
-
 export function ExperimentTabs({
   detail,
   metrics,
@@ -70,6 +53,9 @@ export function ExperimentTabs({
   orders,
   trades,
   brokerSyncLogs,
+  agentDecisionLogs,
+  agentDecisionLogsLoading,
+  agentDecisionLogsError,
 }: ExperimentTabsProps) {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -182,27 +168,11 @@ export function ExperimentTabs({
 
       {tab === "aiInsights" && (
         <div className="page-stack">
-          {detail.latestAgentDecisions.length === 0 ? (
-            <p className="muted">No AI insight logs available yet.</p>
-          ) : (
-            detail.latestAgentDecisions.map((insight) => (
-              <article key={insight.id} className="panel nested-panel">
-                <div className="panel-header-row">
-                  <div>
-                    <h3>{insight.agentStepName.replace(/_/g, " ")}</h3>
-                    <p className="muted">
-                      {insight.agentName ?? "Agent"} · {insight.parsingStatus} ·{" "}
-                      {new Date(insight.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <span className="status-pill">
-                    {insightPrimarySignal(insight)}
-                  </span>
-                </div>
-                <p>{insightSummary(insight)}</p>
-              </article>
-            ))
-          )}
+          <AgentDecisionLogPanel
+            logs={agentDecisionLogs}
+            isLoading={agentDecisionLogsLoading}
+            error={agentDecisionLogsError}
+          />
         </div>
       )}
 

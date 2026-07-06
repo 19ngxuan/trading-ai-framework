@@ -308,6 +308,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /experiments/{experimentId}/agent-decision-logs:
+    get:
+      summary: List experiment agent decision logs
+      operationId: listExperimentAgentDecisionLogs
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Experiment agent decision logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgentLogResponse'
+        '404':
+          description: Experiment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /experiments/compare:
     post:
       summary: Compare experiments using persisted metrics
@@ -682,9 +703,10 @@ components:
         assetSymbol:
           type: string
           description: >
-            Supported asset symbol. Historical CSV/ORB/smoke-test paths are
-            SPY-only; paper Buy-and-Hold, Moving Average, and Agentic AI use the
-            curated equity allowlist returned by /options.
+            Supported asset symbol. Historical CSV paths and smoke-test
+            diagnostics are SPY-only; paper Buy-and-Hold, Moving Average,
+            Opening Range Breakout, and Agentic AI use the curated equity
+            allowlist returned by /options.
           example: SPY
         initialCapital:
           type: number
@@ -1318,6 +1340,13 @@ components:
           nullable: true
         repairRawOutputText:
           type: string
+          nullable: true
+        triggerType:
+          allOf:
+            - $ref: '#/components/schemas/TriggerType'
+          nullable: true
+        executionStepSequenceNumber:
+          type: integer
           nullable: true
         createdAt:
           type: string

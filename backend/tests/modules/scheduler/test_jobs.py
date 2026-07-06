@@ -77,10 +77,14 @@ class FakePaperStepRunner:
 
 
 class MissingIntradayProvider:
+    def __init__(self) -> None:
+        self.session_symbols: list[str | None] = []
+
     def load_range(self, *args, **kwargs):
         return []
 
     def load_session_until(self, *args, **kwargs):
+        self.session_symbols.append(kwargs.get("symbol"))
         raise MarketDataUnavailableError("Completed bar is unavailable.")
 
 
@@ -447,17 +451,20 @@ def test_paper_scheduler_skips_orb_when_completed_bar_is_unavailable(
             mode=ExperimentMode.PAPER_TRADING,
             strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
             trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+            asset_symbol="AAPL",
         )
 
     fake_runner = FakePaperStepRunner()
+    intraday_provider = MissingIntradayProvider()
     result = trigger_due_paper_trading_experiments(
         session_factory=session_factory,
         step_runner=fake_runner,
-        intraday_provider=MissingIntradayProvider(),
+        intraday_provider=intraday_provider,
         now=datetime(2026, 1, 2, 10, 5, tzinfo=ZoneInfo("America/New_York")),
     )
 
     assert result.due_slot == datetime(2026, 1, 2, 10, 0)
+    assert intraday_provider.session_symbols == ["AAPL"]
     assert fake_runner.calls == []
     assert [item.experiment_id for item in result.skipped] == [orb_id]
     assert result.skipped[0].error_code == "PAPER_ORB_COMPLETED_BAR_UNAVAILABLE"

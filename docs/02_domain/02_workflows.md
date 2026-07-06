@@ -272,8 +272,9 @@ Important rules:
 - Broker API must only be accessed through the Broker Module.
 - Paper trading must not use live-trading endpoints.
 - Paper scheduler execution is disabled by default and supports Buy-and-Hold
-  daily SPY, Moving Average daily SPY, Opening Range Breakout intraday SPY, and
-  gated smoke-test SPY experiments. It also supports Agentic-AI paper trading
+  daily, Moving Average daily, Opening Range Breakout intraday, and
+  gated smoke-test SPY experiments. Rule-based non-smoke-test paper strategies
+  use the curated supported equity allowlist. It also supports Agentic-AI paper trading
   with `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when
   ScaDS.AI is explicitly enabled.
 - Manual paper `run-next-step` supports Buy-and-Hold, Moving Average, and

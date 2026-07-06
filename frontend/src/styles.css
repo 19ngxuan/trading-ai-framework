@@ -752,6 +752,99 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.agent-log-list {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-log-card {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 18px;
+}
+
+.agent-log-card h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 16px;
+}
+
+.agent-log-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.secondary-pill {
+  background: #f5f7fa;
+  color: #66758c;
+}
+
+.agent-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.agent-audit-grid div {
+  min-width: 0;
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.agent-audit-grid dt {
+  color: #66758c;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.agent-audit-grid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: #172033;
+  font-weight: 700;
+}
+
+.agent-event-context {
+  margin-top: 16px;
+  border-left: 3px solid #256f61;
+  background: #f4faf7;
+  padding: 12px;
+}
+
+.agent-event-context p {
+  margin: 4px 0 10px;
+}
+
+.json-details {
+  margin-top: 14px;
+  color: #405069;
+}
+
+.json-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.json-details pre {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+  background: #172033;
+  color: #edf4ff;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px;
+}
+
 .chart-shell {
   position: relative;
   margin-top: 12px;

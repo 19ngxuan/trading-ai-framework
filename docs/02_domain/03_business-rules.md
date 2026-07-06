@@ -14,16 +14,17 @@ Business rules in this document are binding for implementation. Developers and A
 
 ### BR-001: Asset support is intentionally allowlisted
 
-Historical CSV simulations and Opening Range Breakout remain `SPY`-only.
+Historical CSV simulations and historical Opening Range Breakout remain
+`SPY`-only.
 
-Paper-trading Buy-and-Hold, Moving Average, and Agentic-AI strategies may use
-only the curated US equity allowlist:
+Paper-trading Buy-and-Hold, Moving Average, Opening Range Breakout, and
+Agentic-AI strategies may use only the curated US equity allowlist:
 
 ```text
 SPY, AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA
 ```
 
-Opening Range Breakout and paper smoke-test diagnostics remain `SPY`-only.
+Paper smoke-test diagnostics remain `SPY`-only.
 Any attempt to configure an asset outside the supported scope must be rejected
 or explicitly treated as unsupported. `/options` must not perform live Alpaca
 asset discovery.
@@ -286,17 +287,18 @@ opening range is complete:
 M16 allows at most one completed round trip per session. `SELL` only closes an
 existing long SPY position and must never open a short position.
 
-Opening Range Breakout uses local deterministic intraday CSV fixture data by
-default. When `MARKET_DATA_PROVIDER=alpaca`, it uses Alpaca historical
-five-minute SPY bars through the Market Data Module. Bars are validated against
-the US equities trading calendar. Full sessions require 09:30 through 15:55 bar
-starts. A 13:00 early-close session requires 09:30 through 12:55 bar starts.
-Weekends and full market holidays require no bars. Missing expected session bars
-are fatal; there is no forward-fill or interpolation.
+Historical Opening Range Breakout uses local deterministic intraday SPY CSV
+fixture data by default. When `MARKET_DATA_PROVIDER=alpaca`, the historical ORB
+path remains SPY-only. Bars are validated against the US equities trading
+calendar. Full sessions require 09:30 through 15:55 bar starts. A 13:00
+early-close session requires 09:30 through 12:55 bar starts. Weekends and full
+market holidays require no bars. Missing expected session bars are fatal; there
+is no forward-fill or interpolation.
 
 For paper trading, Opening Range Breakout is scheduled-only. It evaluates only
 completed regular-session 5-minute bars, skips before step creation when the
-expected completed bar is unavailable, and does not backfill missed slots.
+expected completed bar is unavailable, does not backfill missed slots, and uses
+the curated supported equity allowlist.
 
 ---
 

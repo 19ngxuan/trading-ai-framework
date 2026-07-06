@@ -10,6 +10,7 @@ import {
   stopExperiment,
   type ListExperimentsParams,
 } from "../../api/experimentsApi";
+import { listExperimentAgentDecisionLogs } from "../../api/agentDecisionLogsApi";
 import { listExperimentBrokerSyncLogs } from "../../api/brokerSyncApi";
 import { listExperimentEvents } from "../../api/eventsApi";
 import { getMetrics, getPortfolioSnapshots } from "../../api/metricsApi";
@@ -36,6 +37,8 @@ export const experimentKeys = {
   trades: (id: number) => [...experimentKeys.all, "trades", id] as const,
   brokerSyncLogs: (id: number) =>
     [...experimentKeys.all, "broker-sync-logs", id] as const,
+  agentDecisionLogs: (id: number) =>
+    [...experimentKeys.all, "agent-decision-logs", id] as const,
   paperStatus: (id: number) => [...experimentKeys.all, "paper-status", id] as const,
   options: ["options"] as const,
 };
@@ -115,6 +118,19 @@ export function useExperimentBrokerSyncLogs(
   });
 }
 
+export function useExperimentAgentDecisionLogs(
+  id: number,
+  strategyType?: string,
+  status?: ExperimentStatus,
+) {
+  return useQuery({
+    queryKey: experimentKeys.agentDecisionLogs(id),
+    queryFn: () => listExperimentAgentDecisionLogs(id, { limit: 100, offset: 0 }),
+    enabled: Number.isFinite(id) && strategyType === "AGENTIC_AI",
+    refetchInterval: status === "RUNNING" || status === "PAUSED" ? 5_000 : false,
+  });
+}
+
 export function useExperimentPaperStatus(
   id: number,
   mode?: string,
@@ -154,6 +170,9 @@ function useActionMutation(
       void queryClient.invalidateQueries({ queryKey: experimentKeys.trades(id) });
       void queryClient.invalidateQueries({
         queryKey: experimentKeys.brokerSyncLogs(id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: experimentKeys.agentDecisionLogs(id),
       });
       void queryClient.invalidateQueries({ queryKey: experimentKeys.paperStatus(id) });
     },

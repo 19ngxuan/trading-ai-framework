@@ -182,11 +182,14 @@ def trigger_due_paper_trading_experiments(
                     step_runner.settings
                 )
             for experiment_id in orb_ids:
+                experiment = repository.get_by_id(experiment_id)
+                if experiment is None:
+                    continue
                 try:
                     provider.load_session_until(
                         orb_due_slot.date(),
                         orb_due_slot,
-                        symbol="SPY",
+                        symbol=experiment.asset_symbol,
                     )
                 except MarketDataUnavailableError as exc:
                     logger.info(

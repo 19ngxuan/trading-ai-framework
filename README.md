@@ -19,7 +19,7 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Manual run-next-step support for deterministic historical execution
 - Optional backend scheduler infrastructure for scheduled historical steps
 - Optional Alpaca market data adapter behind the backend market data module
-- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`, and `AGENTIC_AI` + `DAILY`/`HOURLY` experiments on a curated allowlist (`SPY`, `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `TSLA`); Opening Range Breakout and smoke-test diagnostics remain SPY-only
+- Optional Alpaca paper trading adapter for manual or scheduled `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY`, `MOVING_AVERAGE` + `DAILY`, `AGENTIC_AI` + `DAILY`/`HOURLY`, and scheduled `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` experiments on a curated allowlist (`SPY`, `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `TSLA`); smoke-test diagnostics remain SPY-only
 - Deterministic fake single-agent and pipeline-agent implementations retained for internal regression coverage
 - Optional ScaDS.AI provider for paper-trading `AGENTIC_AI`
 - Optional disabled-by-default Alpaca News event scanner for event-triggered
@@ -164,16 +164,16 @@ Set `MARKET_DATA_PROVIDER=alpaca` only when Alpaca credentials are configured.
 CSV remains the default for deterministic local development and tests. Tests use
 CSV fixtures or mocked HTTP transports and do not require real Alpaca network
 access. When Alpaca is selected, empty or missing market data is fatal; the
-system does not forward-fill or interpolate bars. Opening Range Breakout uses
-the same provider selection: local `spy_5min.csv` when `csv`, or Alpaca
+system does not forward-fill or interpolate bars. Historical Opening Range
+Breakout remains SPY-only and uses local `spy_5min.csv` when `csv`, or Alpaca
 historical `5Min` SPY bars when `alpaca`.
 
 Paper trading is disabled by default and only accepts the Alpaca paper trading
 base URL. It supports Buy-and-Hold daily, Moving Average daily, and Agentic-AI
 daily/hourly paper trading for the curated equity allowlist: `SPY`, `AAPL`,
 `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, and `TSLA`. Scheduled Opening Range
-Breakout 5-minute paper trading and gated smoke-test diagnostics remain
-`SPY`-only. Agentic-AI paper trading supports
+Breakout 5-minute paper trading supports the same allowlist. Gated smoke-test
+diagnostics remain `SPY`-only. Agentic-AI paper trading supports
 `SINGLE_AGENT` or `PIPELINE` on `DAILY` or `HOURLY` cadence when ScaDS.AI is
 enabled. Manual `run-next-step` remains supported for Buy-and-Hold, Moving
 Average, and Agentic-AI paper debugging. Opening Range Breakout paper trading
@@ -333,12 +333,12 @@ After migrations and local services are running:
 
 - The CSV fixtures are deterministic and intentionally small; they are not full historical SPY coverage.
 - `startDate` and `endDate` filter available bars; they do not guarantee data coverage.
-- Opening Range Breakout uses local SPY 5-minute fixture data by default and Alpaca historical `5Min` bars when `MARKET_DATA_PROVIDER=alpaca`; it validates bars against the US equities calendar, supports early-close sessions, ignores weekends/holidays, and fails safely on missing expected session bars.
+- Historical Opening Range Breakout uses local SPY 5-minute fixture data by default and Alpaca historical `5Min` SPY bars when `MARKET_DATA_PROVIDER=alpaca`; paper ORB can use the curated equity allowlist. ORB validates bars against the US equities calendar, supports early-close sessions, ignores weekends/holidays, and fails safely on missing expected session bars.
 - Alpaca missing/empty bars are fatal; there is no forward-fill or interpolation.
 - Scheduler mode assumes one backend instance; there is no leader election.
 - Historical scheduler advances eligible historical Buy-and-Hold and Moving Average experiments only.
 - Historical Opening Range Breakout runs through `/start` full-run only; manual `run-next-step` and historical scheduler-triggered ORB are deferred.
-- Paper trading for Buy-and-Hold, Moving Average, and Agentic AI is limited to the curated US equity allowlist; Opening Range Breakout and smoke-test diagnostics remain SPY-only. European ETF/Xetra production support is not implemented.
+- Paper trading for Buy-and-Hold, Moving Average, Opening Range Breakout, and Agentic AI is limited to the curated US equity allowlist; smoke-test diagnostics remain SPY-only. European ETF/Xetra production support is not implemented.
 - Broker order-status polling exists for submitted paper orders. Full broker reconciliation, outbox processing, account sync, position sync, and automatic cancellation are deferred.
 - Internal deterministic fake-agent implementations remain for regression coverage, but historical Agentic AI is not exposed as a supported create-flow feature.
 - ScaDS.AI is used only for paper Agentic AI execution when explicitly enabled.

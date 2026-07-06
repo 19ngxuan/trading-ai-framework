@@ -176,14 +176,13 @@ authoritative and determines the executable whole-share quantity from the
 current portfolio state. BUY uses available cash, SELL liquidates the existing
 long SPY position, and the system never opens short positions.
 
-Opening Range Breakout creation is supported only for
-`OPENING_RANGE_BREAKOUT` + `HISTORICAL_SIMULATION` + `INTRADAY_5_MIN` + `SPY`.
-It uses local deterministic 5-minute SPY fixture data when
-`MARKET_DATA_PROVIDER=csv`, and Alpaca historical 5-minute SPY bars when
-`MARKET_DATA_PROVIDER=alpaca`. Intraday bars are validated against the US
-equities trading calendar, including early-close sessions. Date ranges
-containing only weekends or full market holidays complete with zero execution
-steps.
+Opening Range Breakout creation is supported for `OPENING_RANGE_BREAKOUT` +
+`INTRADAY_5_MIN`. Historical ORB remains `SPY`-only because the simulation path
+uses the local `spy_5min.csv` fixture by default and SPY-specific historical ORB
+coverage when Alpaca is configured. Paper ORB supports the configured equity
+allowlist. Intraday bars are validated against the US equities trading calendar,
+including early-close sessions. Date ranges containing only weekends or full
+market holidays complete with zero execution steps.
 
 ### Response `201 Created`
 
@@ -624,12 +623,20 @@ GET /api/v1/experiments/{experiment_id}/orders
 GET /api/v1/experiments/{experiment_id}/trades
 GET /api/v1/experiments/{experiment_id}/broker-sync-logs
 GET /api/v1/experiments/{experiment_id}/paper-status
+GET /api/v1/experiments/{experiment_id}/agent-decision-logs
 ```
 
-Orders, trades, and broker sync logs are paginated with `limit` and `offset` and
-are sorted newest first. Missing experiments return the normalized
-`EXPERIMENT_NOT_FOUND` response. The endpoints read persisted rows only and do
-not call Alpaca.
+Orders, trades, broker sync logs, and agent decision logs are paginated with
+`limit` and `offset` and are sorted newest first. Missing experiments return the
+normalized `EXPERIMENT_NOT_FOUND` response. The endpoints read persisted rows
+only and do not call Alpaca, ScaDS.AI, or any broker.
+
+`agent-decision-logs` exposes the persisted agent audit trail for Agentic-AI
+experiments. It includes the agent mode (`SINGLE_AGENT` or persisted
+`PIPELINE`, shown as Multi Agent in the UI), stage name, parsing status,
+prompt/model metadata, raw and parsed output JSON, optional repair output, and
+the linked execution step trigger type (`MANUAL`, `SCHEDULED`, or `EVENT`).
+For event-driven runs, event context may appear in `inputJson`.
 
 `paper-status` explains the operational state of a paper trading experiment:
 
@@ -659,7 +666,7 @@ Scheduled paper trading supports `BUY_AND_HOLD` + `DAILY`,
 `MOVING_AVERAGE` + `DAILY`, and `AGENTIC_AI` with `SINGLE_AGENT` or
 `PIPELINE` on `DAILY` or `HOURLY` cadence for the supported paper-trading
 equity allowlist, plus
-`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`. Moving Average and
+`OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` for the same allowlist. Moving Average and
 Agentic-AI manual `run-next-step` are supported for debugging. ORB paper
 trading is scheduled-only and skips before step creation if the expected
 completed 5-minute bar is unavailable.
@@ -721,7 +728,6 @@ tables, and broker sync tables where applicable. Public list/detail endpoints
 are still not implemented for:
 
 - execution steps
-- agent logs
 
 These endpoints are intentionally deferred and must not be assumed available by frontend or API clients until implemented and documented.
 

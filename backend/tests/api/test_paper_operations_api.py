@@ -304,6 +304,38 @@ def test_paper_status_supports_orb_and_exposes_operational_metadata(
     get_settings.cache_clear()
 
 
+def test_paper_status_supports_orb_for_supported_tech_asset(
+    monkeypatch,
+    migrated_database: str,
+) -> None:
+    monkeypatch.setenv("PAPER_TRADING_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_PAPER_TRADING_ENABLED", "true")
+    monkeypatch.setenv("ALPACA_API_KEY_ID", "test-key")
+    monkeypatch.setenv("ALPACA_API_SECRET_KEY", "test-secret")
+    get_settings.cache_clear()
+    session_factory = create_session_factory(migrated_database)
+    with session_factory() as session:
+        experiment_id = _create_paper_experiment(
+            session,
+            status=ExperimentStatus.RUNNING,
+            strategy_type=StrategyType.OPENING_RANGE_BREAKOUT,
+            trading_frequency=TradingFrequency.INTRADAY_5_MIN,
+        )
+        experiment = session.get(ExperimentModel, experiment_id)
+        assert experiment is not None
+        experiment.asset_symbol = "AAPL"
+        session.commit()
+
+    with TestClient(create_app()) as client:
+        response = client.get(f"/api/v1/experiments/{experiment_id}/paper-status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["supportedByPaperScheduler"] is True
+    assert body["assetSymbol"] == "AAPL"
+    get_settings.cache_clear()
+
+
 def test_paper_status_supports_hourly_agentic_ai(
     monkeypatch, migrated_database: str
 ) -> None:

@@ -96,11 +96,6 @@ def validate_create_experiment_request(request: CreateExperimentRequest) -> None
                 },
             )
     elif request.strategy_type is StrategyType.OPENING_RANGE_BREAKOUT:
-        if asset_symbol != SPY_SYMBOL:
-            raise ValidationAppError(
-                "Opening Range Breakout supports SPY only.",
-                details={"field": "assetSymbol", "value": request.asset_symbol},
-            )
         if request.mode not in {
             ExperimentMode.HISTORICAL_SIMULATION,
             ExperimentMode.PAPER_TRADING,

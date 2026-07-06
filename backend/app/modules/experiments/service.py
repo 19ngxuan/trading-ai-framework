@@ -406,11 +406,14 @@ class ExperimentService:
                     ExperimentMode.PAPER_TRADING,
                 }
                 or experiment.trading_frequency is not TradingFrequency.INTRADAY_5_MIN
-                or experiment.asset_symbol != "SPY"
+                or (
+                    experiment.mode is ExperimentMode.HISTORICAL_SIMULATION
+                    and experiment.asset_symbol != "SPY"
+                )
             ):
                 raise InvalidExperimentConfigurationAppError(
                     "Opening Range Breakout supports HISTORICAL_SIMULATION or "
-                    "PAPER_TRADING, INTRADAY_5_MIN, SPY only.",
+                    "PAPER_TRADING with INTRADAY_5_MIN; historical ORB is SPY-only.",
                     details={
                         "experimentId": experiment_id,
                         "mode": experiment.mode.value,

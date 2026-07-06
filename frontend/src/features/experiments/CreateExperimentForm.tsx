@@ -146,7 +146,6 @@ function strategySupportedForMode(
 function isSpyOnlySelection(mode: ExperimentMode, strategyType: StrategyType) {
   return (
     mode === "HISTORICAL_SIMULATION"
-    || strategyType === "OPENING_RANGE_BREAKOUT"
     || strategyType === "PAPER_TRADING_SMOKE_TEST"
   );
 }
@@ -620,8 +619,8 @@ export function CreateExperimentForm({ onCancel }: CreateExperimentFormProps) {
             </small>
           ) : (
             <small>
-              Paper Buy-and-Hold, Moving Average, and AI strategies support the
-              configured US large-cap allowlist.
+              Paper Buy-and-Hold, Moving Average, Opening Range Breakout, and AI
+              strategies support the configured US large-cap allowlist.
             </small>
           )}
         </label>

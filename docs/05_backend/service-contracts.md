@@ -652,7 +652,8 @@ Responsibility:
 
 Rules:
 
-- V1 supports SPY only.
+- Local CSV fixtures support SPY only. Alpaca-backed market data supports the
+  curated equity allowlist where the relevant strategy path allows it.
 - Missing market data must be handled explicitly.
 
 ---

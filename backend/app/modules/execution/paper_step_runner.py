@@ -405,7 +405,7 @@ class PaperTradingStepRunner:
             and experiment.trading_frequency is TradingFrequency.INTRADAY_5_MIN
         ):
             return (
-                experiment.asset_symbol == SPY_SYMBOL
+                is_supported_equity_symbol(experiment.asset_symbol)
                 and trigger_type is TriggerType.SCHEDULED
             )
         if experiment.strategy_type is not StrategyType.PAPER_TRADING_SMOKE_TEST:
@@ -597,10 +597,14 @@ class PaperTradingStepRunner:
             if execution_step is None or execution_step.scheduled_for is None:
                 raise RuntimeError("Scheduled ORB paper step is missing its slot.")
             scheduled_for = execution_step.scheduled_for
+            experiment = ExperimentRepository(session).get_by_id(experiment_id)
+            if experiment is None:
+                raise RuntimeError(f"Experiment {experiment_id} is missing state.")
+            symbol = experiment.asset_symbol
         bars = self.intraday_provider.load_session_until(
             scheduled_for.date(),
             scheduled_for,
-            symbol=SPY_SYMBOL,
+            symbol=symbol,
             frequency=TradingFrequency.INTRADAY_5_MIN,
         )
         bar = bars[-1]
@@ -627,7 +631,7 @@ class PaperTradingStepRunner:
                     execution_step_id=execution_step_id,
                     experiment_id=experiment_id,
                     timestamp=bar.timestamp,
-                    symbol=SPY_SYMBOL,
+                    symbol=symbol,
                     price=bar.close,
                     open=bar.open,
                     high=bar.high,
@@ -643,7 +647,7 @@ class PaperTradingStepRunner:
             session.flush()
 
             strategy_decision = self.orb_strategy.decide(
-                symbol=SPY_SYMBOL,
+                symbol=symbol,
                 close=bar.close,
                 position_quantity=portfolio.position_quantity,
                 state=state,
@@ -698,7 +702,7 @@ class PaperTradingStepRunner:
                     risk_result=risk_result,
                     risk_check_id=risk_check_id,
                     price=bar.close,
-                    symbol=SPY_SYMBOL,
+                    symbol=symbol,
                 )
 
             self._persist_snapshot_and_metrics(

@@ -7,9 +7,9 @@ strategies while preserving the existing paper-only safety boundary.
 
 Supported paper trading configurations:
 
-- `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + `SPY`
-- `PAPER_TRADING` + `MOVING_AVERAGE` + `DAILY` + `SPY`
-- `PAPER_TRADING` + `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + `SPY`
+- `PAPER_TRADING` + `BUY_AND_HOLD` + `DAILY` + supported equity allowlist
+- `PAPER_TRADING` + `MOVING_AVERAGE` + `DAILY` + supported equity allowlist
+- `PAPER_TRADING` + `OPENING_RANGE_BREAKOUT` + `INTRADAY_5_MIN` + supported equity allowlist
 - gated diagnostics-only `PAPER_TRADING_SMOKE_TEST` + `TEST_1_MIN` + `SPY`
 
 Out of scope:

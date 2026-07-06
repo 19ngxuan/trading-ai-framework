@@ -10,6 +10,7 @@ import { PaperTradingStatusCard } from "../features/experimentDetail/PaperTradin
 import { PerformanceChartPanel } from "../features/experimentDetail/PerformanceChartPanel";
 import {
   useExperiment,
+  useExperimentAgentDecisionLogs,
   useExperimentBrokerSyncLogs,
   useExperimentEvents,
   useExperimentOrders,
@@ -54,6 +55,11 @@ export function ExperimentDetailPage() {
   const ordersQuery = useExperimentOrders(experimentId, status);
   const tradesQuery = useExperimentTrades(experimentId, status);
   const brokerSyncLogsQuery = useExperimentBrokerSyncLogs(experimentId, status);
+  const agentDecisionLogsQuery = useExperimentAgentDecisionLogs(
+    experimentId,
+    detailQuery.data?.experiment.strategyType,
+    status,
+  );
   const metrics = useMemo<MetricSnapshot[]>(
     () => sortByTimestamp(metricsQuery.data?.items ?? []),
     [metricsQuery.data?.items],
@@ -63,6 +69,15 @@ export function ExperimentDetailPage() {
     [portfolioSnapshotsQuery.data?.items],
   );
   const displayedPortfolioValue = latestPortfolioValue(portfolioSnapshots);
+  const dataError =
+    metricsQuery.error ??
+    portfolioSnapshotsQuery.error ??
+    eventsQuery.error ??
+    paperStatusQuery.error ??
+    ordersQuery.error ??
+    tradesQuery.error ??
+    brokerSyncLogsQuery.error ??
+    agentDecisionLogsQuery.error;
 
   if (!Number.isFinite(experimentId)) {
     return <ErrorState error={new Error("Invalid experiment id.")} />;
@@ -89,21 +104,7 @@ export function ExperimentDetailPage() {
         detail={detailQuery.data}
         portfolioValue={displayedPortfolioValue}
       />
-      {(metricsQuery.isError ||
-        portfolioSnapshotsQuery.isError ||
-        eventsQuery.isError) && (
-        <ErrorState
-          error={
-            metricsQuery.error ??
-            portfolioSnapshotsQuery.error ??
-            eventsQuery.error ??
-            paperStatusQuery.error ??
-            ordersQuery.error ??
-            tradesQuery.error ??
-            brokerSyncLogsQuery.error
-          }
-        />
-      )}
+      {dataError && <ErrorState error={dataError} />}
       <PaperTradingStatusCard
         status={paperStatusQuery.data}
         isLoading={paperStatusQuery.isLoading}
@@ -120,6 +121,9 @@ export function ExperimentDetailPage() {
         orders={ordersQuery.data?.items ?? []}
         trades={tradesQuery.data?.items ?? []}
         brokerSyncLogs={brokerSyncLogsQuery.data?.items ?? []}
+        agentDecisionLogs={agentDecisionLogsQuery.data?.items ?? []}
+        agentDecisionLogsLoading={agentDecisionLogsQuery.isLoading}
+        agentDecisionLogsError={agentDecisionLogsQuery.error}
       />
     </div>
   );

@@ -236,6 +236,21 @@ def test_create_experiment_accepts_orb_paper_trading(client) -> None:
     assert body["experiment"]["tradingFrequency"] == "INTRADAY_5_MIN"
 
 
+def test_create_experiment_accepts_orb_paper_trading_for_supported_tech_asset(
+    client,
+) -> None:
+    payload = _create_opening_range_breakout_payload()
+    payload["mode"] = "PAPER_TRADING"
+    payload["assetSymbol"] = "AAPL"
+
+    response = client.post("/api/v1/experiments", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["experiment"]["strategyType"] == "OPENING_RANGE_BREAKOUT"
+    assert body["experiment"]["assetSymbol"] == "AAPL"
+
+
 def test_create_experiment_rejects_agentic_ai_historical_simulation(client) -> None:
     payload = _create_request_payload()
     payload["mode"] = "HISTORICAL_SIMULATION"
