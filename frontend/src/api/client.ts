@@ -1,4 +1,5 @@
 import type { ErrorResponse } from "../types/api";
+import { clearAuthToken, getAuthToken } from "../auth/tokenStorage";
 
 const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -34,12 +35,30 @@ async function parseError(response: Response): Promise<ApiError> {
   }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(buildUrl(path));
-
-  if (!response.ok) {
-    throw await parseError(response);
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const headers = new Headers(extra);
+  const token = getAuthToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
+  return headers;
+}
+
+async function ensureOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  if (response.status === 401) {
+    clearAuthToken();
+    window.dispatchEvent(new Event("trading-lab-auth-expired"));
+  }
+  throw await parseError(response);
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    headers: authHeaders(),
+  });
+
+  await ensureOk(response);
 
   return response.json() as Promise<T>;
 }
@@ -51,13 +70,13 @@ export async function apiPost<TResponse, TPayload = undefined>(
   const response = await fetch(buildUrl(path), {
     method: "POST",
     headers:
-      payload === undefined ? undefined : { "Content-Type": "application/json" },
+      payload === undefined
+        ? authHeaders()
+        : authHeaders({ "Content-Type": "application/json" }),
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    throw await parseError(response);
-  }
+  await ensureOk(response);
 
   return response.json() as Promise<TResponse>;
 }

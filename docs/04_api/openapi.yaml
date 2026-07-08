@@ -17,6 +17,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /auth/login:
+    post:
+      summary: Login with the configured single deployment account
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/me:
+    get:
+      summary: Get current authentication state
+      operationId: getAuthMe
+      responses:
+        '200':
+          description: Authentication state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+        '401':
+          description: Authentication token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /options:
     get:
       summary: Get supported enum values and frontend options
@@ -569,6 +609,37 @@ components:
           type: string
         version:
           type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [bearer]
+        expiresInSeconds:
+          type: integer
+        username:
+          type: string
+    AuthMeResponse:
+      type: object
+      properties:
+        authEnabled:
+          type: boolean
+        authenticated:
+          type: boolean
+        username:
+          type: string
+          nullable: true
     ExperimentMode:
       type: string
       enum: [HISTORICAL_SIMULATION, PAPER_TRADING]

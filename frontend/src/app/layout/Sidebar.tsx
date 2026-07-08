@@ -1,5 +1,7 @@
 import { NavLink } from "react-router-dom";
 
+import { useAuth } from "../../auth/AuthProvider";
+
 const links = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/experiments", label: "Experiments" },
@@ -9,6 +11,8 @@ const links = [
 ];
 
 export function Sidebar() {
+  const auth = useAuth();
+
   return (
     <aside className="sidebar">
       <div className="sidebar-title">Trading Lab</div>
@@ -25,6 +29,14 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      {auth.authEnabled && (
+        <div className="sidebar-auth">
+          <span>{auth.username ?? "Signed in"}</span>
+          <button type="button" onClick={auth.logout}>
+            Logout
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

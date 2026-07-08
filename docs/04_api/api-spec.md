@@ -97,6 +97,8 @@ All application errors should use this structure:
 
 Common error codes:
 
+- `AUTHENTICATION_FAILED`
+- `AUTHENTICATION_REQUIRED`
 - `VALIDATION_ERROR`
 - `EXPERIMENT_NOT_FOUND`
 - `EXECUTION_STEP_NOT_FOUND`
@@ -123,6 +125,27 @@ Common error codes:
 | `409 Conflict` | Invalid state transition or state conflict. |
 | `422 Unprocessable Entity` | Validation failed. |
 | `500 Internal Server Error` | Unexpected server error. |
+
+## 5.4 Optional Deployment Authentication
+
+When `APP_AUTH_ENABLED=true`, all `/api/v1` application endpoints except
+`/health`, `/auth/login`, and `/auth/me` require:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+The deployment auth model has exactly one configured account. There is no
+registration endpoint and no users table.
+
+```http
+POST /api/v1/auth/login
+GET /api/v1/auth/me
+```
+
+`POST /auth/login` accepts `username` and `password` and returns a bearer token.
+`GET /auth/me` reports whether auth is enabled and whether the current token is
+valid.
 
 ---
 

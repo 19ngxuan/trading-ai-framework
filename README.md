@@ -294,6 +294,31 @@ Use the committed `.env.example` files as templates:
 
 Do not commit real `.env` files or secrets.
 
+## Deployment Login
+
+The backend can protect all `/api/v1` application endpoints with a single
+configured account. Auth is disabled by default for local development and tests.
+
+```env
+APP_AUTH_ENABLED=true
+APP_AUTH_USERNAME=admin
+APP_AUTH_PASSWORD_HASH=<bcrypt-hash>
+APP_AUTH_JWT_SECRET=<long-random-secret>
+APP_AUTH_TOKEN_EXPIRE_MINUTES=720
+```
+
+There is no account creation flow and no users table. Change the username or
+password by changing deployment environment variables and restarting the backend.
+Generate a password hash with:
+
+```bash
+cd backend
+uv run python scripts/hash_password.py
+```
+
+Copy the printed hash into `APP_AUTH_PASSWORD_HASH`. The plaintext password is
+never stored by the script.
+
 ## Architecture Notes
 
 The backend is a FastAPI modular monolith. The frontend calls only backend REST APIs. PostgreSQL is the persistent database.

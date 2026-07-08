@@ -39,6 +39,20 @@ a {
   margin-bottom: 24px;
 }
 
+.sidebar-auth {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+  border-top: 1px solid #e6ebf2;
+  color: #66758c;
+  font-size: 13px;
+  padding-top: 16px;
+}
+
+.sidebar-auth button {
+  width: 100%;
+}
+
 .nav-list {
   display: grid;
   gap: 8px;
@@ -340,6 +354,45 @@ select {
 .state-box-error {
   border-color: #f4b8b3;
   color: #a6291f;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background:
+    linear-gradient(rgba(244, 246, 248, 0.92), rgba(244, 246, 248, 0.92)),
+    #f4f6f8;
+  padding: 24px;
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(23, 32, 51, 0.12);
+  padding: 28px;
+}
+
+.login-panel h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 28px;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 6px;
+  color: #405069;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .filter-row {
