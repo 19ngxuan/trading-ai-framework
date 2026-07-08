@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     database_url: str | None = None
     test_database_url: str | None = None
     backend_cors_origins: str = "http://localhost:5173"
+    app_auth_enabled: bool = False
+    app_auth_username: str | None = None
+    app_auth_password_hash: str | None = None
+    app_auth_jwt_secret: str | None = None
+    app_auth_token_expire_minutes: int = 720
     scheduler_enabled: bool = False
     scheduler_interval_seconds: int = 60
     scheduler_job_id: str = "historical_step_scheduler"
@@ -48,6 +53,18 @@ class Settings(BaseSettings):
         if self.scheduler_enabled and self.scheduler_interval_seconds <= 0:
             raise ValueError(
                 "SCHEDULER_INTERVAL_SECONDS must be greater than 0 when scheduler is enabled."
+            )
+        if self.app_auth_token_expire_minutes <= 0:
+            raise ValueError("APP_AUTH_TOKEN_EXPIRE_MINUTES must be greater than 0.")
+        if self.app_auth_enabled and not self.app_auth_username:
+            raise ValueError("APP_AUTH_USERNAME is required when APP_AUTH_ENABLED=true.")
+        if self.app_auth_enabled and not self.app_auth_password_hash:
+            raise ValueError(
+                "APP_AUTH_PASSWORD_HASH is required when APP_AUTH_ENABLED=true."
+            )
+        if self.app_auth_enabled and not self.app_auth_jwt_secret:
+            raise ValueError(
+                "APP_AUTH_JWT_SECRET is required when APP_AUTH_ENABLED=true."
             )
         if (
             self.paper_trading_scheduler_enabled

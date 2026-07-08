@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.schemas.error_schemas import ErrorResponse
 from app.api.routes.agent_decision_logs import router as agent_decision_logs_router
+from app.api.routes.auth import router as auth_router
 from app.api.routes.comparison import router as comparison_router
 from app.api.routes.broker_sync import router as broker_sync_router
 from app.api.routes.events import router as events_router
@@ -20,6 +21,7 @@ from app.api.routes.paper_status import router as paper_status_router
 from app.api.routes.trades import router as trades_router
 from app.core.config import get_settings
 from app.core.errors import AppError
+from app.modules.auth.security import AuthTokenError, verify_access_token
 from app.modules.scheduler.scheduler import create_scheduler
 
 
@@ -66,6 +68,34 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def enforce_single_account_auth(request, call_next):
+        settings = get_settings()
+        if (
+            not settings.app_auth_enabled
+            or request.method == "OPTIONS"
+            or not request.url.path.startswith("/api/v1")
+            or request.url.path in _PUBLIC_API_PATHS
+        ):
+            return await call_next(request)
+
+        token = _bearer_token(request.headers.get("authorization"))
+        if (
+            token is None
+            or not settings.app_auth_username
+            or not settings.app_auth_jwt_secret
+        ):
+            return _auth_error_response("Authentication token is missing.")
+        try:
+            verify_access_token(
+                token,
+                secret=settings.app_auth_jwt_secret,
+                expected_username=settings.app_auth_username,
+            )
+        except AuthTokenError:
+            return _auth_error_response("Authentication token is invalid.")
+        return await call_next(request)
+
     @app.exception_handler(AppError)
     def handle_app_error(_, exc: AppError) -> JSONResponse:
         return JSONResponse(
@@ -85,6 +115,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
     app.include_router(comparison_router, prefix="/api/v1")
     app.include_router(orders_router, prefix="/api/v1")
@@ -100,3 +131,27 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+_PUBLIC_API_PATHS = {
+    "/api/v1/health",
+    "/api/v1/auth/login",
+    "/api/v1/auth/me",
+}
+
+
+def _bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        return None
+    token = authorization[len(prefix) :].strip()
+    return token or None
+
+
+def _auth_error_response(message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content=_error_response("AUTHENTICATION_REQUIRED", message, {}),
+    )
