@@ -176,7 +176,7 @@ Run an experiment over historical market data from `start_date` to `end_date`.
 Flow:
 
 1. Experiment is started.
-2. Backend loads historical market data for SPY.
+2. Backend loads historical market data for the configured supported symbol.
 3. Backend iterates through the data according to `trading_frequency`.
 4. For each selected timestamp, backend creates an `ExecutionStep` with `trigger_type = HISTORICAL`.
 5. Backend loads or derives market data and indicators.
@@ -239,10 +239,10 @@ Manual and scheduled execution must not use different business logic.
 Goal:
 
 Run a supported strategy using Alpaca Paper Trading instead of internal
-simulated execution. The current implementation supports SPY Buy-and-Hold daily
-paper trading, SPY Moving Average daily paper trading, scheduled SPY Opening
-Range Breakout five-minute paper trading, gated diagnostics-only smoke-test
-paper trading, and SPY Agentic-AI paper trading on daily or hourly cadence.
+simulated execution. The current implementation supports Buy-and-Hold daily,
+Moving Average daily, scheduled Opening Range Breakout five-minute, and
+Agentic-AI daily/hourly paper trading on the curated supported equity allowlist.
+Gated diagnostics-only smoke-test paper trading remains SPY-only.
 
 Flow:
 

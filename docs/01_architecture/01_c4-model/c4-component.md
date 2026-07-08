@@ -390,7 +390,7 @@ The Risk Module validates every `TradingDecision` before execution.
 
 It is responsible for enforcing:
 
-- SPY-only restriction in Version 1
+- strategy/mode-specific asset allowlists in Version 1
 - no real-money trading
 - no short selling
 - no margin trading
@@ -777,7 +777,7 @@ The following components are intentionally not part of Version 1:
 - separate AI microservice
 - separate worker service
 - queue consumer service
-- authentication module
+- multi-user authentication module
 - user management module
 - payment module
 - real-money trading module

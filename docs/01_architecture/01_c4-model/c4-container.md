@@ -469,7 +469,7 @@ The following containers or deployment units are intentionally not part of Versi
 - message broker
 - Redis queue
 - Kubernetes deployment
-- authentication service
+- external authentication service
 - user management service
 - mobile app
 - public API gateway

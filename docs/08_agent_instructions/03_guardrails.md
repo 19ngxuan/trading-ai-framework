@@ -195,8 +195,8 @@ The agent must stop and request confirmation if a task requires:
 - changing safety rules
 - changing architecture style
 - introducing a new external service
-- adding authentication or multi-user support
-- adding multi-asset trading
+- changing the deployment authentication model or adding multi-user support
+- expanding asset support beyond the documented allowlists
 - adding short selling, margin, options, or high-frequency trading
 
 Do not implement these changes without confirmation.

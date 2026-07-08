@@ -85,7 +85,7 @@ Broker adapters should handle broker communication, not domain-level risk policy
 - Rejected or adjusted decisions must be recorded in RiskCheck.
 - Agent-suggested position size may be reduced or rejected.
 - Risk Engine must enforce:
-  - SPY-only in V1
+  - strategy/mode-specific asset allowlists in V1
   - no short selling
   - no margin trading
   - no selling without position

@@ -2,7 +2,7 @@
 
 Trading Lab is a web-based strategy and agentic-AI trading experimentation platform for SPY simulation and curated US large-cap paper trading.
 
-This repository currently contains the M0-M24 backend/frontend foundation:
+This repository currently contains the M0-M30 backend/frontend foundation:
 
 - FastAPI backend skeleton
 - React/Vite/TypeScript frontend skeleton
@@ -25,6 +25,10 @@ This repository currently contains the M0-M24 backend/frontend foundation:
 - Optional disabled-by-default Alpaca News event scanner for event-triggered
   `PAPER_TRADING` + `AGENTIC_AI` runs
 - RiskCheck-controlled whole-share execution sizing
+- Curated multi-asset paper-trading support for `SPY`, `AAPL`, `MSFT`,
+  `NVDA`, `AMZN`, `META`, `GOOGL`, and `TSLA`
+- Single-account deployment login for protecting frontend/API access in private
+  deployments
 - Backend domain enums, SQLAlchemy models, Alembic migration setup, repository skeletons, and PostgreSQL-backed tests
 
 The current implementation intentionally does not include real-money trading,
@@ -309,6 +313,8 @@ APP_AUTH_TOKEN_EXPIRE_MINUTES=720
 
 There is no account creation flow and no users table. Change the username or
 password by changing deployment environment variables and restarting the backend.
+Changing `APP_AUTH_JWT_SECRET` invalidates existing login tokens. Keep the
+secret outside Git and use a long random value in deployments.
 Generate a password hash with:
 
 ```bash
@@ -318,6 +324,12 @@ uv run python scripts/hash_password.py
 
 Copy the printed hash into `APP_AUTH_PASSWORD_HASH`. The plaintext password is
 never stored by the script.
+
+The React app uses this backend login state to show `/login` and protect the
+main application routes. Static frontend assets may still be served by the web
+server; API data remains protected by the backend. If a deployment must prevent
+even the initial static app load, put an additional reverse-proxy or
+platform-level access control in front of the frontend.
 
 ## Architecture Notes
 

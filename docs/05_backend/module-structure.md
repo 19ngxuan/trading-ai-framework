@@ -41,6 +41,7 @@ backend/
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── experiments.py
+│   │   │   ├── auth.py
 │   │   │   ├── trades.py
 │   │   │   ├── orders.py
 │   │   │   ├── broker_sync.py
@@ -52,6 +53,7 @@ backend/
 │   │   │   └── options.py
 │   │   └── schemas/
 │   │       ├── experiment_schemas.py
+│   │       ├── auth_schemas.py
 │   │       ├── execution_schemas.py
 │   │       ├── trade_schemas.py
 │   │       ├── order_schemas.py
@@ -68,6 +70,7 @@ backend/
 │   │   └── interfaces.py
 │   │
 │   ├── modules/
+│   │   ├── auth/
 │   │   ├── experiments/
 │   │   ├── scheduler/
 │   │   ├── execution/
@@ -514,7 +517,7 @@ Key rules:
 - Agents may suggest only BUY, SELL, or HOLD; Risk Module decides final executable size.
 - V1 receives risk configuration from `strategy_configs.parameters_json.riskConfig` after applying documented defaults.
 - BUY uses available cash for whole-share sizing, and SELL closes the existing
-  long SPY position without opening shorts.
+  long configured-symbol position without opening shorts.
 
 ---
 

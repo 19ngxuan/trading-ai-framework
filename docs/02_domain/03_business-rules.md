@@ -280,12 +280,12 @@ Before the opening range is complete, the strategy returns `HOLD`. After the
 opening range is complete:
 
 - close above opening range high and no position → `BUY`
-- close below opening range low and holding SPY → `SELL`
-- final regular-session bar and holding SPY → `SELL`
+- close below opening range low and holding the configured symbol → `SELL`
+- final regular-session bar and holding the configured symbol → `SELL`
 - otherwise → `HOLD`
 
 M16 allows at most one completed round trip per session. `SELL` only closes an
-existing long SPY position and must never open a short position.
+existing long configured-symbol position and must never open a short position.
 
 Historical Opening Range Breakout uses local deterministic intraday SPY CSV
 fixture data by default. When `MARKET_DATA_PROVIDER=alpaca`, the historical ORB
@@ -537,7 +537,8 @@ Portfolio cash must never become negative through simulation or paper-trading st
 Position quantity must never become negative in V1.
 
 BUY execution uses available cash and whole-share rounding. `SELL` always
-liquidates the existing long SPY position and must never open a short position.
+liquidates the existing long configured-symbol position and must never open a
+short position.
 If available cash cannot buy one whole share, the final action becomes `HOLD`
 with an auditable reason.
 
@@ -707,7 +708,8 @@ Version 1 is designed for a single user and does not include user registration o
 
 ### BR-061: No separate Position entity in V1
 
-Version 1 stores the single SPY position directly in `Portfolio` and `PortfolioSnapshot`.
+Version 1 stores the single configured-symbol position directly in `Portfolio`
+and `PortfolioSnapshot`.
 
 A separate `Position` entity is a future extension.
 

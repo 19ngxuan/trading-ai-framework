@@ -965,7 +965,7 @@ Agent output is informational until backend converts it into a `TradingDecision`
 
 The following are out of scope for Version 1:
 
-- login/register screens
+- registration screens
 - user profile
 - billing
 - mobile-first app

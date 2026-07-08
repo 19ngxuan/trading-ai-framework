@@ -34,6 +34,7 @@ The Version 1 frontend contains these routes:
 
 ```text
 /
+ /login
  /dashboard
  /experiments
  /experiments/:experimentId
@@ -44,6 +45,8 @@ The Version 1 frontend contains these routes:
 
 `/experiments/new` may remain as a compatibility route, but it is not a primary
 sidebar destination. New experiment creation is launched from `/experiments`.
+
+`/login` is used only when backend deployment authentication is enabled.
 
 Recommended redirect:
 
@@ -73,6 +76,11 @@ Sidebar entries:
 - Settings
 
 The sidebar is the primary navigation mechanism.
+
+When `APP_AUTH_ENABLED=true`, main application routes are guarded by the
+frontend auth provider and require a valid backend-issued bearer token. The
+backend remains authoritative; frontend guards are a usability layer, not the
+security boundary.
 
 ---
 

@@ -89,7 +89,7 @@ Examples:
 
 - Buy-and-Hold historical simulation for SPY
 - 200-day Moving Average historical simulation for SPY
-- Agentic-AI paper-trading experiment for SPY
+- Agentic-AI paper-trading experiment for a supported paper-trading equity
 
 Main fields:
 
@@ -119,7 +119,7 @@ Main responsibilities:
 
 Version 1 constraints:
 
-- `asset_symbol` is limited to `SPY`
+- `asset_symbol` is limited by strategy/mode-specific allowlists
 - one experiment uses one strategy type
 - one experiment has one portfolio
 - one experiment has one strategy configuration
@@ -182,7 +182,7 @@ Execution sizing rules:
 - Strategies and agents propose only `BUY`, `SELL`, or `HOLD`.
 - RiskCheck determines the executable whole-share quantity from portfolio state.
 - BUY uses available cash.
-- SELL liquidates the current long SPY position.
+- SELL liquidates the current long configured-symbol position.
 - The system never opens short positions.
 - If available cash cannot buy one whole share, final action becomes `HOLD`.
 
@@ -220,7 +220,8 @@ Agentic-AI strategy:
 
 A `Portfolio` represents the current portfolio state of an experiment.
 
-In Version 1, the portfolio model is intentionally simple because only SPY is supported.
+In Version 1, the portfolio model is intentionally simple: one experiment can
+hold at most one long position for its configured supported symbol.
 
 Main fields:
 
@@ -237,14 +238,14 @@ Main fields:
 Responsibilities:
 
 - hold current cash
-- hold current SPY position
+- hold the current configured-symbol position
 - hold current portfolio valuation
 - represent the latest known state of an experiment
 
 Version 1 simplification:
 
 - one portfolio may hold at most one position
-- the position is expected to be SPY
+- the position must match the experiment's configured supported symbol
 - `position_symbol` is nullable when the portfolio has no current position. A newly created experiment starts with no position, `position_symbol = null`, `position_quantity = 0`, and all capital in cash.
 
 Future extension:
@@ -757,15 +758,15 @@ The system Risk Engine remains mandatory and authoritative.
 Version 1 intentionally simplifies the domain:
 
 - one user only
-- no user entity
-- one asset only: SPY
+- no user entity or account-management workflow
+- one configured supported symbol per experiment
 - no multi-asset portfolio
 - no separate Position entity
 - no real-money trading
 - no short selling
 - no margin trading
 - no options trading
-- no authentication module
+- no multi-user authentication module
 - no external worker service
 
 These simplifications keep the initial system implementable while preserving extension points for later versions.

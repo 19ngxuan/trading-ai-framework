@@ -3,7 +3,8 @@
 ## Goal
 
 Align documentation, API contracts, safety boundaries, environment examples,
-and runbooks with the implemented M0-M24 system before further feature work.
+and runbooks with the then-implemented M0-M24 system before further feature
+work.
 
 ## Scope
 
@@ -25,7 +26,8 @@ and runbooks with the implemented M0-M24 system before further feature work.
 
 ## Acceptance Criteria
 
-- README accurately describes implemented M0-M24 behavior and limitations.
+- README accurately describes the implemented M0-M24 behavior and limitations
+  at this checkpoint.
 - `docs/04_api/api-spec.md` and `docs/04_api/openapi.yaml` describe only
   implemented public endpoints and fields.
 - Architecture and domain docs preserve the Strategy/Agent -> TradingDecision ->
@@ -33,4 +35,3 @@ and runbooks with the implemented M0-M24 system before further feature work.
 - ScaDS.AI paper-agent scope is documented as paper single-agent only.
 - Runbook commands remain current for Docker, PostgreSQL host port `5433`,
   backend `uv`, and frontend `npm`.
-

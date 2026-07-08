@@ -41,6 +41,11 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 | M23 | `tasks/M23-rule-based-paper-trading.md` | Scheduled paper trading for rule-based Moving Average and Opening Range Breakout |
 | M24 | `tasks/M24-scadsai-single-agent-paper-trading.md` | ScaDS.AI paper-agent trading with model selection |
 | M25 | `tasks/M25-hardening-documentation.md` | Documentation, API contract, and safety-boundary hardening after M24 |
+| M26 | `tasks/M26-remove-historical-agentic-ai.md` | Remove user-facing historical Agentic AI create support |
+| M27 | `tasks/M27-multi-agent-pipeline.md` | Integrate the multi-agent paper-trading pipeline |
+| M28 | `tasks/M28-supported-equity-assets.md` | Support curated US equities beyond SPY where allowed |
+| M29 | `tasks/M29-autonomous-multi-agent-paper-trading.md` | Make multi-agent paper trading scheduler-driven |
+| M30 | `tasks/M30-single-account-login.md` | Add single-account deployment login |
 
 ---
 
@@ -73,6 +78,11 @@ Implementation should proceed incrementally. Do not start agentic AI or broker e
 25. M23 Rule-Based Paper Trading
 26. M24 ScaDS.AI Paper-Agent Trading
 27. M25 Hardening + Documentation
+28. M26 Remove Historical Agentic AI Create Support
+29. M27 Multi-Agent Pipeline
+30. M28 Supported Equity Assets
+31. M29 Autonomous Multi-Agent Paper Trading
+32. M30 Single-Account Login
 
 ---
 

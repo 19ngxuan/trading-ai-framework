@@ -39,6 +39,23 @@ def test_auth_enabled_rejects_protected_api_without_token(
     get_settings.cache_clear()
 
 
+def test_auth_enabled_allows_public_health_without_token(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("APP_AUTH_ENABLED", "true")
+    monkeypatch.setenv("APP_AUTH_USERNAME", "admin")
+    monkeypatch.setenv("APP_AUTH_PASSWORD_HASH", hash_password("secret"))
+    monkeypatch.setenv("APP_AUTH_JWT_SECRET", "test-secret")
+    get_settings.cache_clear()
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    get_settings.cache_clear()
+
+
 def test_login_returns_token_and_token_authenticates_request(
     monkeypatch,
 ) -> None:
@@ -67,6 +84,36 @@ def test_login_returns_token_and_token_authenticates_request(
         "authenticated": True,
         "username": "admin",
     }
+    get_settings.cache_clear()
+
+
+def test_login_token_allows_protected_api_request(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("APP_AUTH_ENABLED", "true")
+    monkeypatch.setenv("APP_AUTH_USERNAME", "admin")
+    monkeypatch.setenv("APP_AUTH_PASSWORD_HASH", hash_password("secret"))
+    monkeypatch.setenv("APP_AUTH_JWT_SECRET", "test-secret")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://trading_lab:trading_lab_password@127.0.0.1:5433/trading_lab",
+    )
+    get_settings.cache_clear()
+
+    with TestClient(create_app()) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "secret"},
+        )
+        token = login.json()["accessToken"]
+
+        response = client.get(
+            "/api/v1/options",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert "assets" in response.json()
     get_settings.cache_clear()
 
 

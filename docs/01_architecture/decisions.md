@@ -158,7 +158,8 @@ Agents and strategies may suggest actions, but the Risk Engine determines the fi
 No order may be created without a `RiskCheck`.
 
 BUY quantity is derived from available cash and whole-share rounding. SELL
-liquidates the existing long SPY position and must never open a short position.
+liquidates the existing long configured-symbol position and must never open a
+short position.
 
 ---
 

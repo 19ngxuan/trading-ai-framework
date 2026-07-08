@@ -197,7 +197,7 @@ Creates a new experiment in status `CREATED` and initializes its portfolio.
 Strategies and agents propose only `BUY`, `SELL`, or `HOLD`. The RiskCheck is
 authoritative and determines the executable whole-share quantity from the
 current portfolio state. BUY uses available cash, SELL liquidates the existing
-long SPY position, and the system never opens short positions.
+long configured-symbol position, and the system never opens short positions.
 
 Opening Range Breakout creation is supported for `OPENING_RANGE_BREAKOUT` +
 `INTRADAY_5_MIN`. Historical ORB remains `SPY`-only because the simulation path
