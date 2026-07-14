@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     event_lookback_minutes: int = 30
     event_relevance_threshold: float = 0.65
     event_news_limit: int = 50
+    research_data_provider: str = "parameters"
+    yahoo_base_url: str = "https://query1.finance.yahoo.com"
+    yahoo_request_timeout_seconds: int = 10
+    multi_agent_news_lookback_hours: int = 24
+    multi_agent_news_limit: int = 20
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -135,6 +140,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required when EVENT_SCANNER_ENABLED=true."
             )
+        if self.research_data_provider not in {"parameters", "yahoo"}:
+            raise ValueError(
+                "RESEARCH_DATA_PROVIDER must be either 'parameters' or 'yahoo'."
+            )
+        if not self.yahoo_base_url.startswith("https://"):
+            raise ValueError("YAHOO_BASE_URL must use HTTPS.")
+        if self.yahoo_request_timeout_seconds <= 0:
+            raise ValueError("YAHOO_REQUEST_TIMEOUT_SECONDS must be greater than 0.")
+        if self.multi_agent_news_lookback_hours <= 0:
+            raise ValueError("MULTI_AGENT_NEWS_LOOKBACK_HOURS must be greater than 0.")
+        if not 1 <= self.multi_agent_news_limit <= 50:
+            raise ValueError("MULTI_AGENT_NEWS_LIMIT must be between 1 and 50.")
         return self
 
     @property

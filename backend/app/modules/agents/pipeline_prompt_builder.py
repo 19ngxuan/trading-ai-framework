@@ -66,6 +66,28 @@ class PipelinePromptBuilder(PromptBuilder):
             enriched,
         )
 
+    def build_technical_analyst_prompt(
+        self,
+        input_json: dict[str, Any],
+        fetched_data: FetchedDataOutput,
+        technical_snapshot: TechnicalAnalysisOutput,
+    ) -> str:
+        enriched = {
+            **input_json,
+            "fetchedData": self.fetched_data_json(fetched_data),
+            "technicalIndicators": self.technical_analysis_json(technical_snapshot),
+        }
+        return self._guarded_prompt(
+            "TechnicalAnalystAgent",
+            (
+                "Return strict JSON with signal BULLISH, BEARISH, or NEUTRAL, "
+                "confidence, summary, indicators, timeHorizonSignals, and riskNotes. "
+                "Base the assessment only on the framework-provided deterministic "
+                "technical indicators."
+            ),
+            enriched,
+        )
+
     def build_risk_assessment_prompt(
         self,
         input_json: dict[str, Any],
@@ -141,6 +163,13 @@ class PipelinePromptBuilder(PromptBuilder):
             else None,
             "fundamentalDataAvailable": output.fundamental_data_available,
             "sentimentDataAvailable": output.sentiment_data_available,
+            "marketDataAvailable": output.market_data_available,
+            "intradayDataAvailable": output.intraday_data_available,
+            "benchmarkDataAvailable": output.benchmark_data_available,
+            "newsDataAvailable": output.news_data_available,
+            "transcriptDataAvailable": output.transcript_data_available,
+            "intradayHistoryLength": output.intraday_history_length,
+            "benchmarkHistoryLength": output.benchmark_history_length,
             "rationale": output.rationale,
         }
 
@@ -157,6 +186,9 @@ class PipelinePromptBuilder(PromptBuilder):
             "volatilityPct": float(output.volatility_pct)
             if output.volatility_pct is not None
             else None,
+            "indicators": output.indicators,
+            "timeHorizonSignals": output.time_horizon_signals,
+            "riskNotes": output.risk_notes,
         }
 
     def fundamental_analysis_json(
@@ -218,6 +250,10 @@ class PipelinePromptBuilder(PromptBuilder):
             else None,
             "notes": snapshot.notes,
             "rawData": snapshot.raw_data,
+            "analystEstimates": snapshot.analyst_estimates,
+            "analystRatings": snapshot.analyst_ratings,
+            "source": snapshot.source,
+            "dataAvailable": snapshot.data_available,
         }
 
     def sentiment_research_json(
@@ -231,6 +267,16 @@ class PipelinePromptBuilder(PromptBuilder):
             if snapshot.confidence is not None
             else None,
             "rawData": snapshot.raw_data,
+            "newsItems": list(snapshot.news_items),
+            "analystComments": list(snapshot.analyst_comments),
+            "transcriptSummaries": list(snapshot.transcript_summaries),
+            "sourceWeights": snapshot.source_weights,
+            "timeWeighting": snapshot.time_weighting,
+            "duplicateCount": snapshot.duplicate_count,
+            "contradictionNotes": list(snapshot.contradiction_notes),
+            "source": snapshot.source,
+            "newsAvailable": snapshot.news_available,
+            "transcriptAvailable": snapshot.transcript_available,
         }
 
     def _guarded_prompt(
@@ -246,6 +292,14 @@ class PipelinePromptBuilder(PromptBuilder):
 
     def _stage_repair_example(self, stage_name: str) -> dict[str, Any]:
         examples: dict[str, dict[str, Any]] = {
+            "TechnicalAnalystAgent": {
+                "signal": "NEUTRAL",
+                "confidence": 0.0,
+                "summary": "Technical indicators are mixed.",
+                "indicators": {},
+                "timeHorizonSignals": {},
+                "riskNotes": [],
+            },
             "FundamentalAnalystAgent": {
                 "signal": "NEUTRAL",
                 "confidence": 0.0,

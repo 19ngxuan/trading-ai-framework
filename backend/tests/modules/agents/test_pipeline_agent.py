@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.domain.enums import AgentMode, AgentStepName, ParsingStatus, TradeAction
 from app.modules.agents.fake_pipeline_provider import FakePipelineProvider
 from app.modules.agents.pipeline_agent import AgentDecisionPipeline
 from app.modules.agents.types import AgentContext
+from app.modules.market_data.intraday_provider import IntradayBar
 from app.modules.market_data.provider import DailyBar
 
 
@@ -42,6 +43,58 @@ class PortfolioRepairSequenceProvider(FakePipelineProvider):
         return self._response(context, output)
 
 
+class TrackingTechnicalProvider(FakePipelineProvider):
+    def __init__(self) -> None:
+        self.technical_calls = 0
+
+    def complete_technical_analyst(self, prompt, context, technical_snapshot):
+        self.technical_calls += 1
+        return super().complete_technical_analyst(prompt, context, technical_snapshot)
+
+
+class FakeRangeProvider:
+    def load_range(self, start_date, end_date, symbol="SPY", frequency=None):
+        _ = (start_date, end_date, frequency)
+        base = Decimal("100") if symbol == "SPY" else Decimal("200")
+        return [
+            DailyBar(
+                date=date(2024, 1, day),
+                open=base + Decimal(day),
+                high=base + Decimal(day) + Decimal("1"),
+                low=base + Decimal(day) - Decimal("1"),
+                close=base + Decimal(day),
+                adjusted_close=base + Decimal(day),
+                volume=Decimal("1000000") + Decimal(day),
+                raw={"symbol": symbol},
+            )
+            for day in range(1, 29)
+        ]
+
+    def get_latest_bar(self, symbol="SPY"):
+        return self.load_range(date(2024, 1, 1), date(2024, 1, 28), symbol)[-1]
+
+
+class FakeIntradayProvider:
+    def load_range(self, start_date, end_date, symbol="SPY", frequency=None):
+        _ = (start_date, end_date, symbol, frequency)
+        return []
+
+    def load_session_until(self, session_date, through_timestamp, symbol="SPY", frequency=None):
+        _ = (through_timestamp, symbol, frequency)
+        return [
+            IntradayBar(
+                timestamp=datetime(2024, 1, 2, 10, 0),
+                session_date=session_date,
+                open=Decimal("100"),
+                high=Decimal("101"),
+                low=Decimal("99"),
+                close=Decimal("101"),
+                volume=Decimal("10000"),
+                raw={},
+            )
+        ]
+
+
 def _context(
     parameters_json: dict | None,
     confidence_threshold: Decimal | None = None,
@@ -59,6 +112,7 @@ def _context(
             adjusted_close=Decimal("100"),
             volume=Decimal("1000000"),
             raw={"date": "2024-01-02"},
+            timestamp=datetime(2024, 1, 2, 10, 0),
         ),
         cash=Decimal("10000"),
         position_quantity=Decimal("0"),
@@ -118,6 +172,37 @@ def test_multi_agent_buy_returns_six_logs() -> None:
         AgentStepName.PORTFOLIO_MANAGER,
     ]
     assert result.log_payloads[0].parsing_status is ParsingStatus.SUCCESS
+
+
+def test_multi_agent_fetches_research_context_and_calls_technical_agent() -> None:
+    provider = TrackingTechnicalProvider()
+    result = AgentDecisionPipeline(
+        provider=provider,
+        market_data_provider=FakeRangeProvider(),
+        intraday_provider=FakeIntradayProvider(),
+    ).run(
+        _context(
+            {
+                **_multi_agent_outputs(),
+                "fundamentalData": {"peRatio": 20, "notes": "Profitable."},
+                "sentimentData": {
+                    "headlines": ["Constructive product news"],
+                    "transcriptSummaries": [{"quarter": 1}],
+                },
+            }
+        )
+    )
+
+    fetch_payload = result.log_payloads[0].parsed_output_json
+    technical_payload = result.log_payloads[1].parsed_output_json
+
+    assert provider.technical_calls == 1
+    assert fetch_payload["fundamentalDataAvailable"] is True
+    assert fetch_payload["newsDataAvailable"] is True
+    assert fetch_payload["transcriptDataAvailable"] is True
+    assert fetch_payload["intradayDataAvailable"] is True
+    assert fetch_payload["benchmarkDataAvailable"] is True
+    assert technical_payload["indicators"]["macd"]["histogram"] is not None
 
 
 def test_multi_agent_accepts_fenced_json_for_llm_stages() -> None:

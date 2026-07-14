@@ -130,6 +130,25 @@ class ScadsAIAgentProvider:
 class ScadsAIPipelineProvider(ScadsAIAgentProvider):
     provider_name = "scads-ai-pipeline"
 
+    def complete_technical_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_snapshot: TechnicalAnalysisOutput,
+    ) -> AgentProviderResponse:
+        _ = technical_snapshot
+        return self._chat_completion(prompt=prompt, context=context)
+
+    def repair_technical_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        _ = (raw_output_text, error_message)
+        return self._chat_completion(prompt=prompt, context=context)
+
     def complete_market_analyst(
         self, prompt: str, context: AgentContext
     ) -> AgentProviderResponse:

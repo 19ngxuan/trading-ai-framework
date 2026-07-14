@@ -35,6 +35,7 @@ from app.domain.enums import (
 from app.modules.agents.errors import AgentProviderConfigurationError
 from app.modules.agents.pipeline_agent import AgentDecisionPipeline
 from app.modules.agents.provider_factory import (
+    create_research_provider,
     create_scads_agent_provider,
     create_scads_pipeline_provider,
 )
@@ -924,10 +925,14 @@ class PaperTradingStepRunner:
             return self.agent_strategy
         if agent_mode is AgentMode.PIPELINE:
             provider = create_scads_pipeline_provider(self.settings, model_name)
+            research_provider = create_research_provider(self.settings)
             return AgenticAIStrategy(
                 pipeline=AgentDecisionPipeline(
                     provider=provider,
                     market_data_provider=self.market_data_provider,
+                    intraday_provider=self.intraday_provider,
+                    fundamental_provider=research_provider,
+                    sentiment_provider=research_provider,
                 )
             )
         provider = create_scads_agent_provider(self.settings, model_name)

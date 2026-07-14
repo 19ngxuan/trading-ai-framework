@@ -14,6 +14,7 @@ from app.modules.agents.pipeline_types import (
     RiskManagerOutput,
     RiskManagerVerdict,
     SentimentAnalysisOutput,
+    TechnicalAnalysisOutput,
 )
 from app.modules.agents.types import ParsedAgentOutput
 
@@ -90,6 +91,27 @@ class PipelineOutputParser:
             risk_level=risk_level,
             confidence=self._parse_confidence(payload.get("confidence")),
             summary=self._parse_text(payload.get("summary"), "summary"),
+        )
+
+    def parse_technical_analysis(self, raw_output_text: str) -> TechnicalAnalysisOutput:
+        payload = self._load_object(raw_output_text)
+        signal = self._parse_enum(payload.get("signal"), MarketBias, "signal")
+        summary = self._parse_text(
+            payload.get("summary") or payload.get("rationale"), "summary"
+        )
+        return TechnicalAnalysisOutput(
+            signal=signal,
+            confidence=self._parse_confidence(payload.get("confidence")),
+            rationale=summary,
+            rsi=self._parse_optional_decimal(payload.get("rsi")),
+            sma_20=self._parse_optional_decimal(payload.get("sma20")),
+            trend=self._parse_optional_text(payload.get("trend"), "trend") or "UNKNOWN",
+            volatility_pct=self._parse_optional_decimal(payload.get("volatilityPct")),
+            indicators=self._parse_optional_object(payload.get("indicators")),
+            time_horizon_signals=self._parse_optional_object(
+                payload.get("timeHorizonSignals")
+            ),
+            risk_notes=self._parse_optional_string_list(payload.get("riskNotes")),
         )
 
     def parse_portfolio_decision(self, raw_output_text: str) -> ParsedAgentOutput:
@@ -173,3 +195,25 @@ class PipelineOutputParser:
         if not isinstance(value, str) or not value.strip():
             raise AgentOutputParseError(f"Pipeline field {field_name} must be text.")
         return value.strip()
+
+    def _parse_optional_decimal(self, value: Any) -> Decimal | None:
+        if value is None:
+            return None
+        try:
+            return Decimal(str(value)).quantize(Decimal("0.0001"))
+        except (InvalidOperation, TypeError) as exc:
+            raise AgentOutputParseError("Pipeline numeric field must be valid.") from exc
+
+    def _parse_optional_object(self, value: Any) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise AgentOutputParseError("Pipeline object field must be a JSON object.")
+        return value
+
+    def _parse_optional_string_list(self, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+        if not isinstance(value, list):
+            raise AgentOutputParseError("Pipeline list field must be a JSON list.")
+        return [str(item) for item in value]

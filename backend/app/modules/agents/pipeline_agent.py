@@ -33,6 +33,7 @@ from app.modules.agents.research_providers import (
     ParameterSentimentResearchProvider,
     SentimentResearchProvider,
 )
+from app.modules.agents.technical_analysis import TechnicalAnalysisService
 from app.modules.agents.types import (
     AgentContext,
     AgentDecision,
@@ -42,6 +43,10 @@ from app.modules.agents.types import (
     ParsedAgentOutput,
 )
 from app.modules.market_data.provider import DailyBar, MarketDataProvider
+from app.modules.market_data.intraday_provider import IntradayBar, IntradayMarketDataProvider
+
+
+BENCHMARK_SYMBOL = "SPY"
 
 
 def _base_stage_input(context: AgentContext, stage: AgentStepName) -> dict:
@@ -62,30 +67,40 @@ class AgentDecisionPipeline:
         prompt_builder: PipelinePromptBuilder | None = None,
         output_parser: PipelineOutputParser | None = None,
         market_data_provider: MarketDataProvider | None = None,
+        intraday_provider: IntradayMarketDataProvider | None = None,
         fundamental_provider: FundamentalResearchProvider | None = None,
         sentiment_provider: SentimentResearchProvider | None = None,
+        technical_analysis_service: TechnicalAnalysisService | None = None,
         decision_gate: AgentDecisionGate | None = None,
     ) -> None:
         self.provider = provider or FakePipelineProvider()
         self.prompt_builder = prompt_builder or PipelinePromptBuilder()
         self.output_parser = output_parser or PipelineOutputParser()
         self.market_data_provider = market_data_provider
+        self.intraday_provider = intraday_provider
         self.fundamental_provider = (
             fundamental_provider or ParameterFundamentalResearchProvider()
         )
         self.sentiment_provider = sentiment_provider or ParameterSentimentResearchProvider()
+        self.technical_analysis_service = (
+            technical_analysis_service or TechnicalAnalysisService()
+        )
         self.decision_gate = decision_gate or AgentDecisionGate()
 
     def run(self, context: AgentContext) -> AgentRunResult:
         input_json = self.prompt_builder.build_input(context)
         price_history = self._load_price_history(context)
-        fundamental_snapshot = self.fundamental_provider.load(context)
-        sentiment_snapshot = self.sentiment_provider.load(context)
+        benchmark_history = self._load_benchmark_history(context)
+        intraday_history = self._load_intraday_history(context)
+        fundamental_snapshot = self._load_fundamental_snapshot(context)
+        sentiment_snapshot = self._load_sentiment_snapshot(context)
 
         fetch_stage = self._run_fetch_data(
             context,
             input_json,
             price_history,
+            benchmark_history,
+            intraday_history,
             fundamental_snapshot,
             sentiment_snapshot,
         )
@@ -96,6 +111,8 @@ class AgentDecisionPipeline:
             context,
             input_json,
             price_history,
+            benchmark_history,
+            intraday_history,
             fetched_data,
         )
         technical_analysis = technical_stage.parsed_output
@@ -188,6 +205,8 @@ class AgentDecisionPipeline:
         context: AgentContext,
         input_json: dict,
         price_history: list[DailyBar],
+        benchmark_history: list[DailyBar],
+        intraday_history: list[IntradayBar],
         fundamental_snapshot,
         sentiment_snapshot,
     ) -> PipelineStageResult:
@@ -197,16 +216,25 @@ class AgentDecisionPipeline:
             history_length=len(price_history),
             volatility_pct=volatility_pct,
             fundamental_data_available=bool(
-                fundamental_snapshot.raw_data or fundamental_snapshot.notes
+                fundamental_snapshot.data_available
+                or fundamental_snapshot.raw_data
+                or fundamental_snapshot.notes
             ),
             sentiment_data_available=bool(
                 sentiment_snapshot.raw_data
                 or sentiment_snapshot.summary
                 or sentiment_snapshot.headlines
             ),
+            market_data_available=bool(price_history),
+            intraday_data_available=bool(intraday_history),
+            benchmark_data_available=bool(benchmark_history),
+            news_data_available=sentiment_snapshot.news_available,
+            transcript_data_available=sentiment_snapshot.transcript_available,
+            intraday_history_length=len(intraday_history),
+            benchmark_history_length=len(benchmark_history),
             rationale=(
-                "Collected framework-managed market data and optional research context "
-                "for the multi-agent workflow."
+                "Collected framework-managed market data, benchmark context, optional "
+                "intraday context, and asset research context for the multi-agent workflow."
             ),
         )
         stage_input = {
@@ -235,29 +263,63 @@ class AgentDecisionPipeline:
         context: AgentContext,
         input_json: dict,
         price_history: list[DailyBar],
+        benchmark_history: list[DailyBar],
+        intraday_history: list[IntradayBar],
         fetched_data: FetchedDataOutput,
     ) -> PipelineStageResult:
-        output = self._technical_analysis(context, price_history, fetched_data)
+        technical_snapshot = self.technical_analysis_service.analyze(
+            price_history=price_history,
+            benchmark_history=benchmark_history,
+            intraday_history=intraday_history,
+            volatility_pct=fetched_data.volatility_pct,
+        )
+        prompt = self.prompt_builder.build_technical_analyst_prompt(
+            input_json,
+            fetched_data,
+            technical_snapshot,
+        )
         stage_input = {
             **_base_stage_input(context, AgentStepName.TECHNICAL_ANALYST),
             "context": input_json,
             "fetchedData": self.prompt_builder.fetched_data_json(fetched_data),
+            "technicalIndicators": self.prompt_builder.technical_analysis_json(
+                technical_snapshot
+            ),
         }
-        parsed_output_json = self.prompt_builder.technical_analysis_json(output)
-        parsed_output_json["stage"] = AgentStepName.TECHNICAL_ANALYST.value
-        parsed_output_json["fallbackUsed"] = False
-        return PipelineStageResult(
+        try:
+            response = self.provider.complete_technical_analyst(
+                prompt, context, technical_snapshot
+            )
+        except Exception as exc:
+            return self._provider_exception_stage(
+                step_name=AgentStepName.TECHNICAL_ANALYST,
+                input_json=stage_input,
+                prompt=prompt,
+                context=context,
+                exc=exc,
+                fallback=lambda reason: self._fallback_technical_analysis(
+                    technical_snapshot, reason
+                ),
+                serializer=self.prompt_builder.technical_analysis_json,
+            )
+        return self._parse_with_repair(
             step_name=AgentStepName.TECHNICAL_ANALYST,
             input_json=stage_input,
-            prompt_text=None,
-            parsed_output=output,
-            raw_output_text=json.dumps(parsed_output_json, sort_keys=True),
-            parsed_output_json=parsed_output_json,
-            parsing_failed=False,
-            parse_error=None,
-            fallback_reason=None,
-            repair_prompt_text=None,
-            repair_raw_output_text=None,
+            prompt=prompt,
+            response=response,
+            context=context,
+            parser=self.output_parser.parse_technical_analysis,
+            repair=lambda repair_prompt, raw, error: self.provider.repair_technical_analyst(
+                repair_prompt,
+                context,
+                raw,
+                error,
+            ),
+            fallback=lambda reason: self._fallback_technical_analysis(
+                technical_snapshot, reason
+            ),
+            serializer=self.prompt_builder.technical_analysis_json,
+            stage_label="TechnicalAnalystAgent",
         )
 
     def _run_fundamental_analyst(
@@ -518,6 +580,46 @@ class AgentDecisionPipeline:
             return [context.bar]
         ordered = sorted(bars, key=lambda bar: (bar.date, bar.timestamp or context.bar.timestamp))
         return ordered
+
+    def _load_benchmark_history(self, context: AgentContext) -> list[DailyBar]:
+        if self.market_data_provider is None:
+            return []
+        start_date = context.bar.date - timedelta(days=40)
+        try:
+            bars = self.market_data_provider.load_range(
+                start_date,
+                context.bar.date,
+                symbol=BENCHMARK_SYMBOL,
+                frequency=TradingFrequency.DAILY,
+            )
+        except Exception:
+            return []
+        return sorted(bars, key=lambda bar: (bar.date, bar.timestamp or context.bar.timestamp))
+
+    def _load_intraday_history(self, context: AgentContext) -> list[IntradayBar]:
+        if self.intraday_provider is None or context.bar.timestamp is None:
+            return []
+        try:
+            return self.intraday_provider.load_session_until(
+                context.bar.date,
+                context.bar.timestamp,
+                symbol=context.symbol,
+                frequency=TradingFrequency.INTRADAY_5_MIN,
+            )
+        except Exception:
+            return []
+
+    def _load_fundamental_snapshot(self, context: AgentContext):
+        provider = self.fundamental_provider
+        if hasattr(provider, "load_fundamental"):
+            return provider.load_fundamental(context)  # type: ignore[attr-defined]
+        return provider.load(context)
+
+    def _load_sentiment_snapshot(self, context: AgentContext):
+        provider = self.sentiment_provider
+        if hasattr(provider, "load_sentiment"):
+            return provider.load_sentiment(context)  # type: ignore[attr-defined]
+        return provider.load(context)
 
     def _technical_analysis(
         self,
@@ -844,6 +946,27 @@ class AgentDecisionPipeline:
             signal=MarketBias.NEUTRAL,
             confidence=Decimal("0.0000"),
             summary=f"Fundamental analysis fallback used. {reason}",
+        )
+
+    def _fallback_technical_analysis(
+        self,
+        technical_snapshot: TechnicalAnalysisOutput,
+        reason: str,
+    ) -> TechnicalAnalysisOutput:
+        return TechnicalAnalysisOutput(
+            signal=technical_snapshot.signal,
+            confidence=Decimal("0.0000"),
+            rationale=f"Technical analysis fallback used. {reason}",
+            rsi=technical_snapshot.rsi,
+            sma_20=technical_snapshot.sma_20,
+            trend=technical_snapshot.trend,
+            volatility_pct=technical_snapshot.volatility_pct,
+            indicators=technical_snapshot.indicators,
+            time_horizon_signals=technical_snapshot.time_horizon_signals,
+            risk_notes=[
+                *(technical_snapshot.risk_notes or []),
+                f"Technical LLM stage fallback: {reason}",
+            ],
         )
 
     def _fallback_sentiment_analysis(self, reason: str) -> SentimentAnalysisOutput:

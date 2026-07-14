@@ -50,6 +50,13 @@ class FetchedDataOutput:
     fundamental_data_available: bool
     sentiment_data_available: bool
     rationale: str
+    market_data_available: bool = True
+    intraday_data_available: bool = False
+    benchmark_data_available: bool = False
+    news_data_available: bool = False
+    transcript_data_available: bool = False
+    intraday_history_length: int = 0
+    benchmark_history_length: int = 0
 
 
 @dataclass(frozen=True)
@@ -61,6 +68,9 @@ class TechnicalAnalysisOutput:
     sma_20: Decimal | None
     trend: str
     volatility_pct: Decimal | None
+    indicators: dict | None = None
+    time_horizon_signals: dict | None = None
+    risk_notes: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +120,23 @@ class PipelineStageResult:
 
 
 class PipelineProvider(Protocol):
+    def complete_technical_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        technical_snapshot: TechnicalAnalysisOutput,
+    ) -> AgentProviderResponse:
+        ...
+
+    def repair_technical_analyst(
+        self,
+        prompt: str,
+        context: AgentContext,
+        raw_output_text: str,
+        error_message: str,
+    ) -> AgentProviderResponse | None:
+        ...
+
     def complete_market_analyst(
         self, prompt: str, context: AgentContext
     ) -> AgentProviderResponse:
