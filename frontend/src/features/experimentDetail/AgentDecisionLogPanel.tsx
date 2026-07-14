@@ -6,9 +6,28 @@ type AgentDecisionLogPanelProps = {
   error: Error | null;
 };
 
+const STAGE_ORDER = [
+  "FETCH_DATA",
+  "TECHNICAL_ANALYST",
+  "FUNDAMENTAL_ANALYST",
+  "SENTIMENT_ANALYST",
+  "RISK_MANAGER",
+  "PORTFOLIO_MANAGER",
+];
+
+type AgentDecisionLogGroup = {
+  executionStepId: number;
+  logs: AgentDecisionLog[];
+};
+
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
   return value.replace(/_/g, " ");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return null;
+  return new Date(value).toLocaleString();
 }
 
 function formatPercent(value: unknown) {
@@ -92,6 +111,62 @@ function modeLabel(mode: AgentDecisionLog["agentMode"]) {
   return mode === "PIPELINE" ? "Multi Agent" : "Single Agent";
 }
 
+function stageSortIndex(stageName: string) {
+  const index = STAGE_ORDER.indexOf(stageName);
+  return index === -1 ? STAGE_ORDER.length : index;
+}
+
+function groupAgentLogs(logs: AgentDecisionLog[]): AgentDecisionLogGroup[] {
+  const groups = new Map<number, AgentDecisionLog[]>();
+  for (const log of logs) {
+    const group = groups.get(log.executionStepId) ?? [];
+    group.push(log);
+    groups.set(log.executionStepId, group);
+  }
+  return Array.from(groups, ([executionStepId, groupLogs]) => ({
+    executionStepId,
+    logs: groupLogs.slice().sort((left, right) => {
+      const stageDelta =
+        stageSortIndex(left.agentStepName) - stageSortIndex(right.agentStepName);
+      if (stageDelta !== 0) return stageDelta;
+      return (
+        Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+        left.id - right.id
+      );
+    }),
+  }));
+}
+
+function groupTimestamp(logs: AgentDecisionLog[]) {
+  const first = logs[0];
+  return (
+    formatDateTime(first.startedAt) ??
+    formatDateTime(first.scheduledFor) ??
+    formatDateTime(first.createdAt)
+  );
+}
+
+function EvaluationStepHeader({ logs }: { logs: AgentDecisionLog[] }) {
+  const first = logs[0];
+  const stepLabel = first.executionStepSequenceNumber ?? first.executionStepId;
+  return (
+    <div className="agent-log-step-header">
+      <div>
+        <h3>Evaluation Step {stepLabel}</h3>
+        <p className="muted">{groupTimestamp(logs)}</p>
+      </div>
+      <div className="agent-log-chip-row">
+        {first.triggerType && (
+          <span className="status-pill secondary-pill">{first.triggerType}</span>
+        )}
+        {first.executionStepStatus && (
+          <span className="status-pill">{first.executionStepStatus}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AgentDecisionLogPanel({
   logs,
   isLoading,
@@ -109,75 +184,82 @@ export function AgentDecisionLogPanel({
     return <p className="muted">No agent decision logs available yet.</p>;
   }
 
+  const groups = groupAgentLogs(logs);
+
   return (
     <div className="agent-log-list">
-      {logs.map((log) => {
-        const payload = log.parsedOutputJson ?? {};
-        const rows = auditRows(payload);
-        const event = eventContext(log);
-        return (
-          <article key={log.id} className="agent-log-card">
-            <div className="panel-header-row">
-              <div>
-                <h3>{formatLabel(log.agentStepName)}</h3>
-                <p className="muted">
-                  {modeLabel(log.agentMode)} · {log.agentName ?? "Agent"} · Step{" "}
-                  {log.executionStepSequenceNumber ?? log.executionStepId} ·{" "}
-                  {new Date(log.createdAt).toLocaleString()}
-                </p>
-              </div>
-              <div className="agent-log-chip-row">
-                <span className="status-pill">{log.parsingStatus}</span>
-                {log.triggerType && (
-                  <span className="status-pill secondary-pill">
-                    {log.triggerType}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <p>{summaryText(log)}</p>
-
-            {rows.length > 0 && (
-              <dl className="agent-audit-grid">
-                {rows.map(([label, value]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{formatLabel(String(value))}</dd>
+      {groups.map((group) => (
+        <section key={group.executionStepId} className="agent-log-step-group">
+          <EvaluationStepHeader logs={group.logs} />
+          {group.logs.map((log) => {
+            const payload = log.parsedOutputJson ?? {};
+            const rows = auditRows(payload);
+            const event = eventContext(log);
+            return (
+              <article key={log.id} className="agent-log-card">
+                <div className="panel-header-row">
+                  <div>
+                    <h3>{formatLabel(log.agentStepName)}</h3>
+                    <p className="muted">
+                      {modeLabel(log.agentMode)} · {log.agentName ?? "Agent"} · Step{" "}
+                      {log.executionStepSequenceNumber ?? log.executionStepId} ·{" "}
+                      {new Date(log.createdAt).toLocaleString()}
+                    </p>
                   </div>
-                ))}
-              </dl>
-            )}
-
-            {event && (
-              <div className="agent-event-context">
-                <strong>Event Context</strong>
-                <p className="muted">
-                  {stringField(event, ["headline", "title", "summary"]) ??
-                    "Event-triggered agent run"}
-                </p>
-                <div className="agent-log-chip-row">
-                  {stringField(event, ["eventType"]) && (
-                    <span className="status-pill secondary-pill">
-                      {formatLabel(stringField(event, ["eventType"]))}
-                    </span>
-                  )}
-                  {stringField(event, ["severity"]) && (
-                    <span className="status-pill secondary-pill">
-                      {formatLabel(stringField(event, ["severity"]))}
-                    </span>
-                  )}
+                  <div className="agent-log-chip-row">
+                    <span className="status-pill">{log.parsingStatus}</span>
+                    {log.triggerType && (
+                      <span className="status-pill secondary-pill">
+                        {log.triggerType}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
 
-            <details className="json-details">
-              <summary>Audit JSON</summary>
-              <pre>{JSON.stringify(payload, null, 2)}</pre>
-            </details>
-          </article>
-        );
-      })}
+                <p>{summaryText(log)}</p>
+
+                {rows.length > 0 && (
+                  <dl className="agent-audit-grid">
+                    {rows.map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{formatLabel(String(value))}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+
+                {event && (
+                  <div className="agent-event-context">
+                    <strong>Event Context</strong>
+                    <p className="muted">
+                      {stringField(event, ["headline", "title", "summary"]) ??
+                        "Event-triggered agent run"}
+                    </p>
+                    <div className="agent-log-chip-row">
+                      {stringField(event, ["eventType"]) && (
+                        <span className="status-pill secondary-pill">
+                          {formatLabel(stringField(event, ["eventType"]))}
+                        </span>
+                      )}
+                      {stringField(event, ["severity"]) && (
+                        <span className="status-pill secondary-pill">
+                          {formatLabel(stringField(event, ["severity"]))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <details className="json-details">
+                  <summary>Audit JSON</summary>
+                  <pre>{JSON.stringify(payload, null, 2)}</pre>
+                </details>
+              </article>
+            );
+          })}
+        </section>
+      ))}
     </div>
   );
 }

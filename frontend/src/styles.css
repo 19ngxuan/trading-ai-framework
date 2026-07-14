@@ -807,7 +807,34 @@ select {
 
 .agent-log-list {
   display: grid;
-  gap: 14px;
+  gap: 18px;
+}
+
+.agent-log-step-group {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-log-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #d8dee8;
+  border-left: 4px solid #256f61;
+  border-radius: 8px;
+  background: #f7faf9;
+  padding: 12px 14px;
+}
+
+.agent-log-step-header h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+}
+
+.agent-log-step-header p {
+  margin: 4px 0 0;
 }
 
 .agent-log-card {
