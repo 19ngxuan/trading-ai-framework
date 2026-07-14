@@ -649,34 +649,43 @@ class AgentDecisionPipeline:
         parse_error: str | None = None
         parsing_failed = False
         fallback_reason: str | None = None
+        parsed: object | None = None
         try:
             parsed = parser(response.raw_output_text)
         except AgentOutputParseError as exc:
             parse_error = str(exc)
-            repair_prompt = self.prompt_builder.build_stage_repair_prompt(
-                stage_label, response.raw_output_text, parse_error
-            )
-            try:
-                repair_response = repair(repair_prompt, response.raw_output_text, parse_error)
-            except Exception as repair_exc:
-                parse_error = str(repair_exc)
-                parsed = fallback(parse_error)
-                parsing_failed = True
-                fallback_reason = "PROVIDER_REPAIR_EXCEPTION"
-            else:
+            repair_input = response.raw_output_text
+            for _ in range(2):
+                repair_prompt = self.prompt_builder.build_stage_repair_prompt(
+                    stage_label, repair_input, parse_error
+                )
+                try:
+                    repair_response = repair(repair_prompt, repair_input, parse_error)
+                except Exception as repair_exc:
+                    parse_error = str(repair_exc)
+                    parsing_failed = True
+                    fallback_reason = "PROVIDER_REPAIR_EXCEPTION"
+                    break
+
                 if repair_response is None:
-                    parsed = fallback(parse_error)
                     parsing_failed = True
                     fallback_reason = "REPAIR_UNAVAILABLE"
-                else:
-                    repair_raw = repair_response.raw_output_text
-                    try:
-                        parsed = parser(repair_raw)
-                    except AgentOutputParseError as repair_exc:
-                        parse_error = str(repair_exc)
-                        parsed = fallback(parse_error)
-                        parsing_failed = True
-                        fallback_reason = "REPAIR_PARSE_FAILED"
+                    break
+
+                repair_raw = repair_response.raw_output_text
+                try:
+                    parsed = parser(repair_raw)
+                    parsing_failed = False
+                    fallback_reason = None
+                    break
+                except AgentOutputParseError as repair_exc:
+                    parse_error = str(repair_exc)
+                    repair_input = repair_raw
+                    parsing_failed = True
+                    fallback_reason = "REPAIR_PARSE_FAILED"
+
+            if parsed is None:
+                parsed = fallback(parse_error or "Pipeline output could not be repaired.")
 
         parsed_json = serializer(parsed)
         parsed_json["stage"] = step_name.value

@@ -31,10 +31,34 @@ def test_pipeline_parser_accepts_multi_agent_stage_outputs() -> None:
     assert decision.action is TradeAction.BUY
 
 
+def test_pipeline_parser_accepts_json_inside_markdown_fence() -> None:
+    parser = PipelineOutputParser()
+
+    output = parser.parse_fundamental_analysis(
+        '```json\n{"signal": "NEUTRAL", "confidence": 0.5, '
+        '"summary": "No structured inputs."}\n```'
+    )
+
+    assert output.signal is MarketBias.NEUTRAL
+
+
+def test_pipeline_parser_accepts_json_with_surrounding_text() -> None:
+    parser = PipelineOutputParser()
+
+    output = parser.parse_risk_assessment(
+        'Here is the assessment:\n{"riskLevel": "LOW", "confidence": 0.6, '
+        '"summary": "Risk is controlled."}\nDone.'
+    )
+
+    assert output.risk_level is RiskLevel.LOW
+
+
 @pytest.mark.parametrize(
     "parse_method,raw_output",
     [
         ("parse_fundamental_analysis", "not json"),
+        ("parse_fundamental_analysis", '{"signal": "BULLISH", '),
+        ("parse_fundamental_analysis", '{"confidence": 0.8, "summary": "Missing."}'),
         (
             "parse_fundamental_analysis",
             '{"signal": "SIDEWAYS", "confidence": 0.8, "summary": "Bad."}',

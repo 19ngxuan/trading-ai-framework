@@ -1,4 +1,5 @@
 import json
+from json import JSONDecodeError
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -96,12 +97,32 @@ class PipelineOutputParser:
 
     def _load_object(self, raw_output_text: str) -> dict[str, Any]:
         try:
-            payload = json.loads(raw_output_text)
-        except json.JSONDecodeError as exc:
+            payload = self._load_first_json_object(raw_output_text)
+        except JSONDecodeError as exc:
             raise AgentOutputParseError("Pipeline output must be valid JSON.") from exc
         if not isinstance(payload, dict):
             raise AgentOutputParseError("Pipeline output must be a JSON object.")
         return payload
+
+    def _load_first_json_object(self, raw_output_text: str) -> dict[str, Any]:
+        text = raw_output_text.strip()
+        try:
+            return json.loads(text)
+        except JSONDecodeError:
+            pass
+
+        decoder = json.JSONDecoder()
+        for index, character in enumerate(text):
+            if character != "{":
+                continue
+            try:
+                payload, _ = decoder.raw_decode(text[index:])
+            except JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                return payload
+
+        raise JSONDecodeError("Pipeline output must be valid JSON.", text, 0)
 
     def _parse_enum(self, value: Any, enum_type, field_name: str):
         if not isinstance(value, str):

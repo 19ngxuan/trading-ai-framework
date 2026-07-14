@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from app.modules.agents.pipeline_types import (
@@ -123,8 +124,11 @@ class PipelinePromptBuilder(PromptBuilder):
     def build_stage_repair_prompt(
         self, stage_name: str, raw_output_text: str, error_message: str
     ) -> str:
+        example = self._stage_repair_example(stage_name)
         return (
             f"Repair {stage_name} output into strict valid JSON for that stage. "
+            "Return only raw JSON. No markdown. No explanation. "
+            f"Use this shape: {json.dumps(example, sort_keys=True)}. "
             f"Parse error: {error_message}. Previous output: {raw_output_text}"
         )
 
@@ -239,3 +243,33 @@ class PipelinePromptBuilder(PromptBuilder):
             "APIs. RiskCheck remains mandatory and authoritative after the final "
             f"decision. {instruction} Input: {input_json}"
         )
+
+    def _stage_repair_example(self, stage_name: str) -> dict[str, Any]:
+        examples: dict[str, dict[str, Any]] = {
+            "FundamentalAnalystAgent": {
+                "signal": "NEUTRAL",
+                "confidence": 0.0,
+                "summary": "No structured fundamental inputs were provided.",
+            },
+            "SentimentAnalystAgent": {
+                "signal": "NEUTRAL",
+                "confidence": 0.0,
+                "summary": "No structured sentiment inputs were provided.",
+            },
+            "RiskManagerAgent": {
+                "riskLevel": "MEDIUM",
+                "confidence": 0.0,
+                "summary": "Risk is neutral based on the provided stage inputs.",
+            },
+            "PortfolioManagerAgent": {
+                "action": "HOLD",
+                "tradeIntent": "STAY_OUT",
+                "targetExposurePct": 0.0,
+                "confidence": 0.0,
+                "primaryDriver": "PORTFOLIO",
+                "newInformation": False,
+                "rationale": "Insufficient valid signal to change exposure.",
+                "eventId": None,
+            },
+        }
+        return examples.get(stage_name, {})
