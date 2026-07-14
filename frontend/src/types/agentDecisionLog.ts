@@ -1,4 +1,5 @@
 import type { AgentMode, AgentParsingStatus } from "./experiment";
+import type { ExecutionStepStatus } from "./paperStatus";
 import type { PaginatedResponse } from "./api";
 
 export type AgentDecisionLog = {
@@ -21,6 +22,11 @@ export type AgentDecisionLog = {
   repairRawOutputText: string | null;
   triggerType: "HISTORICAL" | "SCHEDULED" | "MANUAL" | "EVENT" | null;
   executionStepSequenceNumber: number | null;
+  executionStepStatus: ExecutionStepStatus | null;
+  scheduledFor: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
   createdAt: string;
 };
 

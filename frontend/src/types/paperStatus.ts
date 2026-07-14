@@ -6,7 +6,7 @@ import type {
 } from "./experiment";
 
 export type ExecutionStepStatus = "RUNNING" | "COMPLETED" | "SKIPPED" | "FAILED";
-export type TriggerType = "HISTORICAL" | "SCHEDULED" | "MANUAL";
+export type TriggerType = "HISTORICAL" | "SCHEDULED" | "MANUAL" | "EVENT";
 
 export type PaperExecutionStepSummary = {
   id: number;

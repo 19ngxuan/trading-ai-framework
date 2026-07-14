@@ -3,7 +3,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import AgentMode, AgentStepName, ParsingStatus, TriggerType
+from app.domain.enums import (
+    AgentMode,
+    AgentStepName,
+    ExecutionStepStatus,
+    ParsingStatus,
+    TriggerType,
+)
 
 
 class CamelModel(BaseModel):
@@ -33,6 +39,14 @@ class AgentDecisionLogResponse(CamelModel):
         default=None,
         alias="executionStepSequenceNumber",
     )
+    execution_step_status: ExecutionStepStatus | None = Field(
+        default=None,
+        alias="executionStepStatus",
+    )
+    scheduled_for: datetime | None = Field(default=None, alias="scheduledFor")
+    started_at: datetime | None = Field(default=None, alias="startedAt")
+    completed_at: datetime | None = Field(default=None, alias="completedAt")
+    error_message: str | None = Field(default=None, alias="errorMessage")
     created_at: datetime = Field(alias="createdAt")
 
 

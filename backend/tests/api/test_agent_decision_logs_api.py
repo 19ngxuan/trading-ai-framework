@@ -190,6 +190,11 @@ def test_agent_decision_logs_endpoint_returns_persisted_audit_rows(
     assert item["agentStepName"] == "TRADING_DECISION"
     assert item["triggerType"] == "EVENT"
     assert item["executionStepSequenceNumber"] == 1
+    assert item["executionStepStatus"] == "COMPLETED"
+    assert item["scheduledFor"] == "2026-01-01T15:55:00"
+    assert item["startedAt"] == "2026-01-01T15:55:00"
+    assert item["completedAt"] == "2026-01-01T15:55:00"
+    assert item["errorMessage"] is None
     assert item["parsedOutputJson"]["tradeIntent"] == "OPEN_LONG"
     assert item["inputJson"]["eventContext"]["headline"] == "SPY event"
 

@@ -55,6 +55,11 @@ def list_experiment_agent_decision_logs(
         payload["execution_step_sequence_number"] = (
             step.sequence_number if step is not None else None
         )
+        payload["execution_step_status"] = step.status if step is not None else None
+        payload["scheduled_for"] = step.scheduled_for if step is not None else None
+        payload["started_at"] = step.started_at if step is not None else None
+        payload["completed_at"] = step.completed_at if step is not None else None
+        payload["error_message"] = step.error_message if step is not None else None
         responses.append(AgentDecisionLogResponse.model_validate(payload))
     return PaginatedAgentDecisionLogResponse(
         items=responses,
