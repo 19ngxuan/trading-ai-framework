@@ -62,8 +62,10 @@ export function ExperimentCompareSelector({
               checked={selectedIds.includes(experiment.id)}
               onChange={() => toggleExperiment(experiment.id)}
             />
-            <span>
-              <strong>{experiment.name}</strong>
+            <span className="selection-item-content">
+              <strong className="selection-item-name" title={experiment.name}>
+                {experiment.name}
+              </strong>
               <small>
                 {experiment.strategyType} / {experiment.status}
               </small>

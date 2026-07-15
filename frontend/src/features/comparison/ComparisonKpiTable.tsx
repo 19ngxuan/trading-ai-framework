@@ -40,8 +40,10 @@ export function ComparisonKpiTable({ rows }: ComparisonKpiTableProps) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.experimentId}>
-                <td>
-                  <strong>{row.name}</strong>
+                <td className="comparison-experiment-cell">
+                  <strong className="comparison-experiment-name" title={row.name}>
+                    {row.name}
+                  </strong>
                   <div className="muted">{row.strategyType}</div>
                 </td>
                 <td>{row.status}</td>

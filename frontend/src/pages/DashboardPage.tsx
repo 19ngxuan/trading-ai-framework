@@ -7,7 +7,7 @@ import { ExperimentSummaryTable } from "../features/experiments/ExperimentSummar
 import { useExperiments } from "../features/experiments/hooks";
 
 export function DashboardPage() {
-  const experimentsQuery = useExperiments({ limit: 5, offset: 0 }, true);
+  const experimentsQuery = useExperiments({ limit: 100, offset: 0 }, true);
 
   return (
     <div className="page-stack">
@@ -27,8 +27,7 @@ export function DashboardPage() {
           <DashboardKpiCards experiments={experimentsQuery.data.items} />
           <section className="panel wide-panel">
             <div className="section-header">
-              <h3>Recent Experiments</h3>
-              <Link to="/experiments">View all</Link>
+              <h3>Experiments</h3>
             </div>
             <ExperimentSummaryTable
               compact

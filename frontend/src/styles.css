@@ -421,6 +421,7 @@ select {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  min-width: 0;
   border: 1px solid #d8dee8;
   border-radius: 8px;
   padding: 12px;
@@ -434,6 +435,29 @@ select {
 .selection-item small {
   display: block;
   color: #66758c;
+}
+
+.selection-item-content {
+  min-width: 0;
+}
+
+.selection-item-name {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.comparison-experiment-cell {
+  min-width: 220px;
+  max-width: 360px;
+  white-space: normal;
+}
+
+.comparison-experiment-name {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .form-grid {
