@@ -4,7 +4,7 @@ from decimal import Decimal
 import httpx
 
 from app.domain.enums import AgentMode
-from app.modules.agents.provider_factory import YahooResearchProvider
+from app.modules.agents.provider_factory import FmpResearchProvider
 from app.modules.agents.types import AgentContext
 from app.modules.market_data.provider import DailyBar
 
@@ -34,66 +34,68 @@ def _context() -> AgentContext:
     )
 
 
-def test_yahoo_research_provider_normalizes_fundamentals_and_sentiment() -> None:
+def test_fmp_research_provider_normalizes_fundamentals_and_sentiment() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/quoteSummary/AAPL"):
+        if request.url.path.endswith("/profile"):
             return httpx.Response(
                 200,
-                json={
-                    "quoteSummary": {
-                        "result": [
-                            {
-                                "summaryProfile": {
-                                    "longBusinessSummary": (
-                                        "Consumer technology company."
-                                    )
-                                },
-                                "summaryDetail": {
-                                    "trailingPE": {"raw": 30.5},
-                                    "forwardPE": {"raw": 28.1},
-                                    "marketCap": {"raw": 3000000000000},
-                                    "yield": {"raw": 0.005},
-                                },
-                                "financialData": {
-                                    "profitMargins": {"raw": 0.25},
-                                    "revenueGrowth": {"raw": 0.08},
-                                },
-                                "recommendationTrend": {
-                                    "trend": [{"period": "0m", "strongBuy": 10}]
-                                },
-                                "earningsTrend": {
-                                    "trend": [{"period": "0q", "growth": {"raw": 0.1}}]
-                                },
-                            }
-                        ],
-                        "error": None,
+                json=[
+                    {
+                        "symbol": "AAPL",
+                        "marketCap": 3000000000000,
+                        "description": "Consumer technology company.",
                     }
-                },
+                ],
             )
-        if request.url.path.endswith("/search"):
+        if request.url.path.endswith("/ratios"):
             return httpx.Response(
                 200,
-                json={
-                    "news": [
-                        {
-                            "title": "Apple announces product update",
-                            "providerPublishTime": 1767355200,
-                            "publisher": "Example Wire",
-                            "link": "https://example.test/news/1",
-                            "summary": "Positive product news.",
-                        },
-                        {
-                            "title": "Apple announces product update duplicate",
-                            "providerPublishTime": 1767355200,
-                            "publisher": "Example Wire",
-                            "link": "https://example.test/news/1",
-                        },
-                    ]
-                },
+                json=[
+                    {
+                        "priceEarningsRatio": 30.5,
+                        "netProfitMargin": 0.25,
+                        "revenueGrowth": 0.08,
+                    }
+                ],
+            )
+        if request.url.path.endswith("/income-statement"):
+            return httpx.Response(200, json=[{"revenue": 1000}])
+        if request.url.path.endswith("/analyst-estimates"):
+            return httpx.Response(200, json=[{"estimatedPeAvg": 28.1}])
+        if request.url.path.endswith("/ratings-snapshot"):
+            return httpx.Response(200, json=[{"rating": "Buy"}])
+        if request.url.path.endswith("/news/stock"):
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "title": "Apple announces product update",
+                        "publishedDate": "2026-01-02",
+                        "site": "Example Wire",
+                        "url": "https://example.test/news/1",
+                        "text": "Positive product news.",
+                    },
+                    {
+                        "title": "Apple announces product update duplicate",
+                        "publishedDate": "2026-01-02",
+                        "site": "Example Wire",
+                        "url": "https://example.test/news/1",
+                    },
+                ],
+            )
+        if request.url.path.endswith("/earning-call-transcript-dates"):
+            return httpx.Response(200, json=[{"quarter": 1, "year": 2026}])
+        if request.url.path.endswith("/earning-call-transcript"):
+            return httpx.Response(
+                200,
+                json=[
+                    {"quarter": 1, "year": 2026, "content": "Prepared remarks."}
+                ],
             )
         return httpx.Response(404)
 
-    provider = YahooResearchProvider(
+    provider = FmpResearchProvider(
+        api_key="key",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
@@ -105,13 +107,14 @@ def test_yahoo_research_provider_normalizes_fundamentals_and_sentiment() -> None
     assert fundamentals.market_cap == Decimal("3000000000000")
     assert fundamentals.analyst_estimates is not None
     assert sentiment.news_available is True
-    assert sentiment.transcript_available is False
+    assert sentiment.transcript_available is True
     assert sentiment.duplicate_count == 1
     assert sentiment.headlines == ("Apple announces product update",)
 
 
-def test_yahoo_research_provider_returns_empty_snapshots_on_http_error() -> None:
-    provider = YahooResearchProvider(
+def test_fmp_research_provider_returns_empty_snapshots_on_http_error() -> None:
+    provider = FmpResearchProvider(
+        api_key="key",
         client=httpx.Client(
             transport=httpx.MockTransport(lambda request: httpx.Response(500))
         ),

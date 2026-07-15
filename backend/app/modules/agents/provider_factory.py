@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -21,18 +22,20 @@ from app.modules.agents.pipeline_types import PipelineProvider
 from app.modules.agents.types import AgentContext, AgentProvider
 
 
-class YahooResearchProvider:
-    provider_name = "yahoo"
+class FmpResearchProvider:
+    provider_name = "fmp"
 
     def __init__(
         self,
         *,
-        base_url: str = "https://query1.finance.yahoo.com",
+        api_key: str,
+        base_url: str = "https://financialmodelingprep.com/stable",
         timeout_seconds: int = 10,
         news_lookback_hours: int = 24,
         news_limit: int = 20,
         client: httpx.Client | None = None,
     ) -> None:
+        self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.news_lookback_hours = news_lookback_hours
         self.news_limit = news_limit
@@ -44,97 +47,102 @@ class YahooResearchProvider:
     def load_fundamental(self, context: AgentContext) -> FundamentalResearchSnapshot:
         symbol = context.symbol.upper()
         try:
-            payload = self._quote_summary(
-                symbol,
-                (
-                    "summaryProfile",
-                    "summaryDetail",
-                    "defaultKeyStatistics",
-                    "financialData",
-                    "recommendationTrend",
-                    "earningsTrend",
-                ),
+            profile = _first(
+                self._get_list("/profile", {"symbol": symbol})
             )
+            ratios = _first(self._get_list("/ratios", {"symbol": symbol, "limit": 1}))
+            income_statement = _first(
+                self._get_list("/income-statement", {"symbol": symbol, "limit": 1})
+            )
+            estimates = self._get_list(
+                "/analyst-estimates", {"symbol": symbol, "limit": 4}
+            )
+            ratings = self._get_list("/ratings-snapshot", {"symbol": symbol})
         except httpx.HTTPError:
             return FundamentalResearchSnapshot(source=self.provider_name)
 
-        profile = _dict_or_empty(payload.get("summaryProfile"))
-        summary_detail = _dict_or_empty(payload.get("summaryDetail"))
-        key_stats = _dict_or_empty(payload.get("defaultKeyStatistics"))
-        financial_data = _dict_or_empty(payload.get("financialData"))
-        recommendation_trend = _dict_or_empty(payload.get("recommendationTrend"))
-        earnings_trend = _dict_or_empty(payload.get("earningsTrend"))
         raw_data = _compact_payload(
             {
                 "profile": profile,
-                "summaryDetail": summary_detail,
-                "defaultKeyStatistics": key_stats,
-                "financialData": financial_data,
-                "analystEstimates": earnings_trend,
-                "analystRatings": recommendation_trend,
+                "ratios": ratios,
+                "incomeStatement": income_statement,
+                "analystEstimates": estimates[:4],
+                "analystRatings": ratings[:3],
             }
         )
         return FundamentalResearchSnapshot(
             pe_ratio=_decimal_or_none(
-                _yahoo_value(summary_detail.get("trailingPE"))
-                or _yahoo_value(key_stats.get("trailingPE"))
+                ratios.get("priceEarningsRatio")
+                or ratios.get("peRatio")
+                or profile.get("pe")
             ),
             forward_pe=_decimal_or_none(
-                _yahoo_value(summary_detail.get("forwardPE"))
-                or _yahoo_value(key_stats.get("forwardPE"))
+                ratios.get("forwardPE")
+                or ratios.get("forwardPe")
+                or profile.get("forwardPE")
             ),
-            market_cap=_decimal_or_none(_yahoo_value(summary_detail.get("marketCap"))),
-            dividend_yield=_decimal_or_none(_yahoo_value(summary_detail.get("yield"))),
+            market_cap=_decimal_or_none(profile.get("marketCap")),
+            dividend_yield=_decimal_or_none(
+                ratios.get("dividendYield") or profile.get("lastDiv")
+            ),
             profit_margins=_decimal_or_none(
-                _yahoo_value(financial_data.get("profitMargins"))
+                ratios.get("netProfitMargin") or profile.get("profitMargins")
             ),
-            revenue_growth=_decimal_or_none(
-                _yahoo_value(financial_data.get("revenueGrowth"))
-            ),
-            notes=_string_or_none(profile.get("longBusinessSummary")),
+            revenue_growth=_decimal_or_none(ratios.get("revenueGrowth")),
+            notes=_string_or_none(profile.get("description")),
             raw_data=raw_data or None,
-            analyst_estimates=earnings_trend or None,
-            analyst_ratings=recommendation_trend or None,
+            analyst_estimates={"items": estimates[:4]} if estimates else None,
+            analyst_ratings={"items": ratings[:3]} if ratings else None,
             source=self.provider_name,
             data_available=bool(raw_data),
         )
 
     def load_sentiment(self, context: AgentContext) -> SentimentResearchSnapshot:
         symbol = context.symbol.upper()
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(hours=self.news_lookback_hours)
         try:
-            search_payload = self._get_object(
-                "/v1/finance/search",
-                {"q": symbol, "quotesCount": 0, "newsCount": self.news_limit},
+            news = self._get_list(
+                "/news/stock",
+                {
+                    "symbols": symbol,
+                    "from": start.date().isoformat(),
+                    "to": now.date().isoformat(),
+                    "limit": self.news_limit,
+                },
             )
-            analyst_payload = self._quote_summary(
-                symbol,
-                ("recommendationTrend",),
+            transcript_dates = self._safe_get_list(
+                "/earning-call-transcript-dates", {"symbol": symbol}
             )
+            transcripts = self._load_transcripts(symbol, transcript_dates[:2])
+            ratings = self._safe_get_list("/ratings-snapshot", {"symbol": symbol})
         except httpx.HTTPError:
             return SentimentResearchSnapshot(source=self.provider_name)
 
-        news = _dict_items(search_payload.get("news"))
         news_items, duplicate_count = _dedupe_news(news, self.news_limit)
+        transcript_summaries = tuple(
+            _transcript_summary(item) for item in transcripts[:2] if isinstance(item, dict)
+        )
         headlines = tuple(
             item["headline"] for item in news_items if isinstance(item.get("headline"), str)
         )
         source_weights = _source_weights(news_items)
-        recommendation_trend = _dict_or_empty(analyst_payload.get("recommendationTrend"))
         raw_data = _compact_payload(
             {
                 "newsItems": list(news_items),
-                "analystComments": recommendation_trend,
+                "transcriptSummaries": list(transcript_summaries),
+                "analystComments": ratings[:3],
                 "duplicateCount": duplicate_count,
                 "sourceWeights": source_weights,
             }
         )
         return SentimentResearchSnapshot(
-            summary=_sentiment_summary(len(news_items), 0),
+            summary=_sentiment_summary(len(news_items), len(transcript_summaries)),
             headlines=headlines,
             raw_data=raw_data or None,
             news_items=news_items,
-            analyst_comments=tuple(_dict_items(recommendation_trend.get("trend"))),
-            transcript_summaries=(),
+            analyst_comments=tuple(ratings[:3]),
+            transcript_summaries=transcript_summaries,
             source_weights=source_weights,
             time_weighting={
                 "lookbackHours": self.news_lookback_hours,
@@ -143,30 +151,46 @@ class YahooResearchProvider:
             duplicate_count=duplicate_count,
             source=self.provider_name,
             news_available=bool(news_items),
-            transcript_available=False,
+            transcript_available=bool(transcript_summaries),
         )
 
-    def _quote_summary(self, symbol: str, modules: tuple[str, ...]) -> dict[str, Any]:
-        payload = self._get_object(
-            f"/v10/finance/quoteSummary/{symbol}",
-            {"modules": ",".join(modules)},
-        )
-        result = _dict_or_empty(payload.get("quoteSummary")).get("result")
-        if isinstance(result, list) and result and isinstance(result[0], dict):
-            return result[0]
-        return {}
-
-    def _get_object(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _get_list(self, path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         response = self.client.get(
             f"{self.base_url}{path}",
-            params=params,
-            headers={"User-Agent": "trading-ai-framework/0.1"},
+            params={**params, "apikey": self.api_key},
         )
         response.raise_for_status()
         payload = response.json()
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
         if isinstance(payload, dict):
-            return payload
-        return {}
+            if isinstance(payload.get("data"), list):
+                return [item for item in payload["data"] if isinstance(item, dict)]
+            return [payload]
+        return []
+
+    def _safe_get_list(self, path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+        try:
+            return self._get_list(path, params)
+        except httpx.HTTPError:
+            return []
+
+    def _load_transcripts(
+        self, symbol: str, transcript_dates: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        transcripts: list[dict[str, Any]] = []
+        for item in transcript_dates:
+            year = item.get("year")
+            quarter = item.get("quarter")
+            if year is None or quarter is None:
+                continue
+            transcripts.extend(
+                self._safe_get_list(
+                    "/earning-call-transcript",
+                    {"symbol": symbol, "year": year, "quarter": quarter},
+                )
+            )
+        return transcripts
 
 
 def create_historical_agent_provider() -> AgentProvider:
@@ -194,10 +218,11 @@ def create_scads_pipeline_provider(
 
 
 def create_research_provider(settings: Settings) -> CompositeResearchProvider:
-    if settings.research_data_provider == "yahoo":
-        provider = YahooResearchProvider(
-            base_url=settings.yahoo_base_url,
-            timeout_seconds=settings.yahoo_request_timeout_seconds,
+    if settings.research_data_provider == "fmp" and settings.fmp_api_key:
+        provider = FmpResearchProvider(
+            api_key=settings.fmp_api_key,
+            base_url=settings.fmp_base_url,
+            timeout_seconds=settings.fmp_request_timeout_seconds,
             news_lookback_hours=settings.multi_agent_news_lookback_hours,
             news_limit=settings.multi_agent_news_limit,
         )
@@ -227,6 +252,10 @@ def _validated_model(settings: Settings, model_name: str | None) -> str:
             details={"modelName": selected_model, "allowedModels": allowed_models},
         )
     return selected_model
+
+
+def _first(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return items[0] if items else {}
 
 
 def _decimal_or_none(value: Any) -> Decimal | None:
@@ -259,7 +288,7 @@ def _dedupe_news(
         headline = _string_or_none(item.get("title") or item.get("headline"))
         if headline is None:
             continue
-        key = _string_or_none(item.get("url") or item.get("link")) or headline.lower()
+        key = _string_or_none(item.get("url")) or headline.lower()
         if key in seen:
             duplicate_count += 1
             continue
@@ -267,15 +296,25 @@ def _dedupe_news(
         items.append(
             {
                 "headline": headline,
-                "publishedAt": item.get("providerPublishTime"),
-                "source": item.get("publisher") or "Yahoo Finance",
-                "url": item.get("link"),
-                "snippet": _truncate(_string_or_none(item.get("summary")), 500),
+                "publishedAt": item.get("publishedDate") or item.get("date"),
+                "source": item.get("site") or item.get("publisher") or "FMP",
+                "url": item.get("url"),
+                "snippet": _truncate(_string_or_none(item.get("text")), 500),
             }
         )
         if len(items) >= limit:
             break
     return tuple(items), duplicate_count
+
+
+def _transcript_summary(item: dict[str, Any]) -> dict[str, Any]:
+    content = _string_or_none(item.get("content") or item.get("transcript"))
+    return {
+        "quarter": item.get("quarter"),
+        "year": item.get("year"),
+        "date": item.get("date"),
+        "contentPreview": _truncate(content, 1000),
+    }
 
 
 def _source_weights(news_items: tuple[dict[str, Any], ...]) -> dict[str, float]:
@@ -303,19 +342,3 @@ def _truncate(value: str | None, max_length: int) -> str | None:
     if value is None or len(value) <= max_length:
         return value
     return f"{value[:max_length].rstrip()}..."
-
-
-def _dict_or_empty(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _dict_items(value: Any) -> list[dict[str, Any]]:
-    if isinstance(value, list):
-        return [item for item in value if isinstance(item, dict)]
-    return []
-
-
-def _yahoo_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return value.get("raw") if "raw" in value else value.get("fmt")
-    return value
