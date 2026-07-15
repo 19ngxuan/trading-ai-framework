@@ -24,6 +24,9 @@ from app.persistence.repositories.portfolio_repository import PortfolioRepositor
 from app.persistence.repositories.portfolio_snapshot_repository import (
     PortfolioSnapshotRepository,
 )
+from app.persistence.repositories.research_data_cache_repository import (
+    ResearchDataCacheRepository,
+)
 from app.persistence.repositories.risk_check_repository import RiskCheckRepository
 from app.persistence.repositories.strategy_config_repository import (
     StrategyConfigRepository,
@@ -47,6 +50,7 @@ __all__ = [
     "OrderRepository",
     "PortfolioRepository",
     "PortfolioSnapshotRepository",
+    "ResearchDataCacheRepository",
     "RiskCheckRepository",
     "StrategyConfigRepository",
     "SystemEventLogRepository",

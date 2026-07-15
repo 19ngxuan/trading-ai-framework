@@ -10,6 +10,7 @@ from app.persistence.models.news_event_model import NewsEventModel
 from app.persistence.models.order_model import OrderModel
 from app.persistence.models.portfolio_model import PortfolioModel
 from app.persistence.models.portfolio_snapshot_model import PortfolioSnapshotModel
+from app.persistence.models.research_data_cache_model import ResearchDataCacheModel
 from app.persistence.models.risk_check_model import RiskCheckModel
 from app.persistence.models.strategy_config_model import StrategyConfigModel
 from app.persistence.models.system_event_log_model import SystemEventLogModel
@@ -29,6 +30,7 @@ __all__ = [
     "OrderModel",
     "PortfolioModel",
     "PortfolioSnapshotModel",
+    "ResearchDataCacheModel",
     "RiskCheckModel",
     "StrategyConfigModel",
     "SystemEventLogModel",

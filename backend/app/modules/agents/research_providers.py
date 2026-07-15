@@ -19,6 +19,10 @@ class FundamentalResearchSnapshot:
     analyst_ratings: dict[str, Any] | None = None
     source: str = "parameters"
     data_available: bool = False
+    cache_hits: int = 0
+    cache_misses: int = 0
+    stale_fallback_used: bool = False
+    provider_breakdown: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,10 @@ class SentimentResearchSnapshot:
     source: str = "parameters"
     news_available: bool = False
     transcript_available: bool = False
+    cache_hits: int = 0
+    cache_misses: int = 0
+    stale_fallback_used: bool = False
+    provider_breakdown: dict[str, Any] | None = None
 
 
 class FundamentalResearchProvider(Protocol):
@@ -167,4 +175,3 @@ def _dict_items(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, list):
         return [item for item in value if isinstance(item, dict)]
     return []
-

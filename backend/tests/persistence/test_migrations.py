@@ -48,7 +48,19 @@ def test_initial_migration_creates_documented_tables_and_trade_cardinality() -> 
             "risk_checks",
             "trades",
             "system_event_logs",
+            "research_data_cache",
         }.issubset(table_names)
+
+        research_cache_uniques = {
+            tuple(constraint["column_names"])
+            for constraint in inspector.get_unique_constraints("research_data_cache")
+        }
+        assert (
+            "provider",
+            "symbol",
+            "dataset",
+            "cache_key",
+        ) in research_cache_uniques
 
         unique_columns = {
             tuple(constraint["column_names"])

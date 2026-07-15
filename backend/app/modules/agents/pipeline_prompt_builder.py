@@ -170,6 +170,10 @@ class PipelinePromptBuilder(PromptBuilder):
             "transcriptDataAvailable": output.transcript_data_available,
             "intradayHistoryLength": output.intraday_history_length,
             "benchmarkHistoryLength": output.benchmark_history_length,
+            "researchCacheHits": output.research_cache_hits,
+            "researchCacheMisses": output.research_cache_misses,
+            "researchStaleFallbackUsed": output.research_stale_fallback_used,
+            "researchProviderBreakdown": output.research_provider_breakdown,
             "rationale": output.rationale,
         }
 
@@ -254,6 +258,10 @@ class PipelinePromptBuilder(PromptBuilder):
             "analystRatings": snapshot.analyst_ratings,
             "source": snapshot.source,
             "dataAvailable": snapshot.data_available,
+            "cacheHits": snapshot.cache_hits,
+            "cacheMisses": snapshot.cache_misses,
+            "staleFallbackUsed": snapshot.stale_fallback_used,
+            "providerBreakdown": snapshot.provider_breakdown,
         }
 
     def sentiment_research_json(
@@ -277,6 +285,10 @@ class PipelinePromptBuilder(PromptBuilder):
             "source": snapshot.source,
             "newsAvailable": snapshot.news_available,
             "transcriptAvailable": snapshot.transcript_available,
+            "cacheHits": snapshot.cache_hits,
+            "cacheMisses": snapshot.cache_misses,
+            "staleFallbackUsed": snapshot.stale_fallback_used,
+            "providerBreakdown": snapshot.provider_breakdown,
         }
 
     def _guarded_prompt(

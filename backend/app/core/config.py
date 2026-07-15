@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     fmp_api_key: str | None = None
     fmp_base_url: str = "https://financialmodelingprep.com/stable"
     fmp_request_timeout_seconds: int = 10
+    yahoo_base_url: str = "https://query1.finance.yahoo.com"
+    yahoo_request_timeout_seconds: int = 10
     multi_agent_news_lookback_hours: int = 24
     multi_agent_news_limit: int = 20
 
@@ -149,6 +151,10 @@ class Settings(BaseSettings):
             raise ValueError("FMP_BASE_URL must use HTTPS.")
         if self.fmp_request_timeout_seconds <= 0:
             raise ValueError("FMP_REQUEST_TIMEOUT_SECONDS must be greater than 0.")
+        if not self.yahoo_base_url.startswith("https://"):
+            raise ValueError("YAHOO_BASE_URL must use HTTPS.")
+        if self.yahoo_request_timeout_seconds <= 0:
+            raise ValueError("YAHOO_REQUEST_TIMEOUT_SECONDS must be greater than 0.")
         if self.multi_agent_news_lookback_hours <= 0:
             raise ValueError("MULTI_AGENT_NEWS_LOOKBACK_HOURS must be greater than 0.")
         if not 1 <= self.multi_agent_news_limit <= 50:

@@ -232,6 +232,20 @@ class AgentDecisionPipeline:
             transcript_data_available=sentiment_snapshot.transcript_available,
             intraday_history_length=len(intraday_history),
             benchmark_history_length=len(benchmark_history),
+            research_cache_hits=(
+                fundamental_snapshot.cache_hits + sentiment_snapshot.cache_hits
+            ),
+            research_cache_misses=(
+                fundamental_snapshot.cache_misses + sentiment_snapshot.cache_misses
+            ),
+            research_stale_fallback_used=(
+                fundamental_snapshot.stale_fallback_used
+                or sentiment_snapshot.stale_fallback_used
+            ),
+            research_provider_breakdown={
+                "fundamental": fundamental_snapshot.provider_breakdown,
+                "sentiment": sentiment_snapshot.provider_breakdown,
+            },
             rationale=(
                 "Collected framework-managed market data, benchmark context, optional "
                 "intraday context, and asset research context for the multi-agent workflow."

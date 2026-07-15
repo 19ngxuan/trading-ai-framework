@@ -57,6 +57,10 @@ class FetchedDataOutput:
     transcript_data_available: bool = False
     intraday_history_length: int = 0
     benchmark_history_length: int = 0
+    research_cache_hits: int = 0
+    research_cache_misses: int = 0
+    research_stale_fallback_used: bool = False
+    research_provider_breakdown: dict | None = None
 
 
 @dataclass(frozen=True)

@@ -748,7 +748,9 @@ class PaperTradingStepRunner:
             agent_mode = strategy_config.agent_mode or AgentMode.SINGLE_AGENT
             symbol = experiment.asset_symbol
             bar = self._agent_market_bar(experiment, execution_step)
-            agent_strategy = self._paper_agent_strategy(selected_model, agent_mode)
+            agent_strategy = self._paper_agent_strategy(
+                selected_model, agent_mode, session
+            )
             market_data = MarketDataSnapshotRepository(session).add(
                 MarketDataSnapshotModel(
                     execution_step_id=execution_step_id,
@@ -919,13 +921,13 @@ class PaperTradingStepRunner:
         )
 
     def _paper_agent_strategy(
-        self, model_name: str, agent_mode: AgentMode
+        self, model_name: str, agent_mode: AgentMode, session: Session | None = None
     ) -> AgenticAIStrategy:
         if self.agent_strategy is not None:
             return self.agent_strategy
         if agent_mode is AgentMode.PIPELINE:
             provider = create_scads_pipeline_provider(self.settings, model_name)
-            research_provider = create_research_provider(self.settings)
+            research_provider = create_research_provider(self.settings, session)
             return AgenticAIStrategy(
                 pipeline=AgentDecisionPipeline(
                     provider=provider,
